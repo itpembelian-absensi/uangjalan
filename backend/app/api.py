@@ -1197,6 +1197,11 @@ def finance_approve_sale(
         raise HTTPException(status_code=404, detail="Penjualan tidak ditemukan")
     if sale_finance_locked(obj):
         raise HTTPException(status_code=400, detail="Pembayaran uang jalan sudah disetujui.")
+    if not obj.vehicle_id or not obj.driver_id:
+        raise HTTPException(
+            status_code=400, 
+            detail="Tidak dapat menyetujui transaksi: kendaraan dan sopir harus diisi terlebih dahulu."
+        )
     obj.finance_paid_at = datetime.now(timezone.utc)
     obj.finance_paid_by = user.id
     db.commit()

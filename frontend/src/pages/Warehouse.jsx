@@ -122,7 +122,7 @@ const Warehouse = () => {
               <textarea className="form-input" rows={3} value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} readOnly={!canWrite} />
             </div>
             <div className="form-group">
-              <label className="form-label">Kota</label>
+              <label className="form-label">Kota/Kabupaten</label>
               <input className="form-input" value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} readOnly={!canWrite} />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>

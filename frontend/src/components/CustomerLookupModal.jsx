@@ -15,7 +15,7 @@ const formatCustomerCoords = (latitude, longitude) => {
 const SEARCH_FIELDS = [
   { id: 'code', label: 'Kode Customer' },
   { id: 'name', label: 'Nama Customer' },
-  { id: 'city', label: 'Kota' },
+  { id: 'city', label: 'Kota/Kabupaten' },
   { id: 'phone', label: 'Telepon' },
 ];
 
@@ -296,7 +296,7 @@ const CustomerLookupModal = ({
               <tr>
                 <th>Kode Customer</th>
                 <th>Nama Customer</th>
-                <th>Kota</th>
+                <th>Kota/Kabupaten</th>
                 <th>Koordinat</th>
                 <th>Telepon</th>
               </tr>

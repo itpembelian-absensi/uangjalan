@@ -916,7 +916,7 @@ const Customers = () => {
                     <div className="grid-cols-2" style={{ gap: '1rem' }}>
                       <div className="form-group" style={{ marginBottom: 0 }}>
                         <label className="form-label" style={{ textTransform: 'none' }}>
-                          Kota
+                          Kota/Kabupaten
                         </label>
                         <input
                           type="text"

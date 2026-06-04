@@ -282,6 +282,10 @@ const Sales = () => {
 
   const handleApprovePayment = async (sale) => {
     if (sale.is_finance_paid) return;
+    if (!sale.vehicle_id || !sale.driver_id) {
+      alert('Tidak dapat menyetujui transaksi: kendaraan dan sopir harus diisi terlebih dahulu.');
+      return;
+    }
     const msg = `Setujui pembayaran uang jalan ${sale.sale_no}? Rute terkait akan dikunci dan tidak dapat diubah lagi.`;
     if (!window.confirm(msg)) return;
     setFinanceActionId(sale.id);
