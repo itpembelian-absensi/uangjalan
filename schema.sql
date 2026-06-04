@@ -79,7 +79,6 @@ CREATE TABLE IF NOT EXISTS cash_disbursements (
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_cash_disbursements_delivery_note ON cash_disbursements(delivery_note_id);
 CREATE INDEX IF NOT EXISTS idx_cash_disbursements_disbursed_at ON cash_disbursements(disbursed_at);
 
 -- Users & role-based access
