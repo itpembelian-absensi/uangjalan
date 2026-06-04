@@ -1,0 +1,57 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, uangjalan]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check .env exists
+        run: |
+          if [ ! -f .env ]; then
+            echo "ERROR: .env file not found!"
+            echo "Copy .env.production.example to .env and fill in the values."
+            exit 1
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        run: |
+          npm ci
+          npm run build
+        working-directory: frontend
+
+      - name: Restart containers
+        run: docker compose up -d --force-recreate --remove-orphans
+
+      - name: Wait for services
+        run: |
+          echo "Waiting for backend..."
+          sleep 5
+          for i in $(seq 1 20); do
+            if curl -s http://localhost:3215/api/auth/me > /dev/null 2>&1; then
+              echo "Services ready!"
+              break
+            fi
+            sleep 2
+          done
+
+      - name: Verify
+        run: |
+          echo "=== Deployment Status ==="
+          docker compose ps
+          echo ""
+          echo "App accessible at http://localhost:3215"
