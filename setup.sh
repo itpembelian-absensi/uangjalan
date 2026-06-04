@@ -29,7 +29,7 @@ fi
 echo ""
 echo "[3/5] Building frontend..."
 cd frontend
-npm ci
+npm install
 npm run build
 cd ..
 echo "Frontend built -> frontend/dist/"
