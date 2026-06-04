@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="grid">
+    <div class="card">
+      <h2 style="margin:0 0 10px">Laporan Pengeluaran</h2>
+      <form method="get" action="/ui/reports">
+        <div class="row">
+          <div class="col-3">
+            <label>Dari tanggal</label>
+            <input type="date" name="from" value="{{ from_date or '' }}" />
+          </div>
+          <div class="col-3">
+            <label>Sampai tanggal</label>
+            <input type="date" name="to" value="{{ to_date or '' }}" />
+          </div>
+          <div class="col-3">
+            <label>Filter supir (detail)</label>
+            <select name="driver_id">
+              <option value="">Semua</option>
+              {% for d in drivers %}
+                <option value="{{ d.id }}" {% if driver_id == d.id %}selected{% endif %}>{{ d.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-3">
+            <label>Filter customer (detail)</label>
+            <select name="customer_id">
+              <option value="">Semua</option>
+              {% for c in customers %}
+                <option value="{{ c.id }}" {% if customer_id == c.id %}selected{% endif %}>{{ c.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-12" style="display:flex; gap:8px; align-items:center;">
+            <button type="submit">Tampilkan</button>
+            <a class="btn-secondary" href="/ui/reports/export.csv?from={{ from_date or '' }}&to={{ to_date or '' }}&driver_id={{ driver_id or '' }}&customer_id={{ customer_id or '' }}">Export CSV</a>
+          </div>
+        </div>
+      </form>
+      <div class="muted" style="margin-top:8px">Kosongkan tanggal untuk menampilkan semua periode.</div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 10px">Rekap per Supir</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Supir</th>
+            <th class="right">Jumlah SJ</th>
+            <th class="right">Total Pengeluaran</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in by_driver %}
+            <tr>
+              <td>{{ r.driver_name }}</td>
+              <td class="right">{{ r.delivery_count }}</td>
+              <td class="right">{{ r.total_amount|idr }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="3" class="muted">Tidak ada data.</td></tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <th>Total</th>
+            <th></th>
+            <th class="right">{{ total_driver|idr }}</th>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 10px">Rekap per Customer</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Customer</th>
+            <th class="right">Jumlah SJ</th>
+            <th class="right">Total Pengeluaran</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in by_customer %}
+            <tr>
+              <td>{{ r.customer_name }}</td>
+              <td class="right">{{ r.delivery_count }}</td>
+              <td class="right">{{ r.total_amount|idr }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="3" class="muted">Tidak ada data.</td></tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <th>Total</th>
+            <th></th>
+            <th class="right">{{ total_customer|idr }}</th>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 10px">Detail Surat Jalan</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>No SJ</th>
+            <th>Tanggal</th>
+            <th>Customer</th>
+            <th>Supir</th>
+            <th>Plat</th>
+            <th class="right">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in details %}
+            <tr>
+              <td>{{ r.delivery_no }}</td>
+              <td>{{ r.delivery_date }}</td>
+              <td>{{ r.customer_name }}</td>
+              <td>{{ r.driver_name }}</td>
+              <td>{{ r.plate_number }}</td>
+              <td class="right">{{ r.total_amount|idr }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="6" class="muted">Tidak ada data.</td></tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <th colspan="5">Total</th>
+            <th class="right">{{ total_detail|idr }}</th>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+{% endblock %}

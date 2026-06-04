@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="grid">
+    <div class="card">
+      <h2 style="margin:0 0 6px">Mulai</h2>
+      <div class="muted">Isi master dulu, lalu input surat jalan, lalu input pengeluaran.</div>
+    </div>
+    <div class="card">
+      <h3 style="margin:0 0 8px">Urutan yang disarankan</h3>
+      <ol>
+        <li>Customer</li>
+        <li>Merek kendaraan</li>
+        <li>Jenis kendaraan</li>
+        <li>Kendaraan (plat)</li>
+        <li>Supir</li>
+        <li>Surat Jalan (nomor + tanggal)</li>
+        <li>Pengeluaran uang pengiriman</li>
+        <li><a href="/ui/reports">Laporan</a> (rekap & filter tanggal)</li>
+      </ol>
+    </div>
+  </div>
+{% endblock %}
+

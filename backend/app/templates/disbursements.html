@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="grid">
+    <div class="card">
+      <h2 style="margin:0 0 10px">Pengeluaran Uang Jalan</h2>
+      <form method="post" action="/ui/disbursements">
+        <div class="row">
+          <div class="col-4">
+            <label>Customer</label>
+            <select name="customer_id" required>
+              {% for c in customers %}
+                <option value="{{ c.id }}">{{ c.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-3">
+            <label>Jenis kendaraan</label>
+            <select name="vehicle_type_id">
+              <option value="">-</option>
+              {% for t in types %}
+                <option value="{{ t.id }}">{{ t.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-3">
+            <label>Nominal</label>
+            <input type="number" step="0.01" min="0.01" name="amount" placeholder="100000" required />
+          </div>
+          <div class="col-6">
+            <label>Keterangan (opsional)</label>
+            <input name="description" placeholder="Uang jalan" />
+          </div>
+          <div class="col-12">
+            <button type="submit">Simpan</button>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 10px">Filter Riwayat</h3>
+      <form method="get" action="/ui/disbursements">
+        <div class="row">
+          <div class="col-3">
+            <label>Dari tanggal</label>
+            <input type="date" name="from" value="{{ from_date or '' }}" />
+          </div>
+          <div class="col-3">
+            <label>Sampai tanggal</label>
+            <input type="date" name="to" value="{{ to_date or '' }}" />
+          </div>
+          <div class="col-3" style="display:flex; align-items:end;">
+            <button type="submit">Filter</button>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 10px">Riwayat Pengeluaran</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Tanggal</th>
+            <th>Customer</th>
+            <th>Jenis</th>
+            <th class="right">Nominal</th>
+            <th>Keterangan</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for x in items %}
+            <tr>
+              <td>{{ x.disbursed_at }}</td>
+              <td>{{ x.customer_name }}</td>
+              <td>{{ x.vehicle_type_name }}</td>
+              <td class="right">{{ x.amount|idr }}</td>
+              <td>{{ x.description or "" }}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="5" class="muted">Belum ada data.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endblock %}

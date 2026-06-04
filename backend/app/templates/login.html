@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="grid">
+    <div class="card" style="max-width:520px;">
+      <h2 style="margin:0 0 10px">Login</h2>
+      {% if error %}
+        <div style="margin-bottom:10px; padding:10px; border:1px solid #fecaca; background:#fef2f2; border-radius:10px; color:#991b1b;">
+          {{ error }}
+        </div>
+      {% endif %}
+      <form method="post" action="/ui/login">
+        <div class="row">
+          <div class="col-12">
+            <label>Username</label>
+            <input name="username" required />
+          </div>
+          <div class="col-12">
+            <label>Password</label>
+            <input name="password" type="password" required />
+          </div>
+          <div class="col-12">
+            <label style="display:flex;align-items:center;gap:8px;font-size:14px;text-transform:none;letter-spacing:0;">
+              <input name="remember_me" type="checkbox" value="1" style="width:auto;" />
+              Auto Login (ingat saya)
+            </label>
+          </div>
+          <div class="col-12">
+            <button type="submit">Masuk</button>
+          </div>
+        </div>
+      </form>
+      <div class="muted" style="margin-top:10px">
+        Hubungi Admin untuk mendapatkan akun login.
+      </div>
+    </div>
+  </div>
+{% endblock %}
+

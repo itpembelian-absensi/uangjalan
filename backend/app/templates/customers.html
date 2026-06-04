@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="grid">
+    <div class="card">
+      <h2 style="margin:0 0 10px">Master Customer</h2>
+      <form method="post" action="/ui/customers">
+        <div class="row">
+          <div class="col-6">
+            <label>Nama customer</label>
+            <input name="name" placeholder="Contoh: PT ABC" required />
+          </div>
+          <div class="col-6" style="display:flex; align-items:end;">
+            <button type="submit">Simpan</button>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 10px">Daftar Customer</h3>
+      <table>
+        <thead><tr><th>ID</th><th>Nama</th><th></th></tr></thead>
+        <tbody>
+          {% for c in items %}
+            <tr>
+              <td>{{ c.id }}</td>
+              <td>
+                <form method="post" action="/ui/customers/{{ c.id }}/update" style="display:flex; gap:8px;">
+                  <input name="name" value="{{ c.name }}" required />
+                  <button type="submit" class="btn-secondary btn-sm">Update</button>
+                </form>
+              </td>
+              <td class="right">
+                <form method="post" action="/ui/customers/{{ c.id }}/delete" onsubmit="return confirm('Hapus customer ini?');">
+                  <button type="submit" class="btn-danger btn-sm">Hapus</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endblock %}
+

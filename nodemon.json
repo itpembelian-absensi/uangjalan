@@ -1,0 +1,14 @@
+{
+  "watch": [
+    "backend/app",
+    "backend/.env",
+    "frontend/vite.config.js",
+    "scripts",
+    "package.json"
+  ],
+  "ext": "py,env,js,cjs,json",
+  "delay": 2500,
+  "exec": "node scripts/dev-once.cjs",
+  "signal": "SIGTERM",
+  "verbose": false
+}

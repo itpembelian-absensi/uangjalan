@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="grid">
+    <div class="card">
+      <h2 style="margin:0 0 10px">Master Supir</h2>
+      <form method="post" action="/ui/drivers">
+        <div class="row">
+          <div class="col-6">
+            <label>Nama supir</label>
+            <input name="name" placeholder="Nama supir" required />
+          </div>
+          <div class="col-6">
+            <label>No HP (opsional)</label>
+            <input name="phone" placeholder="08xxxx" />
+          </div>
+          <div class="col-12">
+            <button type="submit">Simpan</button>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 10px">Daftar Supir</h3>
+      <table>
+        <thead><tr><th>ID</th><th>Nama</th><th>No HP</th><th></th></tr></thead>
+        <tbody>
+          {% for d in items %}
+            <tr>
+              <td>{{ d.id }}</td>
+              <td style="min-width:240px;">
+                <form method="post" action="/ui/drivers/{{ d.id }}/update" style="display:flex; gap:8px;">
+                  <input name="name" value="{{ d.name }}" required />
+                  <button type="submit" class="btn-secondary btn-sm">Update</button>
+                </form>
+              </td>
+              <td style="min-width:200px;">
+                <form method="post" action="/ui/drivers/{{ d.id }}/update" style="display:flex; gap:8px;">
+                  <input name="name" value="{{ d.name }}" hidden />
+                  <input name="phone" value="{{ d.phone or '' }}" />
+                  <button type="submit" class="btn-secondary btn-sm">Update HP</button>
+                </form>
+              </td>
+              <td class="right">
+                <form method="post" action="/ui/drivers/{{ d.id }}/delete" onsubmit="return confirm('Hapus supir ini?');">
+                  <button type="submit" class="btn-danger btn-sm">Hapus</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endblock %}
+

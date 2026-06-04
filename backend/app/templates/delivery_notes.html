@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="grid">
+    <div class="card">
+      <h2 style="margin:0 0 10px">Surat Jalan</h2>
+      <form method="post" action="/ui/delivery-notes">
+        <div class="row">
+          <div class="col-3">
+            <label>No surat jalan</label>
+            <input name="delivery_no" placeholder="SJ-0001" required />
+          </div>
+          <div class="col-3">
+            <label>Tanggal</label>
+            <input type="date" name="delivery_date" value="{{ today }}" required />
+          </div>
+          <div class="col-3">
+            <label>Customer</label>
+            <select name="customer_id" required>
+              {% for c in customers %}
+                <option value="{{ c.id }}">{{ c.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-3">
+            <label>Supir</label>
+            <select name="driver_id" required>
+              {% for d in drivers %}
+                <option value="{{ d.id }}">{{ d.name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-6">
+            <label>Kendaraan (plat)</label>
+            <select name="vehicle_id" required>
+              {% for v in vehicles %}
+                <option value="{{ v.id }}">{{ v.plate_number }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-6">
+            <label>Keterangan (opsional)</label>
+            <input name="remarks" placeholder="Catatan" />
+          </div>
+          <div class="col-12">
+            <button type="submit">Simpan</button>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 10px">Filter Daftar</h3>
+      <form method="get" action="/ui/delivery-notes">
+        <div class="row">
+          <div class="col-3">
+            <label>Dari tanggal</label>
+            <input type="date" name="from" value="{{ from_date or '' }}" />
+          </div>
+          <div class="col-3">
+            <label>Sampai tanggal</label>
+            <input type="date" name="to" value="{{ to_date or '' }}" />
+          </div>
+          <div class="col-3" style="display:flex; align-items:end;">
+            <button type="submit">Filter</button>
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0 0 10px">Daftar Surat Jalan</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>No SJ</th>
+            <th>Tanggal</th>
+            <th>Customer</th>
+            <th>Supir</th>
+            <th>Plat</th>
+            <th class="right">Total</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for n in notes %}
+            <tr>
+              <td><a href="/ui/delivery-notes/{{ n.id }}">{{ n.delivery_no }}</a></td>
+              <td>{{ n.delivery_date }}</td>
+              <td>{{ customer_map.get(n.customer_id, n.customer_id) }}</td>
+              <td>{{ driver_map.get(n.driver_id, n.driver_id) }}</td>
+              <td>{{ vehicle_map.get(n.vehicle_id, n.vehicle_id) }}</td>
+              <td class="right">{{ totals.get(n.id, 0)|idr }}</td>
+              <td><a href="/ui/delivery-notes/{{ n.id }}">Detail</a></td>
+            </tr>
+          {% else %}
+            <tr><td colspan="7" class="muted">Belum ada data.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endblock %}
