@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ChevronDown, ChevronRight, LogOut } from 'lucide-react';
+import { ChevronDown, ChevronRight, Database, LogOut } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { MenuIcon } from '../config/menuIcons.jsx';
 
@@ -90,6 +90,13 @@ const Sidebar = () => {
 
   const [collapsedSections, setCollapsedSections] = useState(() => loadCollapsedSet(STORAGE_SECTIONS));
   const [collapsedGroups, setCollapsedGroups] = useState(() => loadCollapsedSet(STORAGE_GROUPS));
+  const [dbToolsAvailable, setDbToolsAvailable] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/db-tools/status', { credentials: 'include' })
+      .then((r) => { if (r.ok) setDbToolsAvailable(true); })
+      .catch(() => {});
+  }, []);
 
   const handleLogout = async () => {
     await logout();
@@ -278,6 +285,12 @@ const Sidebar = () => {
       </nav>
 
       <div className="sidebar-footer">
+        {dbToolsAvailable && (
+          <Link to="/db-tools" className={`nav-link ${pathname === '/db-tools' ? 'active' : ''}`} style={{ marginBottom: '0.5rem', fontSize: '0.85rem' }}>
+            <Database size={16} />
+            <span>DB Tools</span>
+          </Link>
+        )}
         <button type="button" className="logout-btn" onClick={handleLogout}>
           <LogOut size={18} />
           <span>Logout</span>

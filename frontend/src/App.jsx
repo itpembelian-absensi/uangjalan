@@ -21,6 +21,7 @@ import TollGolongan from './pages/TollGolongan';
 import Bbm from './pages/Bbm';
 import Users from './pages/Users';
 import AccessMatrix from './pages/AccessMatrix';
+import DbTools from './pages/DbTools';
 
 function App() {
   return (
@@ -48,6 +49,7 @@ function App() {
               <Route path="reports" element={<Reports />} />
               <Route path="users" element={<Users />} />
               <Route path="access-matrix" element={<AccessMatrix />} />
+              <Route path="db-tools" element={<DbTools />} />
             </Route>
           </Route>
         </Routes>
