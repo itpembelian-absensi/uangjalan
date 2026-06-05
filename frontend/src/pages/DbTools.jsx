@@ -205,8 +205,8 @@ const DbTools = () => {
                   color: backupJob.status === 'completed' ? '#059669' :
                          backupJob.status === 'failed' ? '#dc2626' : '#d97706'
                 }}>
-                  {backupJob.status === 'completed' ? '✓ Selesai' :
-                   backupJob.status === 'failed' ? '✗ Gagal' : '⏳ Proses...'}
+                  {backupJob.status === 'completed' ? 'Selesai' :
+                   backupJob.status === 'failed' ? 'Gagal' : 'Proses...'}
                 </span>
               </div>
               {backupJob.file_size && (
@@ -256,7 +256,7 @@ const DbTools = () => {
           </div>
 
           <p style={{ fontSize: '0.8rem', color: '#dc2626', marginBottom: '1rem' }}>
-            ⚠️ Database akan dihapus total (skema + data) lalu diisi ulang dari file.
+            Database akan dihapus total (skema + data) lalu diisi ulang dari file.
           </p>
 
           <button
