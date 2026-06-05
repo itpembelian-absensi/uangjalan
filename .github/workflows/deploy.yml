@@ -33,6 +33,17 @@ jobs:
           test -d /srv/docker/uangjalan
           test -f /srv/docker/uangjalan/.env
 
+      # Pull dulu — deploy.sh baru belum ada di server sebelum sync ini
+      - name: Sync code
+        env:
+          DEPLOY_PATH: /srv/docker/uangjalan
+          GIT_SHA: ${{ github.sha }}
+          BRANCH: main
+        run: |
+          cd "${DEPLOY_PATH}"
+          git fetch origin "${BRANCH}"
+          git reset --hard "${GIT_SHA}"
+
       - name: Deploy
         env:
           DEPLOY_PATH: /srv/docker/uangjalan
