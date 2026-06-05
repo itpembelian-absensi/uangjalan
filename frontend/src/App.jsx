@@ -29,6 +29,7 @@ function App() {
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/db-tools" element={<DbTools />} />
           <Route element={<ProtectedLayout />}>
             <Route path="/" element={<Layout />}>
               <Route index element={<Dashboard />} />
@@ -49,7 +50,6 @@ function App() {
               <Route path="reports" element={<Reports />} />
               <Route path="users" element={<Users />} />
               <Route path="access-matrix" element={<AccessMatrix />} />
-              <Route path="db-tools" element={<DbTools />} />
             </Route>
           </Route>
         </Routes>
