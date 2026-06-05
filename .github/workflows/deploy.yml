@@ -1,57 +1,41 @@
 name: Deploy
 
+# Self-hosted runner — job jalan di server, sama pola dengan sjsstore.
+#
+# Setup sekali di server:
+#   cd /srv/docker/uangjalan
+#   cp .env.production.example .env
+#   npm install && npm run build   # di frontend/
+#   docker compose up -d
+#
+# .env tetap di folder project — deploy pakai git reset --hard (tanpa git clean).
+
 on:
   push:
     branches: [main]
   workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
 
 jobs:
   deploy:
     runs-on: [self-hosted, uangjalan]
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Check .env exists
+      - name: Preflight
         run: |
-          if [ ! -f .env ]; then
-            echo "ERROR: .env file not found!"
-            echo "Copy .env.production.example to .env and fill in the values."
-            exit 1
-          fi
+          command -v docker >/dev/null
+          command -v npm >/dev/null
+          command -v git >/dev/null
+          docker compose version
+          test -d /srv/docker/uangjalan
+          test -f /srv/docker/uangjalan/.env
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "npm"
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Build frontend
-        run: |
-          npm install
-          npm run build
-        working-directory: frontend
-
-      - name: Restart containers
-        run: docker compose up -d --force-recreate --remove-orphans
-
-      - name: Wait for services
-        run: |
-          echo "Waiting for backend..."
-          sleep 5
-          for i in $(seq 1 20); do
-            if curl -s http://localhost:3215/api/auth/me > /dev/null 2>&1; then
-              echo "Services ready!"
-              break
-            fi
-            sleep 2
-          done
-
-      - name: Verify
-        run: |
-          echo "=== Deployment Status ==="
-          docker compose ps
-          echo ""
-          echo "App accessible at http://localhost:3215"
+      - name: Deploy
+        env:
+          DEPLOY_PATH: /srv/docker/uangjalan
+          GIT_SHA: ${{ github.sha }}
+          BRANCH: main
+        run: bash "${DEPLOY_PATH}/scripts/deploy.sh"

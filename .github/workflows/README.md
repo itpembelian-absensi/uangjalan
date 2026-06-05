@@ -9,16 +9,20 @@ Requirement di server:
 - Docker & Docker Compose
 - Itu saja
 
-### 2. GitHub Secrets
-Buka **Settings > Secrets and variables > Actions**, tambahkan:
+### 2. File `.env` di server
 
-| Secret             | Contoh             | Keterangan          |
-|--------------------|--------------------|---------------------|
-| DB_PASSWORD        | strong-pg-pass     | Password PostgreSQL |
-| SESSION_SECRET     | random-string-32   | Session encryption  |
-| ADMIN_USERNAME     | admin              | Default admin user  |
-| ADMIN_PASSWORD     | secure-pass        | Default admin pass  |
-| GOOGLE_MAPS_API_KEY| (opsional)         | Google Maps API     |
+Sama seperti **sjsstore**: `.env` tetap di **`/srv/docker/uangjalan/.env`** (tidak perlu dipindah).
+
+```bash
+cd /srv/docker/uangjalan
+cp .env.production.example .env
+nano .env
+chmod 600 .env
+```
+
+Deploy memakai `scripts/deploy.sh` → `git reset --hard` di folder deploy. **Tidak** pakai `actions/checkout`, jadi `git clean` tidak jalan dan `.env` tidak terhapus.
+
+> Kenapa workflow lama bermasalah? `actions/checkout` menjalankan `git clean -ffdx` yang menghapus file untracked (termasuk `.env` di-ignore). sjsstore dari awal sudah hindari itu dengan deploy langsung ke path tetap.
 
 ## Arsitektur
 
