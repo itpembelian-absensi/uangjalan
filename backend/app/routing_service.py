@@ -598,49 +598,59 @@ def calculate_route(
     dest_lat: float,
     dest_lng: float,
     sections: list[dict] | None = None,
+    force_toll: bool = False,
 ) -> dict:
-    url = f"{OSRM_BASE}/{origin_lng},{origin_lat};{dest_lng},{dest_lat}?overview=full&geometries=geojson&steps=true"
+    url = f"{OSRM_BASE}/{origin_lng},{origin_lat};{dest_lng},{dest_lat}?overview=full&geometries=geojson&steps=true&alternatives=3"
     data = _http_get_json(url)
     if data.get("code") != "Ok" or not data.get("routes"):
         raise HTTPException(status_code=400, detail="Rute tidak ditemukan antara gudang dan customer")
 
-    route = data["routes"][0]
-    distance_km = round(float(route["distance"]) / 1000, 2)
-    duration_min = round(float(route["duration"]) / 60, 1)
-    coords = route["geometry"]["coordinates"]
-    geometry = [[lat, lng] for lng, lat in coords]
+    def check_uses_toll(r: dict) -> bool:
+        for leg in r.get("legs", []):
+            for step in leg.get("steps", []):
+                name = step.get("name", "").lower()
+                ref = step.get("ref", "").lower()
+                if "tol " in name or name.startswith("tol") or "toll" in name:
+                    return True
+                if "tol " in ref or ref.startswith("tol") or "toll" in ref:
+                    return True
+                for inter in step.get("intersections", []):
+                    if "toll" in inter.get("classes", []):
+                        return True
+        return False
 
-    # Cek apakah rute OSRM melewati jalan tol
-    uses_toll = False
-    for leg in route.get("legs", []):
-        for step in leg.get("steps", []):
-            name = step.get("name", "").lower()
-            ref = step.get("ref", "").lower()
-            if "tol " in name or name.startswith("tol") or "toll" in name:
+    selected_route = data["routes"][0]
+    uses_toll = check_uses_toll(selected_route)
+
+    if force_toll and not uses_toll:
+        for r in data["routes"][1:]:
+            if check_uses_toll(r):
+                selected_route = r
                 uses_toll = True
                 break
-            if "tol " in ref or ref.startswith("tol") or "toll" in ref:
-                uses_toll = True
-                break
-            for inter in step.get("intersections", []):
-                if "toll" in inter.get("classes", []):
-                    uses_toll = True
-                    break
-        if uses_toll:
-            break
+
+    distance_km = round(float(selected_route["distance"]) / 1000, 2)
+    duration_min = round(float(selected_route["duration"]) / 60, 1)
+    coords = selected_route["geometry"]["coordinates"]
+    geometry = [[lat, lng] for lng, lat in coords]
 
     sections = sections or _default_sections_from_settings()
     google_toll = _google_toll_idr(origin_lat, origin_lng, dest_lat, dest_lng)
     
-    if google_toll is not None:
+    if google_toll and google_toll > 0:
         toll_idr = google_toll * 2
         toll_is_estimate = False
         toll_note = "Tarif tol Pulang-Pergi dari Google Maps (Golongan II/III). Kendaraan Gol IV/V disesuaikan proporsional."
+    elif google_toll is not None and not force_toll:
+        toll_idr = 0.0
+        toll_is_estimate = True
+        toll_note = "Rute dari Google Maps tidak melewati jalan tol."
     else:
-        if uses_toll:
+        if uses_toll or force_toll:
             toll_idr = estimate_jabodetabek_toll(distance_km, "II", sections) * 2
             toll_is_estimate = True
-            toll_note = TOLL_NOTE_JABODETABEK + " (Dikali 2 untuk Pulang-Pergi)."
+            note_suffix = " (Asumsi lewat tol manual, dikali 2 untuk Pulang-Pergi)." if force_toll else " (Dikali 2 untuk Pulang-Pergi)."
+            toll_note = TOLL_NOTE_JABODETABEK + note_suffix
         else:
             toll_idr = 0.0
             toll_is_estimate = True

@@ -274,6 +274,7 @@ const Customers = () => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editId, setEditId] = useState(null);
+  const [forceToll, setForceToll] = useState(false);
 
   const [form, setForm] = useState({
     code: '',
@@ -324,12 +325,25 @@ const Customers = () => {
       .catch(() => setTollReference(null));
   }, [isModalOpen]);
 
+  useEffect(() => {
+    const handlePopState = () => {
+      if (isModalOpen) {
+        setIsModalOpen(false);
+        setRouteInfo(null);
+        setRouteError('');
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [isModalOpen]);
+
   const openModal = async (customer = null) => {
     if (!canWrite) return;
     if (customer) {
       setEditId(customer.id);
       try {
         const full = await apiFetch(`/api/customers/${customer.id}`);
+        setForceToll(full.force_toll || false);
         setForm({
           code: full.code || '',
           name: full.name || '',
@@ -350,6 +364,7 @@ const Customers = () => {
       }
     } else {
       setEditId(null);
+      setForceToll(false);
       setForm({
         code: '',
         name: '',
@@ -364,6 +379,9 @@ const Customers = () => {
         is_active: true,
         tariffs: buildTariffRows(vehicleTypes),
       });
+    }
+    if (window.location.hash !== '#modal') {
+      window.history.pushState(null, '', window.location.pathname + '#modal');
     }
     setIsModalOpen(true);
   };
@@ -383,9 +401,13 @@ const Customers = () => {
     !Number.isNaN(parseFloat(form.longitude));
 
   const closeModal = () => {
-    setIsModalOpen(false);
-    setRouteInfo(null);
-    setRouteError('');
+    if (window.location.hash === '#modal') {
+      window.history.back();
+    } else {
+      setIsModalOpen(false);
+      setRouteInfo(null);
+      setRouteError('');
+    }
   };
 
   const fetchRouteInfo = async () => {
@@ -406,6 +428,7 @@ const Customers = () => {
         latitude: parseFloat(form.latitude),
         longitude: parseFloat(form.longitude),
         name: form.name || 'Customer',
+        force_toll: forceToll,
       };
       if (editId) body.customer_id = editId;
 
@@ -433,7 +456,7 @@ const Customers = () => {
       fetchRouteInfo();
     }, 600);
     return () => clearTimeout(timer);
-  }, [isModalOpen, form.latitude, form.longitude, editId]);
+  }, [form.latitude, form.longitude, isModalOpen, form.name, forceToll]);
 
   useEffect(() => {
     if (!isModalOpen || !routeInfo?.distance_km || vehicleTypes.length === 0) return;
@@ -563,6 +586,7 @@ const Customers = () => {
       phone: form.phone || null,
       email: form.email || null,
       is_active: form.is_active,
+      force_toll: forceToll,
       latitude: form.latitude ? parseFloat(form.latitude) : null,
       longitude: form.longitude ? parseFloat(form.longitude) : null,
       tariffs: tariffPayloadRows(form.tariffs),
@@ -796,6 +820,7 @@ const Customers = () => {
               <SortableTh label="NAMA" column="name" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
               <SortableTh label="KOORDINAT" column="coords" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
               <SortableTh label="TELEPON" column="phone" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+              <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 600, fontSize: '0.75rem', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>TOL</th>
               <SortableTh label="STATUS" column="is_active" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
               <CrudActionsHeader canWrite={canWrite} label="AKSI" />
             </tr>
@@ -803,7 +828,7 @@ const Customers = () => {
           <tbody>
             {loadingCustomers ? (
               <tr>
-                <td colSpan={canWrite ? 6 : 5} style={{ textAlign: 'center', opacity: 0.5, padding: '2rem' }}>
+                <td colSpan={canWrite ? 7 : 6} style={{ textAlign: 'center', opacity: 0.5, padding: '2rem' }}>
                   Memuat data customer...
                 </td>
               </tr>
@@ -825,6 +850,13 @@ const Customers = () => {
                   )}
                 </td>
                 <td>{c.phone || '-'}</td>
+                <td>
+                  {c.force_toll ? (
+                    <span className="badge" style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', border: '1px solid rgba(59, 130, 246, 0.3)' }}>Asumsi Tol</span>
+                  ) : (
+                    <span className="badge" style={{ background: 'rgba(107, 114, 128, 0.1)', color: '#6b7280', border: '1px solid rgba(107, 114, 128, 0.2)' }}>Normal</span>
+                  )}
+                </td>
                 <td>
                   {c.is_active ? (
                     <span className="badge badge-green">Aktif</span>
@@ -854,7 +886,7 @@ const Customers = () => {
             )}
             {!loadingCustomers && displayCustomers.length === 0 && (
               <tr>
-                <td colSpan={canWrite ? 6 : 5} style={{ textAlign: 'center', opacity: 0.5, padding: '2rem' }}>
+                <td colSpan={canWrite ? 7 : 6} style={{ textAlign: 'center', opacity: 0.5, padding: '2rem' }}>
                   Tidak ada data customer
                 </td>
               </tr>
@@ -1064,16 +1096,26 @@ const Customers = () => {
                         <label className="form-label" style={{ textTransform: 'none', marginBottom: 0 }}>
                           Tarif Uang Jalan per Jenis Kendaraan
                         </label>
-                        {routeInfo && (
-                          <button
-                            type="button"
-                            className="btn btn-secondary"
-                            style={{ fontSize: '0.85rem', padding: '0.35rem 0.75rem' }}
-                            onClick={autoFillBbmTol}
-                          >
-                            Isi BBM &amp; Tol dari rute
-                          </button>
-                        )}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+                            <input
+                              type="checkbox"
+                              checked={forceToll}
+                              onChange={(e) => setForceToll(e.target.checked)}
+                            />
+                            Asumsikan lewat jalan Tol
+                          </label>
+                          {routeInfo && (
+                            <button
+                              type="button"
+                              className="btn btn-secondary"
+                              style={{ fontSize: '0.85rem', padding: '0.35rem 0.75rem' }}
+                              onClick={autoFillBbmTol}
+                            >
+                              Isi BBM &amp; Tol dari rute
+                            </button>
+                          )}
+                        </div>
                       </div>
                       <div
                         className="table-container"

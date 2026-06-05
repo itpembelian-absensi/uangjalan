@@ -366,6 +366,7 @@ def _serialize_customer(db: Session, customer: Customer) -> CustomerOut:
         phone=customer.phone,
         email=customer.email,
         is_active=customer.is_active,
+        force_toll=customer.force_toll,
         latitude=float(customer.latitude) if customer.latitude is not None else None,
         longitude=float(customer.longitude) if customer.longitude is not None else None,
         tariffs=tariffs,
@@ -385,6 +386,7 @@ def _serialize_customer_list(customer: Customer) -> CustomerListOut:
         city=customer.city,
         latitude=float(customer.latitude) if customer.latitude is not None else None,
         longitude=float(customer.longitude) if customer.longitude is not None else None,
+        force_toll=customer.force_toll,
     )
 
 
@@ -461,6 +463,7 @@ def create_customer(payload: CustomerCreate, db: Session = Depends(get_db)):
         phone=payload.phone.strip() if payload.phone else None,
         email=payload.email.strip() if payload.email else None,
         is_active=payload.is_active,
+        force_toll=payload.force_toll,
         latitude=payload.latitude,
         longitude=payload.longitude,
     )
@@ -494,6 +497,7 @@ def update_customer(customer_id: int, payload: CustomerCreate, db: Session = Dep
     obj.phone = payload.phone.strip() if payload.phone else None
     obj.email = payload.email.strip() if payload.email else None
     obj.is_active = payload.is_active
+    obj.force_toll = payload.force_toll
     obj.latitude = payload.latitude
     obj.longitude = payload.longitude
 
@@ -1612,7 +1616,7 @@ def process_route(payload: RouteProcessRequest, db: Session = Depends(get_db)):
         db.commit()
 
     sections = _load_active_toll_sections(db)
-    route = calculate_route(origin_lat, origin_lng, dest_lat, dest_lng, sections=sections)
+    route = calculate_route(origin_lat, origin_lng, dest_lat, dest_lng, sections=sections, force_toll=payload.force_toll)
 
     if customer is not None:
         customer_name = customer.name

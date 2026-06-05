@@ -33,6 +33,7 @@ class CustomerCreate(BaseModel):
     is_active: bool = True
     latitude: float | None = None
     longitude: float | None = None
+    force_toll: bool = False
     tariffs: list[CustomerTariffItem] = Field(default_factory=list)
 
 
@@ -66,6 +67,7 @@ class CustomerOut(BaseModel):
     is_active: bool
     latitude: float | None = None
     longitude: float | None = None
+    force_toll: bool
     tariffs: list[CustomerTariffOut] = Field(default_factory=list)
     created_at: datetime
 
@@ -84,6 +86,7 @@ class CustomerListOut(BaseModel):
     city: str | None = None
     latitude: float | None = None
     longitude: float | None = None
+    force_toll: bool
 
     class Config:
         from_attributes = True
@@ -420,6 +423,7 @@ class RouteProcessRequest(BaseModel):
     latitude: float | None = None
     longitude: float | None = None
     name: str | None = None
+    force_toll: bool | None = False
 
 
 class RoutePoint(BaseModel):

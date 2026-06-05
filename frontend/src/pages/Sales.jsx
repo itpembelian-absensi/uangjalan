@@ -186,6 +186,18 @@ const Sales = () => {
   const [sortDir, setSortDir] = useState('desc');
   const [error, setError] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      if (isModalOpen) {
+        setIsModalOpen(false);
+        setLinkedRouteId(null);
+        setLinkedRouteNo('');
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [isModalOpen]);
   const [isMapFullscreen, setIsMapFullscreen] = useState(false);
   const [isEdit, setIsEdit] = useState(false);
   const [currentId, setCurrentId] = useState(null);
@@ -300,9 +312,13 @@ const Sales = () => {
 
   const closeModal = () => {
     if (saving) return;
-    setIsModalOpen(false);
-    setLinkedRouteId(null);
-    setLinkedRouteNo('');
+    if (window.location.hash === '#modal') {
+      window.history.back();
+    } else {
+      setIsModalOpen(false);
+      setLinkedRouteId(null);
+      setLinkedRouteNo('');
+    }
   };
 
   const fromRoute = Boolean(linkedRouteId);
@@ -383,6 +399,9 @@ const Sales = () => {
         };
       }),
     });
+    if (window.location.hash !== '#modal') {
+      window.history.pushState(null, '', window.location.pathname + '#modal');
+    }
     setIsModalOpen(true);
   };
 
@@ -681,7 +700,8 @@ const Sales = () => {
                   </td>
                 </tr>
               ) : (
-                displaySales.map((s) => {
+                <>
+                {displaySales.map((s) => {
                   const total = saleDetailTotal(s);
                   const isExpanded = expandedRows.has(s.id);
                   const toggleExpand = () => {
@@ -894,7 +914,17 @@ const Sales = () => {
                     )}
                     </React.Fragment>
                   );
-                })
+                })}
+                <tr style={{ background: 'var(--bg-secondary)', borderTop: '2px solid var(--card-border)' }}>
+                  <td colSpan="6" style={{ textAlign: 'right', fontWeight: 700, padding: '1rem' }}>
+                    TOTAL KESELURUHAN
+                  </td>
+                  <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--success-color)', padding: '1rem', whiteSpace: 'nowrap', fontSize: '1.05rem' }}>
+                    {formatIDR(displaySales.reduce((sum, s) => sum + saleDetailTotal(s), 0))}
+                  </td>
+                  <td colSpan="2"></td>
+                </tr>
+                </>
               )}
             </tbody>
           </table>
