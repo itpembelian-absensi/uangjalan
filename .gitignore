@@ -5,3 +5,4 @@ dist/
 build/
 *.log
 sql/
+Database/database.sql

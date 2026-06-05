@@ -1141,8 +1141,24 @@ def _load_route(db: Session, route_id: int) -> DeliveryRoute:
 
 
 @router.get("/sales", response_model=list[SaleOut])
-def list_sales(db: Session = Depends(get_db)):
-    sales = db.scalars(select(Sale).order_by(Sale.date.desc(), Sale.created_at.desc())).all()
+def list_sales(
+    from_date: date | None = Query(None, alias="from"),
+    to_date: date | None = Query(None, alias="to"),
+    sale_no: str | None = None,
+    db: Session = Depends(get_db)
+):
+    stmt = select(Sale)
+    if from_date:
+        stmt = stmt.where(Sale.date >= from_date)
+    if to_date:
+        stmt = stmt.where(Sale.date <= to_date)
+    if sale_no:
+        stmt = stmt.outerjoin(DeliveryRoute).where(
+            (Sale.sale_no.ilike(f"%{sale_no}%")) |
+            (DeliveryRoute.route_no.ilike(f"%{sale_no}%"))
+        )
+    stmt = stmt.order_by(Sale.date.desc(), Sale.created_at.desc())
+    sales = db.scalars(stmt).all()
     return [_serialize_sale(db, s) for s in sales]
 
 

@@ -177,6 +177,10 @@ const Sales = () => {
   const [customers, setCustomers] = useState([]);
   const [warehouse, setWarehouse] = useState(null);
 
+  const [filterFrom, setFilterFrom] = useState(new Date().toISOString().split('T')[0]);
+  const [filterTo, setFilterTo] = useState(new Date().toISOString().split('T')[0]);
+  const [filterSaleNo, setFilterSaleNo] = useState('');
+
   const [loading, setLoading] = useState(true);
   const [sortKey, setSortKey] = useState('date');
   const [sortDir, setSortDir] = useState('desc');
@@ -203,11 +207,35 @@ const Sales = () => {
   const [routeResult, setRouteResult] = useState(null);
   const [routeLoading, setRouteLoading] = useState(false);
 
+  const fetchSales = async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (filterFrom) params.append('from', filterFrom);
+      if (filterTo) params.append('to', filterTo);
+      if (filterSaleNo) params.append('sale_no', filterSaleNo);
+      
+      const dataS = await apiFetch(`/api/sales?${params.toString()}`);
+      setSales(dataS);
+      setError(null);
+    } catch (err) {
+      console.error(err);
+      setError(err.message || 'Gagal memuat data uang jalan.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const fetchData = async () => {
     setLoading(true);
     try {
+      const params = new URLSearchParams();
+      if (filterFrom) params.append('from', filterFrom);
+      if (filterTo) params.append('to', filterTo);
+      if (filterSaleNo) params.append('sale_no', filterSaleNo);
+
       const [dataS, dataV, dataD, dataC, dataW] = await Promise.all([
-        apiFetch('/api/sales'),
+        apiFetch(`/api/sales?${params.toString()}`),
         apiFetch('/api/vehicles'),
         apiFetch('/api/drivers'),
         apiFetch('/api/customers'),
@@ -526,7 +554,7 @@ const Sales = () => {
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           <button
             className="btn btn-secondary"
-            onClick={() => printBulkSales(displaySales)}
+            onClick={() => printBulkSales(displaySales, { fromLabel: filterFrom ? formatDate(filterFrom) : '', toLabel: filterTo ? formatDate(filterTo) : '' })}
             disabled={loading || displaySales.length === 0}
             title="Print semua data"
           >
@@ -535,7 +563,7 @@ const Sales = () => {
           <button
             className="btn btn-secondary"
             style={{ background: '#dc2626', color: 'white', border: 'none' }}
-            onClick={() => exportBulkSalesPdf(displaySales)}
+            onClick={() => exportBulkSalesPdf(displaySales, { fromLabel: filterFrom ? formatDate(filterFrom) : '', toLabel: filterTo ? formatDate(filterTo) : '' })}
             disabled={loading || displaySales.length === 0}
             title="Export semua ke PDF"
           >
@@ -543,19 +571,40 @@ const Sales = () => {
           </button>
           <button
             className="btn btn-secondary"
-            onClick={() => exportBulkSalesExcel(displaySales)}
+            onClick={() => exportBulkSalesExcel(displaySales, { fromLabel: filterFrom ? formatDate(filterFrom) : '', toLabel: filterTo ? formatDate(filterTo) : '' })}
             disabled={loading || displaySales.length === 0}
             title="Export semua ke Excel"
           >
             <FileSpreadsheet size={18} /> Excel
           </button>
-          <button className="btn btn-secondary" onClick={fetchData} disabled={loading}>
+          <button className="btn btn-secondary" onClick={fetchSales} disabled={loading}>
             <RefreshCw size={18} className={loading ? 'spin' : ''} />
             Refresh
           </button>
           <Link to="/delivery-routes/new" className="btn btn-primary" style={{ textDecoration: 'none' }}>
             <Plus size={18} /> Rute Pengiriman
           </Link>
+        </div>
+      </div>
+
+      <div className="card" style={{ marginBottom: '1.5rem', padding: '1rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <div className="form-group" style={{ marginBottom: 0, flex: '1 1 150px' }}>
+          <label className="form-label">Dari Tanggal</label>
+          <input type="date" className="form-input" value={filterFrom} onChange={(e) => setFilterFrom(e.target.value)} />
+        </div>
+        <div className="form-group" style={{ marginBottom: 0, flex: '1 1 150px' }}>
+          <label className="form-label">Sampai Tanggal</label>
+          <input type="date" className="form-input" value={filterTo} onChange={(e) => setFilterTo(e.target.value)} />
+        </div>
+        <div className="form-group" style={{ marginBottom: 0, flex: '2 1 200px' }}>
+          <label className="form-label">Nomor Transaksi / Rute</label>
+          <input type="text" className="form-input" placeholder="Cari SL-... atau RT-..." value={filterSaleNo} onChange={(e) => setFilterSaleNo(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') fetchSales(); }} />
+        </div>
+        <div style={{ flex: '0 0 auto' }}>
+          <button className="btn btn-primary" onClick={fetchSales} disabled={loading} style={{ height: '40px', padding: '0 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <RefreshCw size={16} className={loading ? 'spin' : ''} />
+            Cari
+          </button>
         </div>
       </div>
 
