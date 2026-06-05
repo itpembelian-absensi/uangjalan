@@ -1,0 +1,52 @@
+name: Deploy
+
+# Self-hosted runner — job jalan di server, sama pola dengan sjsstore.
+#
+# Setup sekali di server:
+#   cd /srv/docker/uangjalan
+#   cp .env.production.example .env
+#   npm install && npm run build   # di frontend/
+#   docker compose up -d
+#
+# .env tetap di folder project — deploy pakai git reset --hard (tanpa git clean).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, uangjalan]
+
+    steps:
+      - name: Preflight
+        run: |
+          command -v docker >/dev/null
+          command -v npm >/dev/null
+          command -v git >/dev/null
+          docker compose version
+          test -d /srv/docker/uangjalan
+          test -f /srv/docker/uangjalan/.env
+
+      # Pull dulu — deploy.sh baru belum ada di server sebelum sync ini
+      - name: Sync code
+        env:
+          DEPLOY_PATH: /srv/docker/uangjalan
+          GIT_SHA: ${{ github.sha }}
+          BRANCH: main
+        run: |
+          cd "${DEPLOY_PATH}"
+          git fetch origin "${BRANCH}"
+          git reset --hard "${GIT_SHA}"
+
+      - name: Deploy
+        env:
+          DEPLOY_PATH: /srv/docker/uangjalan
+          GIT_SHA: ${{ github.sha }}
+          BRANCH: main
+        run: bash "${DEPLOY_PATH}/scripts/deploy.sh"
