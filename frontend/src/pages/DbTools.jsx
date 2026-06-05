@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import GlassCard from '../components/GlassCard';
 import { Database, Download, Upload, RefreshCw, CheckCircle, XCircle, Loader } from 'lucide-react';
 
 const DbTools = () => {
+  const navigate = useNavigate();
   const [status, setStatus] = useState(null);
   const [backupJob, setBackupJob] = useState(null);
   const [restoreResult, setRestoreResult] = useState(null);
@@ -10,6 +12,7 @@ const DbTools = () => {
   const [loading, setLoading] = useState({ status: false, backup: false, restore: false });
   const [error, setError] = useState(null);
   const [disabled, setDisabled] = useState(false);
+  const [ready, setReady] = useState(false);
   const fileInputRef = useRef(null);
   const pollRef = useRef(null);
 
@@ -25,16 +28,17 @@ const DbTools = () => {
     try {
       const res = await fetch('/api/db-tools/status', { credentials: 'include' });
       if (res.status === 404) {
-        setDisabled(true);
-        setStatus(null);
+        navigate('/', { replace: true });
         return;
       }
       const data = await res.json();
       setStatus(data);
       setDisabled(false);
+      setReady(true);
     } catch (e) {
       setError('Tidak dapat terhubung ke server backend.');
       setStatus(null);
+      setReady(true);
     } finally {
       setLoading((l) => ({ ...l, status: false }));
     }
@@ -124,18 +128,10 @@ const DbTools = () => {
     return (bytes / 1048576).toFixed(2) + ' MB';
   };
 
+  if (!ready) return null;
+
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg-primary, #0f172a)', color: 'var(--text-primary, #e2e8f0)', padding: '2rem', fontFamily: 'Inter, system-ui, sans-serif' }}>
-      <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
-
-      {disabled && (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', opacity: 0.6 }}>
-          <h1 style={{ fontSize: '4rem', margin: 0 }}>404</h1>
-          <p>Halaman tidak ditemukan.</p>
-        </div>
-      )}
-
-      {!disabled && (<>
+    <div>
       <div className="page-header">
         <div>
           <h1>Database Tools</h1>
@@ -303,8 +299,6 @@ const DbTools = () => {
             </div>
           )}
         </GlassCard>
-      </div>
-      </>)}
       </div>
     </div>
   );
