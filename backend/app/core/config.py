@@ -44,9 +44,7 @@ class Settings(BaseSettings):
 
     google_maps_api_key: str | None = None
 
-    # Dev-only database tools (backup/restore)
     # DB tools are available by default; set MODE=production to hide them
-    enable_db_tools: bool = False
     mode: str = "development"
     db_tools_backup_dir: str = "/tmp/db_backups"
 
