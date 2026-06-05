@@ -83,7 +83,7 @@ def create_app() -> FastAPI:
     app.include_router(ui_auth_router)
     app.include_router(ui_router)
 
-    if settings.enable_db_tools:
+    if settings.mode != "production":
         from app.db_tools import router as db_tools_router
         app.include_router(db_tools_router)
 
