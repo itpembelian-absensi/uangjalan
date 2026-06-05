@@ -108,7 +108,18 @@ const DbTools = () => {
   if (!ready) return null;
 
   return (
-    <div style={styles.page}>
+    <div style={styles.page} className="dbtools-page">
+      <style>{`
+        .dbtools-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 1rem;
+        }
+        @media (max-width: 768px) {
+          .dbtools-grid { grid-template-columns: 1fr; }
+          .dbtools-page { padding: 1.5rem 1rem !important; }
+        }
+      `}</style>
       <div style={styles.container}>
         <header style={styles.header}>
           <h1 style={styles.title}>Database Tools</h1>
@@ -143,7 +154,7 @@ const DbTools = () => {
         </section>
 
         {/* Actions */}
-        <div style={styles.grid}>
+        <div className="dbtools-grid">
           {/* Backup */}
           <section style={styles.card}>
             <div style={styles.sectionHeader}>
@@ -223,7 +234,7 @@ const styles = {
     color: '#1e293b',
   },
   container: {
-    maxWidth: '720px',
+    maxWidth: '1200px',
     margin: '0 auto',
   },
   header: {
@@ -275,11 +286,6 @@ const styles = {
     color: '#64748b',
     display: 'flex',
     alignItems: 'center',
-  },
-  grid: {
-    display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
-    gap: '1rem',
   },
   sectionHeader: {
     display: 'flex',
