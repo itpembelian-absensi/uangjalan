@@ -232,3 +232,5 @@ CREATE TABLE IF NOT EXISTS role_menu_access (
   access_level  TEXT NOT NULL CHECK (access_level IN ('full', 'read', 'none')),
   PRIMARY KEY (menu_id, role)
 );
+
+COMMIT;
