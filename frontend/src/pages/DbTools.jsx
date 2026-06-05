@@ -123,7 +123,8 @@ const DbTools = () => {
   };
 
   return (
-    <div>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-primary, #0f172a)', color: 'var(--text-primary, #e2e8f0)', padding: '2rem', fontFamily: 'Inter, system-ui, sans-serif' }}>
+      <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
       <div className="page-header">
         <div>
           <h1>Database Tools</h1>
@@ -291,6 +292,7 @@ const DbTools = () => {
             </div>
           )}
         </GlassCard>
+      </div>
       </div>
     </div>
   );
