@@ -9,6 +9,7 @@ const DbTools = () => {
   const [restoreMode, setRestoreMode] = useState('full');
   const [loading, setLoading] = useState({ status: false, backup: false, restore: false });
   const [error, setError] = useState(null);
+  const [disabled, setDisabled] = useState(false);
   const fileInputRef = useRef(null);
   const pollRef = useRef(null);
 
@@ -24,12 +25,13 @@ const DbTools = () => {
     try {
       const res = await fetch('/api/db-tools/status', { credentials: 'include' });
       if (res.status === 404) {
-        setError('DB Tools tidak aktif di server. Tambahkan ENABLE_DB_TOOLS=true di file .env backend lalu restart.');
+        setDisabled(true);
         setStatus(null);
         return;
       }
       const data = await res.json();
       setStatus(data);
+      setDisabled(false);
     } catch (e) {
       setError('Tidak dapat terhubung ke server backend.');
       setStatus(null);
@@ -125,6 +127,15 @@ const DbTools = () => {
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg-primary, #0f172a)', color: 'var(--text-primary, #e2e8f0)', padding: '2rem', fontFamily: 'Inter, system-ui, sans-serif' }}>
       <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
+
+      {disabled && (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', opacity: 0.6 }}>
+          <h1 style={{ fontSize: '4rem', margin: 0 }}>404</h1>
+          <p>Halaman tidak ditemukan.</p>
+        </div>
+      )}
+
+      {!disabled && (<>
       <div className="page-header">
         <div>
           <h1>Database Tools</h1>
@@ -293,6 +304,7 @@ const DbTools = () => {
           )}
         </GlassCard>
       </div>
+      </>)}
       </div>
     </div>
   );
