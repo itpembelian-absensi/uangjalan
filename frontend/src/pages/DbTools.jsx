@@ -139,13 +139,6 @@ const DbTools = () => {
         </div>
       </div>
 
-      {error && (
-        <div style={{ background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '8px', padding: '1rem', marginBottom: '1.5rem', color: '#dc2626' }}>
-          <XCircle size={16} style={{ display: 'inline', marginRight: '0.5rem', verticalAlign: 'middle' }} />
-          {error}
-        </div>
-      )}
-
       {/* Status Card */}
       <GlassCard title="Connection Status" style={{ marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
@@ -173,6 +166,12 @@ const DbTools = () => {
             <RefreshCw size={14} /> Refresh
           </button>
         </div>
+        {error && (
+          <div style={{ marginTop: '1rem', padding: '0.75rem', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '6px', color: '#dc2626', fontSize: '0.85rem' }}>
+            <XCircle size={14} style={{ display: 'inline', marginRight: '0.5rem', verticalAlign: 'middle' }} />
+            {error}
+          </div>
+        )}
       </GlassCard>
 
       <div className="grid-cols-2" style={{ gap: '1.5rem' }}>
