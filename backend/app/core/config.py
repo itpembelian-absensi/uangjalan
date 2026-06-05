@@ -44,6 +44,10 @@ class Settings(BaseSettings):
 
     google_maps_api_key: str | None = None
 
+    # Dev-only database tools (backup/restore)
+    enable_db_tools: bool = False
+    db_tools_backup_dir: str = "/tmp/db_backups"
+
 
 
     # Acuan tarif tol Jabodetabek — Golongan II & III (rate_group 23)
