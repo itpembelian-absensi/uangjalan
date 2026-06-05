@@ -8,7 +8,6 @@ const DbTools = () => {
   const [status, setStatus] = useState(null);
   const [backupJob, setBackupJob] = useState(null);
   const [restoreResult, setRestoreResult] = useState(null);
-  const [restoreMode, setRestoreMode] = useState('full');
   const [loading, setLoading] = useState({ status: false, backup: false, restore: false });
   const [error, setError] = useState(null);
   const [disabled, setDisabled] = useState(false);
@@ -89,7 +88,7 @@ const DbTools = () => {
       return;
     }
 
-    if (!window.confirm(`Yakin mau restore database dengan mode "${restoreMode}"? Data saat ini akan ditimpa.`)) {
+    if (!window.confirm('PERINGATAN: Database akan dihapus total (skema dan data), lalu diisi ulang dari file backup. Lanjutkan?')) {
       return;
     }
 
@@ -99,7 +98,7 @@ const DbTools = () => {
 
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('mode', restoreMode);
+    formData.append('mode', 'full');
     formData.append('confirm', 'true');
 
     try {
@@ -256,18 +255,9 @@ const DbTools = () => {
             />
           </div>
 
-          <div style={{ marginBottom: '1rem' }}>
-            <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.85rem', opacity: 0.8 }}>Mode Restore:</label>
-            <select
-              value={restoreMode}
-              onChange={(e) => setRestoreMode(e.target.value)}
-              style={{ width: '100%', padding: '0.5rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', color: 'inherit' }}
-            >
-              <option value="full">Full (drop semua tabel, bikin ulang + isi data)</option>
-              <option value="schema_only">Schema Only (drop tabel, bikin ulang tanpa data)</option>
-              <option value="data_only">Data Only (truncate, isi data tanpa ubah schema)</option>
-            </select>
-          </div>
+          <p style={{ fontSize: '0.8rem', color: '#dc2626', marginBottom: '1rem' }}>
+            ⚠️ Database akan dihapus total (skema + data) lalu diisi ulang dari file.
+          </p>
 
           <button
             onClick={triggerRestore}
