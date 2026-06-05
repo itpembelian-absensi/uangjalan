@@ -131,7 +131,7 @@ const DbTools = () => {
   if (!ready) return null;
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0f172a', color: '#e2e8f0', padding: '2rem', fontFamily: 'Inter, system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', padding: '2rem', fontFamily: 'Inter, system-ui, sans-serif' }}>
       <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
       <div className="page-header">
         <div>
@@ -141,7 +141,7 @@ const DbTools = () => {
       </div>
 
       {error && (
-        <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '8px', padding: '1rem', marginBottom: '1.5rem', color: '#fca5a5' }}>
+        <div style={{ background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.3)', borderRadius: '8px', padding: '1rem', marginBottom: '1.5rem', color: '#dc2626' }}>
           <XCircle size={16} style={{ display: 'inline', marginRight: '0.5rem', verticalAlign: 'middle' }} />
           {error}
         </div>
@@ -156,9 +156,9 @@ const DbTools = () => {
             <>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 {status.connected ? (
-                  <CheckCircle size={20} color="#34d399" />
+                  <CheckCircle size={20} color="#059669" />
                 ) : (
-                  <XCircle size={20} color="#f87171" />
+                  <XCircle size={20} color="#dc2626" />
                 )}
                 <span>{status.connected ? 'Connected' : 'Disconnected'}</span>
               </div>
@@ -180,7 +180,7 @@ const DbTools = () => {
         {/* Backup Card */}
         <GlassCard>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
-            <div style={{ padding: '0.75rem', background: 'rgba(59, 130, 246, 0.1)', borderRadius: '10px', color: '#60a5fa' }}>
+            <div style={{ padding: '0.75rem', background: 'rgba(59, 130, 246, 0.1)', borderRadius: '10px', color: '#2563eb' }}>
               <Download size={24} />
             </div>
             <div>
@@ -199,12 +199,12 @@ const DbTools = () => {
           </button>
 
           {backupJob && (
-            <div style={{ background: 'rgba(255,255,255,0.05)', borderRadius: '8px', padding: '1rem' }}>
+            <div style={{ background: 'rgba(0,0,0,0.03)', borderRadius: '8px', padding: '1rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
                 <span style={{ opacity: 0.7 }}>Status:</span>
                 <span style={{
-                  color: backupJob.status === 'completed' ? '#34d399' :
-                         backupJob.status === 'failed' ? '#f87171' : '#fbbf24'
+                  color: backupJob.status === 'completed' ? '#059669' :
+                         backupJob.status === 'failed' ? '#dc2626' : '#d97706'
                 }}>
                   {backupJob.status === 'completed' ? '✓ Selesai' :
                    backupJob.status === 'failed' ? '✗ Gagal' : '⏳ Proses...'}
@@ -237,7 +237,7 @@ const DbTools = () => {
         {/* Restore Card */}
         <GlassCard>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
-            <div style={{ padding: '0.75rem', background: 'rgba(245, 158, 11, 0.1)', borderRadius: '10px', color: '#fbbf24' }}>
+            <div style={{ padding: '0.75rem', background: 'rgba(245, 158, 11, 0.1)', borderRadius: '10px', color: '#d97706' }}>
               <Upload size={24} />
             </div>
             <div>
@@ -252,7 +252,7 @@ const DbTools = () => {
               type="file"
               ref={fileInputRef}
               accept=".sql"
-              style={{ width: '100%', padding: '0.5rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'inherit' }}
+              style={{ width: '100%', padding: '0.5rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', color: 'inherit' }}
             />
           </div>
 
@@ -261,7 +261,7 @@ const DbTools = () => {
             <select
               value={restoreMode}
               onChange={(e) => setRestoreMode(e.target.value)}
-              style={{ width: '100%', padding: '0.5rem', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '6px', color: 'inherit' }}
+              style={{ width: '100%', padding: '0.5rem', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', color: 'inherit' }}
             >
               <option value="full">Full (drop semua tabel, bikin ulang + isi data)</option>
               <option value="schema_only">Schema Only (drop tabel, bikin ulang tanpa data)</option>
@@ -273,7 +273,7 @@ const DbTools = () => {
             onClick={triggerRestore}
             disabled={loading.restore}
             className="btn btn-primary"
-            style={{ width: '100%', background: 'rgba(245, 158, 11, 0.2)', borderColor: 'rgba(245, 158, 11, 0.4)' }}
+            style={{ width: '100%', background: '#d97706', borderColor: '#b45309', color: '#fff' }}
           >
             {loading.restore ? <><Loader size={14} className="spin" /> Sedang restore...</> : <><Upload size={14} /> Mulai Restore</>}
           </button>
@@ -287,12 +287,12 @@ const DbTools = () => {
               border: `1px solid ${restoreResult.success ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`,
             }}>
               {restoreResult.success ? (
-                <div style={{ color: '#34d399' }}>
+                <div style={{ color: '#059669' }}>
                   <CheckCircle size={16} style={{ display: 'inline', marginRight: '0.5rem', verticalAlign: 'middle' }} />
                   {restoreResult.message} (mode: {restoreResult.mode})
                 </div>
               ) : (
-                <div style={{ color: '#fca5a5' }}>
+                <div style={{ color: '#dc2626' }}>
                   <XCircle size={16} style={{ display: 'inline', marginRight: '0.5rem', verticalAlign: 'middle' }} />
                   {restoreResult.detail}
                 </div>
