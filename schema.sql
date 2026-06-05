@@ -121,7 +121,9 @@ CREATE TABLE IF NOT EXISTS warehouse_settings (
   city          TEXT,
   latitude      NUMERIC(10,7),
   longitude     NUMERIC(10,7),
-  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  kelurahan     TEXT,
+  kecamatan     TEXT
 );
 
 -- Users
@@ -145,7 +147,8 @@ CREATE TABLE IF NOT EXISTS delivery_routes (
   driver_id       BIGINT REFERENCES drivers(id) ON UPDATE CASCADE,
   remarks         TEXT,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-  vehicle_type_id BIGINT REFERENCES vehicle_types(id) ON UPDATE CASCADE
+  vehicle_type_id BIGINT REFERENCES vehicle_types(id) ON UPDATE CASCADE,
+  ritpiase        NUMERIC(14,2) NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_delivery_routes_date ON delivery_routes(date);
 
