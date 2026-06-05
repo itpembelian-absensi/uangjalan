@@ -223,6 +223,7 @@ const DeliveryRoutesReport = () => {
                 <th>No</th>
                 <th>Tanggal</th>
                 <th>No. Rute</th>
+                <th>Rit</th>
                 <th>Jenis Kendaraan</th>
                 <th>No. Transaksi</th>
                 <th>Jml Cust</th>
@@ -243,6 +244,7 @@ const DeliveryRoutesReport = () => {
                     <td>{i + 1}</td>
                     <td>{formatReportDate(r.date)}</td>
                     <td style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{r.route_no}</td>
+                    <td><span className="badge badge-blue">Rit {r.ritase || 1}</span></td>
                     <td>{r.vehicle_type_name}</td>
                     <td>{r.sale_no || '-'}</td>
                     <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.stop_count}</td>

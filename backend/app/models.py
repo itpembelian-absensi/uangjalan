@@ -56,6 +56,8 @@ class Customer(Base):
     code: Mapped[str] = mapped_column(String, unique=True, index=True)
     name: Mapped[str] = mapped_column(String, index=True)
     address: Mapped[str | None] = mapped_column(String, nullable=True)
+    kelurahan: Mapped[str | None] = mapped_column(String, nullable=True)
+    kecamatan: Mapped[str | None] = mapped_column(String, nullable=True)
     city: Mapped[str | None] = mapped_column(String, nullable=True)
     latitude: Mapped[float | None] = mapped_column(Numeric(10, 7), nullable=True)
     longitude: Mapped[float | None] = mapped_column(Numeric(10, 7), nullable=True)
@@ -77,6 +79,8 @@ class WarehouseSetting(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String, nullable=False, server_default="Gudang Utama")
     address: Mapped[str | None] = mapped_column(String, nullable=True)
+    kelurahan: Mapped[str | None] = mapped_column(String, nullable=True)
+    kecamatan: Mapped[str | None] = mapped_column(String, nullable=True)
     city: Mapped[str | None] = mapped_column(String, nullable=True)
     latitude: Mapped[float | None] = mapped_column(Numeric(10, 7), nullable=True)
     longitude: Mapped[float | None] = mapped_column(Numeric(10, 7), nullable=True)
@@ -228,6 +232,8 @@ class Driver(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
     phone: Mapped[str | None] = mapped_column(Text, nullable=True)
+    bank_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    bank_account: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -277,6 +283,7 @@ class DeliveryRoute(Base):
         ForeignKey("drivers.id", onupdate="CASCADE"), nullable=True
     )
     remarks: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ritpiase: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

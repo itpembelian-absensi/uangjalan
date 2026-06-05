@@ -167,6 +167,7 @@ def delivery_route_report(
                     "customer_name": name,
                     "description": stop.description,
                     "entity_code": stop.entity_code,
+                    "ritase": route.ritpiase,
                     "items": items,
                     "items_qty_total": qty_total,
                     "items_count": len(items),
@@ -187,6 +188,7 @@ def delivery_route_report(
                 "vehicle_type_name": type_name,
                 "stop_count": stop_count,
                 "customers": customers_str or "-",
+                "ritase": route.ritpiase,
                 "remarks": route.remarks,
                 "sale_no": sale_no,
             }

@@ -9,7 +9,7 @@ import {
   CrudActionsCell,
 } from '../components/CrudWriteAccess';
 
-const emptyForm = { name: '', phone: '' };
+const emptyForm = { name: '', phone: '', bank_name: '', bank_account: '' };
 
 const Drivers = () => {
   const canWrite = useCrudWrite();
@@ -48,6 +48,8 @@ const Drivers = () => {
         body: JSON.stringify({
           name: form.name.trim(),
           phone: form.phone.trim() || null,
+          bank_name: form.bank_name?.trim() || null,
+          bank_account: form.bank_account?.trim() || null,
         }),
       });
       setForm(emptyForm);
@@ -65,6 +67,8 @@ const Drivers = () => {
     setEditForm({
       name: driver.name,
       phone: driver.phone || '',
+      bank_name: driver.bank_name || '',
+      bank_account: driver.bank_account || '',
     });
     setIsModalOpen(true);
   };
@@ -88,6 +92,8 @@ const Drivers = () => {
         body: JSON.stringify({
           name: editForm.name.trim(),
           phone: editForm.phone.trim() || null,
+          bank_name: editForm.bank_name?.trim() || null,
+          bank_account: editForm.bank_account?.trim() || null,
         }),
       });
       closeEdit();
@@ -151,6 +157,26 @@ const Drivers = () => {
                   onChange={(e) => setForm({ ...form, phone: e.target.value })}
                 />
               </div>
+              <div className="form-group">
+                <label className="form-label">Bank Name (Optional)</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="BCA, Mandiri, dll."
+                  value={form.bank_name}
+                  onChange={(e) => setForm({ ...form, bank_name: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Bank Account Number (Optional)</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="1234567890"
+                  value={form.bank_account}
+                  onChange={(e) => setForm({ ...form, bank_account: e.target.value })}
+                />
+              </div>
               <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={saving}>
                 <Plus size={18} /> {saving ? 'Saving...' : 'Add Driver'}
               </button>
@@ -167,6 +193,8 @@ const Drivers = () => {
                   <th>ID</th>
                   <th>Name</th>
                   <th>Phone</th>
+                  <th>Bank Name</th>
+                  <th>Account No</th>
                   <CrudActionsHeader canWrite={canWrite} label="Actions" />
                 </tr>
               </thead>
@@ -176,6 +204,8 @@ const Drivers = () => {
                     <td>{d.id}</td>
                     <td style={{ fontWeight: 500 }}>{d.name}</td>
                     <td>{d.phone || '-'}</td>
+                    <td>{d.bank_name || '-'}</td>
+                    <td>{d.bank_account || '-'}</td>
                     <CrudActionsCell canWrite={canWrite}>
                       <button
                         type="button"
@@ -200,7 +230,7 @@ const Drivers = () => {
                 ))}
                 {drivers.length === 0 && (
                   <tr>
-                    <td colSpan={canWrite ? 4 : 3} style={{ textAlign: 'center', opacity: 0.5, padding: '2rem' }}>
+                    <td colSpan={canWrite ? 6 : 5} style={{ textAlign: 'center', opacity: 0.5, padding: '2rem' }}>
                       No drivers found
                     </td>
                   </tr>
@@ -237,6 +267,24 @@ const Drivers = () => {
                     className="form-input"
                     value={editForm.phone}
                     onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Bank Name (Optional)</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={editForm.bank_name}
+                    onChange={(e) => setEditForm({ ...editForm, bank_name: e.target.value })}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Bank Account Number (Optional)</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={editForm.bank_account}
+                    onChange={(e) => setEditForm({ ...editForm, bank_account: e.target.value })}
                   />
                 </div>
               </div>

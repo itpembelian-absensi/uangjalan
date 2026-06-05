@@ -412,7 +412,11 @@ const Reports = () => {
                 <label className="form-label"><Truck size={14} /> Sopir</label>
                 <select className="form-input" value={filterDriver} onChange={(e) => setFilterDriver(e.target.value)}>
                   <option value="">Semua Sopir</option>
-                  {drivers.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                  {drivers.map((d) => {
+                    const bankInfo = [d.bank_name, d.bank_account].filter(Boolean).join(' ');
+                    const label = bankInfo ? `${d.name} (Rek: ${bankInfo})` : d.name;
+                    return <option key={d.id} value={d.id}>{label}</option>;
+                  })}
                 </select>
               </div>
               <div className="form-group" style={{ marginBottom: 0, flex: '1 1 200px' }}>

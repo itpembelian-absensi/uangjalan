@@ -21,6 +21,7 @@ const DeliveryRouteStopDetailTable = ({
             <th style={{ width: '40px', textAlign: 'center' }}>No</th>
             <th>No. Rute</th>
             <th>Tanggal</th>
+            <th>Rit</th>
             <th>{showSaleNo ? 'Jenis Kendaraan' : 'Jenis'}</th>
             <th style={{ textAlign: 'center' }}>Urut</th>
             <th>Customer</th>
@@ -51,6 +52,8 @@ const DeliveryRouteStopDetailTable = ({
                       {formatReportDate(group.route_date)}
                       {' · '}
                       {group.vehicle_type_name || '-'}
+                      {' · '}
+                      Rit {group.ritase || 1}
                       {showSaleNo && group.sale_no && (
                         <>
                           {' · '}
@@ -73,6 +76,7 @@ const DeliveryRouteStopDetailTable = ({
                     <td style={{ textAlign: 'center' }}>{n}</td>
                     <td style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{s.route_no}</td>
                     <td>{formatReportDate(s.route_date)}</td>
+                    <td style={{ textAlign: 'center' }}>{s.ritase || 1}</td>
                     <td>{s.vehicle_type_name || '-'}</td>
                     <td style={{ textAlign: 'center' }}>{s.stop_order}</td>
                     <td>{s.customer_name}</td>

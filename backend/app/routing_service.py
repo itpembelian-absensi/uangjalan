@@ -223,6 +223,10 @@ def estimate_tolls_by_vehicle(
         else:
             toll = round(base_toll_idr * _gol45_multiplier(sections, resolved_code), 0)
 
+        # Bulatkan ke atas (ribuan)
+        if toll > 0:
+            toll = float(((int(toll) + 999) // 1000) * 1000)
+
         rate_per_km = round(toll / distance_km, 0) if distance_km else 0.0
         results.append(
             {
@@ -278,9 +282,11 @@ def _province_for_city(city: str | None) -> str | None:
 
 
 def _geocode_query_variants(
-    address: str | None, city: str | None = None, name: str | None = None
+    address: str | None, kelurahan: str | None = None, kecamatan: str | None = None, city: str | None = None, name: str | None = None
 ) -> list[str]:
     addr = (address or "").strip()
+    kel = (kelurahan or "").strip()
+    kec = (kecamatan or "").strip()
     city_s = (city or "").strip()
     name_s = (name or "").strip()
     province = _province_for_city(city_s)
@@ -293,14 +299,18 @@ def _geocode_query_variants(
 
     if addr and city_s:
         if province:
-            add(addr, city_s, province, "Indonesia")
+            add(addr, kel, kec, city_s, province, "Indonesia")
+        add(addr, kel, kec, city_s, "Indonesia")
         add(addr, city_s, "Indonesia")
+        
+    add(kel, kec, city_s, "Indonesia")
+    
     if addr:
         add(addr, "Indonesia")
     if name_s and addr:
-        add(name_s, addr, city_s, "Indonesia")
+        add(name_s, addr, kel, kec, city_s, "Indonesia")
     elif name_s:
-        add(name_s, city_s, "Indonesia")
+        add(name_s, kel, kec, city_s, "Indonesia")
 
     addr_n = _normalize_text(addr)
     if "terminal" in addr_n and city_s:
@@ -357,6 +367,8 @@ def _admin_city_conflicts(display_name: str, city: str | None) -> bool:
 def _score_geocode_candidate(
     item: dict,
     address: str | None,
+    kelurahan: str | None,
+    kecamatan: str | None,
     city: str | None,
     name: str | None,
 ) -> float:
@@ -436,6 +448,8 @@ def _nominatim_search(query: str, limit: int = 8) -> list[dict]:
 def _pick_best_geocode_candidate(
     candidates: list[dict],
     address: str | None,
+    kelurahan: str | None,
+    kecamatan: str | None,
     city: str | None,
     name: str | None,
 ) -> dict:
@@ -443,11 +457,11 @@ def _pick_best_geocode_candidate(
         raise HTTPException(status_code=404, detail="Koordinat tidak ditemukan")
     ranked = sorted(
         candidates,
-        key=lambda item: _score_geocode_candidate(item, address, city, name),
+        key=lambda item: _score_geocode_candidate(item, address, kelurahan, kecamatan, city, name),
         reverse=True,
     )
     best = ranked[0]
-    best_score = _score_geocode_candidate(best, address, city, name)
+    best_score = _score_geocode_candidate(best, address, kelurahan, kecamatan, city, name)
     if best_score < -100:
         raise HTTPException(
             status_code=404,
@@ -460,9 +474,9 @@ def _pick_best_geocode_candidate(
 
 
 def _google_geocode_address(
-    address: str | None, city: str | None = None, name: str | None = None
+    address: str | None, kelurahan: str | None = None, kecamatan: str | None = None, city: str | None = None, name: str | None = None
 ) -> tuple[float, float]:
-    parts = [p for p in [address, city, _province_for_city(city), "Indonesia"] if p and p.strip()]
+    parts = [p for p in [address, kelurahan, kecamatan, city, _province_for_city(city), "Indonesia"] if p and p.strip()]
     if name and not address:
         parts.insert(0, name)
     query = ", ".join(parts)
@@ -506,19 +520,19 @@ def _google_geocode_address(
     return float(location["lat"]), float(location["lng"])
 
 
-def geocode_address(address: str | None, city: str | None = None, name: str | None = None) -> tuple[float, float]:
-    if not (address or name or city):
+def geocode_address(address: str | None, kelurahan: str | None = None, kecamatan: str | None = None, city: str | None = None, name: str | None = None) -> tuple[float, float]:
+    if not (address or name or city or kelurahan or kecamatan):
         raise HTTPException(status_code=400, detail="Alamat kosong, tidak bisa geocode")
 
     if settings.google_maps_api_key:
         try:
-            return _google_geocode_address(address, city, name)
+            return _google_geocode_address(address, kelurahan, kecamatan, city, name)
         except HTTPException as exc:
             if exc.status_code not in {404, 502}:
                 raise
 
     candidates_by_key: dict[str, dict] = {}
-    for query in _geocode_query_variants(address, city, name):
+    for query in _geocode_query_variants(address, kelurahan, kecamatan, city, name):
         for item in _nominatim_search(query):
             key = f"{item.get('osm_type')}:{item.get('osm_id')}"
             candidates_by_key.setdefault(key, item)
@@ -530,7 +544,7 @@ def geocode_address(address: str | None, city: str | None = None, name: str | No
         )
 
     best = _pick_best_geocode_candidate(
-        list(candidates_by_key.values()), address, city, name
+        list(candidates_by_key.values()), address, kelurahan, kecamatan, city, name
     )
     return float(best["lat"]), float(best["lon"])
 

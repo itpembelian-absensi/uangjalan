@@ -9,6 +9,8 @@ CREATE TABLE IF NOT EXISTS customers (
   code          TEXT UNIQUE,
   name          TEXT NOT NULL UNIQUE,
   address       TEXT,
+  kelurahan     TEXT,
+  kecamatan     TEXT,
   city          TEXT,
   phone         TEXT,
   email         TEXT,
@@ -41,6 +43,8 @@ CREATE TABLE IF NOT EXISTS drivers (
   id            BIGSERIAL PRIMARY KEY,
   name          TEXT NOT NULL UNIQUE,
   phone         TEXT NULL,
+  bank_name     TEXT NULL,
+  bank_account  TEXT NULL,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

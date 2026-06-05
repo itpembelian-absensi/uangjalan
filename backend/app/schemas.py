@@ -25,6 +25,8 @@ class CustomerCreate(BaseModel):
     code: str = Field(min_length=1, max_length=50)
     name: str = Field(min_length=1)
     address: str | None = None
+    kelurahan: str | None = None
+    kecamatan: str | None = None
     city: str | None = None
     phone: str | None = None
     email: str | None = None
@@ -38,6 +40,8 @@ class CustomerBulkImportItem(BaseModel):
     code: str = Field(min_length=1, max_length=50)
     name: str = Field(min_length=1)
     address: str | None = None
+    kelurahan: str | None = None
+    kecamatan: str | None = None
     city: str | None = None
     phone: str | None = None
     email: str | None = None
@@ -54,6 +58,8 @@ class CustomerOut(BaseModel):
     code: str | None = None
     name: str
     address: str | None = None
+    kelurahan: str | None = None
+    kecamatan: str | None = None
     city: str | None = None
     phone: str | None = None
     email: str | None = None
@@ -73,6 +79,8 @@ class CustomerListOut(BaseModel):
     name: str
     phone: str | None = None
     is_active: bool
+    kelurahan: str | None = None
+    kecamatan: str | None = None
     city: str | None = None
     latitude: float | None = None
     longitude: float | None = None
@@ -155,12 +163,16 @@ class VehicleOut(BaseModel):
 class DriverCreate(BaseModel):
     name: str = Field(min_length=1)
     phone: str | None = None
+    bank_name: str | None = None
+    bank_account: str | None = None
 
 
 class DriverOut(BaseModel):
     id: int
     name: str
     phone: str | None
+    bank_name: str | None = None
+    bank_account: str | None = None
     created_at: datetime
 
     class Config:
@@ -255,6 +267,7 @@ class DeliveryRouteCreate(BaseModel):
     date: date
     vehicle_type_id: int
     remarks: str | None = None
+    ritase: int = Field(default=1, ge=1, le=10)
     stops: list[DeliveryRouteStopItem] = Field(default_factory=list, min_length=1)
 
 
@@ -270,6 +283,7 @@ class DeliveryRouteOut(BaseModel):
     driver_name: str | None = None
     driver_phone: str | None = None
     remarks: str | None = None
+    ritase: int = 1
     stops: list[DeliveryRouteStopOut] = Field(default_factory=list)
     sale_id: int | None = None
     sale_no: str | None = None
@@ -288,6 +302,7 @@ class DeliveryRouteReportRouteRow(BaseModel):
     vehicle_type_name: str
     stop_count: int
     customers: str
+    ritase: int = 1
     remarks: str | None = None
     sale_no: str | None = None
 
@@ -305,6 +320,7 @@ class DeliveryRouteReportStopRow(BaseModel):
     customer_name: str
     description: str | None = None
     entity_code: str | None = None
+    ritase: int = 1
     items: list[DeliveryRouteReportItemLine] = []
     items_qty_total: float = 0
     items_count: int = 0
@@ -358,6 +374,9 @@ class SaleOut(BaseModel):
     vehicle_plate: str | None = None
     driver_id: int | None = None
     driver_name: str | None = None
+    driver_phone: str | None = None
+    driver_bank_name: str | None = None
+    driver_bank_account: str | None = None
     delivery_route_id: int | None = None
     route_no: str | None = None
     remarks: str | None = None
@@ -376,6 +395,8 @@ class WarehouseOut(BaseModel):
     id: int
     name: str
     address: str | None = None
+    kelurahan: str | None = None
+    kecamatan: str | None = None
     city: str | None = None
     latitude: float | None = None
     longitude: float | None = None
@@ -387,6 +408,8 @@ class WarehouseOut(BaseModel):
 class WarehouseUpdate(BaseModel):
     name: str = Field(min_length=1)
     address: str | None = None
+    kelurahan: str | None = None
+    kecamatan: str | None = None
     city: str | None = None
     latitude: float | None = None
     longitude: float | None = None
@@ -431,6 +454,8 @@ class RouteProcessOut(BaseModel):
 
 class GeocodeRequest(BaseModel):
     address: str | None = None
+    kelurahan: str | None = None
+    kecamatan: str | None = None
     city: str | None = None
     name: str | None = None
 

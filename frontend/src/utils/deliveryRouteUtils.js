@@ -70,6 +70,7 @@ export const defaultRouteForm = () => ({
   route_no: '',
   date: todayIso(),
   vehicle_type_id: '',
+  ritase: '1',
   remarks: '',
   stops: [emptyStop()],
 });

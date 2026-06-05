@@ -59,6 +59,7 @@ const buildStopDetailPdfBody = (stopRows) => {
       body.push([
         s.route_no,
         formatReportDate(s.route_date),
+        `Rit ${s.ritase || 1}`,
         s.vehicle_type_name,
         s.stop_order,
         s.customer_name,
@@ -100,23 +101,25 @@ export const exportDeliveryRoutePdf = (report, { fromDate, toDate }) => {
   const routeSummaryWidths = {
     0: 24,
     1: 32,
-    2: 26,
-    3: 12,
-    4: 72,
-    5: 36,
-    6: 36,
-    7: tableWidth - (24 + 32 + 26 + 12 + 72 + 36 + 36),
+    2: 16,
+    3: 26,
+    4: 12,
+    5: 60,
+    6: 32,
+    7: 32,
+    8: tableWidth - (24 + 32 + 16 + 26 + 12 + 60 + 32 + 32),
   };
   const stopDetailWidths = {
     0: 32,
     1: 24,
-    2: 24,
-    3: 10,
-    4: 52,
-    5: 64,
-    6: 18,
-    7: 32,
-    8: tableWidth - (32 + 24 + 24 + 10 + 52 + 64 + 18 + 32),
+    2: 14,
+    3: 24,
+    4: 10,
+    5: 44,
+    6: 58,
+    7: 16,
+    8: 30,
+    9: tableWidth - (32 + 24 + 14 + 24 + 10 + 44 + 58 + 16 + 30),
   };
 
   pdf.setFontSize(16);
@@ -168,6 +171,7 @@ export const exportDeliveryRoutePdf = (report, { fromDate, toDate }) => {
       [
         'Tanggal',
         'No. Rute',
+        'Rit',
         'Jenis Kendaraan',
         'Jml Cust',
         'Customer',
@@ -179,6 +183,7 @@ export const exportDeliveryRoutePdf = (report, { fromDate, toDate }) => {
     body: routes.map((r) => [
       formatReportDate(r.date),
       r.route_no,
+      `Rit ${r.ritase || 1}`,
       r.vehicle_type_name,
       r.stop_count,
       r.customers,
@@ -216,12 +221,13 @@ export const exportDeliveryRoutePdf = (report, { fromDate, toDate }) => {
     columnStyles: {
       0: { cellWidth: routeSummaryWidths[0], halign: 'center' },
       1: { cellWidth: routeSummaryWidths[1] },
-      2: { cellWidth: routeSummaryWidths[2] },
-      3: { cellWidth: routeSummaryWidths[3], halign: 'center' },
-      4: { cellWidth: routeSummaryWidths[4] },
+      2: { cellWidth: routeSummaryWidths[2], halign: 'center' },
+      3: { cellWidth: routeSummaryWidths[3] },
+      4: { cellWidth: routeSummaryWidths[4], halign: 'center' },
       5: { cellWidth: routeSummaryWidths[5] },
       6: { cellWidth: routeSummaryWidths[6] },
       7: { cellWidth: routeSummaryWidths[7] },
+      8: { cellWidth: routeSummaryWidths[8] },
     },
   });
 
@@ -234,6 +240,7 @@ export const exportDeliveryRoutePdf = (report, { fromDate, toDate }) => {
         [
           'No. Rute',
           'Tanggal',
+          'Rit',
           'Jenis Kendaraan',
           'Urut',
           'Customer',
@@ -261,13 +268,14 @@ export const exportDeliveryRoutePdf = (report, { fromDate, toDate }) => {
       columnStyles: {
         0: { cellWidth: stopDetailWidths[0] },
         1: { cellWidth: stopDetailWidths[1], halign: 'center' },
-        2: { cellWidth: stopDetailWidths[2] },
-        3: { cellWidth: stopDetailWidths[3], halign: 'center' },
-        4: { cellWidth: stopDetailWidths[4] },
+        2: { cellWidth: stopDetailWidths[2], halign: 'center' },
+        3: { cellWidth: stopDetailWidths[3] },
+        4: { cellWidth: stopDetailWidths[4], halign: 'center' },
         5: { cellWidth: stopDetailWidths[5] },
-        6: { cellWidth: stopDetailWidths[6], halign: 'center' },
-        7: { cellWidth: stopDetailWidths[7] },
+        6: { cellWidth: stopDetailWidths[6] },
+        7: { cellWidth: stopDetailWidths[7], halign: 'center' },
         8: { cellWidth: stopDetailWidths[8] },
+        9: { cellWidth: stopDetailWidths[9] },
       },
     });
   }
@@ -287,11 +295,12 @@ export const exportDeliveryRouteExcel = (report, { fromDate, toDate }) => {
     ['Total Customer', total_stops],
     ['Total Qty Barang', total_items_qty],
     [],
-    ['No', 'Tanggal', 'No. Rute', 'Jenis Kendaraan', 'No. Transaksi', 'Jumlah Customer', 'Customer', 'Keterangan'],
+    ['No', 'Tanggal', 'No. Rute', 'Rit', 'Jenis Kendaraan', 'No. Transaksi', 'Jumlah Customer', 'Customer', 'Keterangan'],
     ...routes.map((r, i) => [
       i + 1,
       formatReportDate(r.date),
       r.route_no,
+      `Rit ${r.ritase || 1}`,
       r.vehicle_type_name,
       r.sale_no || '',
       r.stop_count,
@@ -308,6 +317,7 @@ export const exportDeliveryRouteExcel = (report, { fromDate, toDate }) => {
       'No',
       'No. Rute',
       'Tanggal',
+      'Rit',
       'Jenis Kendaraan',
       'Urutan',
       'Customer',
@@ -327,11 +337,13 @@ export const exportDeliveryRouteExcel = (report, { fromDate, toDate }) => {
           '',
           `Rute ${gi + 1}: ${group.route_no}`,
           formatReportDate(group.route_date),
+          `Rit ${group.ritase || 1}`,
           group.vehicle_type_name || '',
           '',
           `${group.stops.length} customer`,
           '',
           formatItemQuantity(sumStopRowsQty(group.stops)),
+          '',
           '',
           '',
           '',
@@ -343,6 +355,7 @@ export const exportDeliveryRouteExcel = (report, { fromDate, toDate }) => {
             n,
             s.route_no,
             formatReportDate(s.route_date),
+            `Rit ${s.ritase || 1}`,
             s.vehicle_type_name,
             s.stop_order,
             s.customer_name,
@@ -393,6 +406,7 @@ export const printDeliveryRouteReport = (report, { fromDate, toDate }) => {
         <td class="center">${i + 1}</td>
         <td class="center">${formatReportDate(r.date)}</td>
         <td>${r.route_no}</td>
+        <td class="center">Rit ${r.ritase || 1}</td>
         <td class="center">${r.vehicle_type_name}</td>
         <td>${r.sale_no || '-'}</td>
         <td class="center">${r.stop_count}</td>
@@ -420,6 +434,7 @@ export const printDeliveryRouteReport = (report, { fromDate, toDate }) => {
         <td class="center">${stopRowNo}</td>
         <td>${s.route_no}</td>
         <td class="center">${formatReportDate(s.route_date)}</td>
+        <td class="center">Rit ${s.ritase || 1}</td>
         <td>${s.vehicle_type_name}</td>
         <td class="center">${s.stop_order}</td>
         <td>${s.customer_name}</td>
@@ -463,13 +478,13 @@ export const printDeliveryRouteReport = (report, { fromDate, toDate }) => {
     </div>
     <h2>Ringkasan Rute</h2>
     <table>
-      <thead><tr><th class="center">No</th><th class="center">Tanggal</th><th>No. Rute</th><th class="center">Jenis Kendaraan</th><th>No. Transaksi</th><th class="center">Jml Cust</th><th>Customer</th><th>Keterangan</th></tr></thead>
+      <thead><tr><th class="center">No</th><th class="center">Tanggal</th><th>No. Rute</th><th class="center">Rit</th><th class="center">Jenis Kendaraan</th><th>No. Transaksi</th><th class="center">Jml Cust</th><th>Customer</th><th>Keterangan</th></tr></thead>
       <tbody>${routeRows}</tbody>
       <tfoot><tr><td colspan="5" style="text-align:right">TOTAL CUSTOMER</td><td class="center">${total_stops}</td><td colspan="2"></td></tr></tfoot>
     </table>
     ${stop_rows.length > 0 ? `<h2>Detail Customer & Barang</h2>
     <table>
-      <thead><tr><th class="center">No</th><th>No. Rute</th><th class="center">Tanggal</th><th>Jenis Kendaraan</th><th class="center">Urut</th><th>Customer</th><th>Barang</th><th class="center">Qty</th><th>Nomor SO</th><th>Kode Entity</th><th>No. Transaksi</th></tr></thead>
+      <thead><tr><th class="center">No</th><th>No. Rute</th><th class="center">Tanggal</th><th class="center">Rit</th><th>Jenis Kendaraan</th><th class="center">Urut</th><th>Customer</th><th>Barang</th><th class="center">Qty</th><th>Nomor SO</th><th>Kode Entity</th><th>No. Transaksi</th></tr></thead>
       <tbody>${stopDetailRows}</tbody>
     </table>` : ''}
   </body></html>`);

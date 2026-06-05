@@ -360,6 +360,8 @@ def _serialize_customer(db: Session, customer: Customer) -> CustomerOut:
         code=customer.code,
         name=customer.name,
         address=customer.address,
+        kelurahan=customer.kelurahan,
+        kecamatan=customer.kecamatan,
         city=customer.city,
         phone=customer.phone,
         email=customer.email,
@@ -378,6 +380,8 @@ def _serialize_customer_list(customer: Customer) -> CustomerListOut:
         name=customer.name,
         phone=customer.phone,
         is_active=customer.is_active,
+        kelurahan=customer.kelurahan,
+        kecamatan=customer.kecamatan,
         city=customer.city,
         latitude=float(customer.latitude) if customer.latitude is not None else None,
         longitude=float(customer.longitude) if customer.longitude is not None else None,
@@ -418,6 +422,8 @@ def bulk_create_customers(payload: CustomerBulkImport, db: Session = Depends(get
             code=code,
             name=item.name.strip(),
             address=item.address.strip() if item.address else None,
+            kelurahan=item.kelurahan.strip() if item.kelurahan else None,
+            kecamatan=item.kecamatan.strip() if item.kecamatan else None,
             city=item.city.strip() if item.city else None,
             phone=item.phone.strip() if item.phone else None,
             email=item.email.strip() if item.email else None,
@@ -449,6 +455,8 @@ def create_customer(payload: CustomerCreate, db: Session = Depends(get_db)):
         code=code,
         name=payload.name.strip(),
         address=payload.address.strip() if payload.address else None,
+        kelurahan=payload.kelurahan.strip() if payload.kelurahan else None,
+        kecamatan=payload.kecamatan.strip() if payload.kecamatan else None,
         city=payload.city.strip() if payload.city else None,
         phone=payload.phone.strip() if payload.phone else None,
         email=payload.email.strip() if payload.email else None,
@@ -480,6 +488,8 @@ def update_customer(customer_id: int, payload: CustomerCreate, db: Session = Dep
     obj.code = code
     obj.name = payload.name.strip()
     obj.address = payload.address.strip() if payload.address else None
+    obj.kelurahan = payload.kelurahan.strip() if payload.kelurahan else None
+    obj.kecamatan = payload.kecamatan.strip() if payload.kecamatan else None
     obj.city = payload.city.strip() if payload.city else None
     obj.phone = payload.phone.strip() if payload.phone else None
     obj.email = payload.email.strip() if payload.email else None
@@ -794,7 +804,12 @@ def list_drivers(db: Session = Depends(get_db)):
 
 @router.post("/drivers", response_model=DriverOut, status_code=201)
 def create_driver(payload: DriverCreate, db: Session = Depends(get_db)):
-    obj = Driver(name=payload.name.strip(), phone=(payload.phone.strip() if payload.phone else None))
+    obj = Driver(
+        name=payload.name.strip(), 
+        phone=(payload.phone.strip() if payload.phone else None),
+        bank_name=(payload.bank_name.strip() if payload.bank_name else None),
+        bank_account=(payload.bank_account.strip() if payload.bank_account else None),
+    )
     db.add(obj)
     try:
         db.commit()
@@ -814,6 +829,8 @@ def update_driver(
         raise HTTPException(status_code=404, detail="Supir tidak ditemukan")
     obj.name = payload.name.strip()
     obj.phone = payload.phone.strip() if payload.phone else None
+    obj.bank_name = payload.bank_name.strip() if payload.bank_name else None
+    obj.bank_account = payload.bank_account.strip() if payload.bank_account else None
     try:
         db.commit()
     except Exception as e:
@@ -1043,6 +1060,9 @@ def _serialize_sale(db: Session, obj: Sale) -> SaleOut:
         vehicle_plate=vehicle.plate_number if vehicle else None,
         driver_id=obj.driver_id,
         driver_name=driver.name if driver else None,
+        driver_phone=driver.phone if driver else None,
+        driver_bank_name=driver.bank_name if driver else None,
+        driver_bank_account=driver.bank_account if driver else None,
         delivery_route_id=obj.delivery_route_id,
         route_no=route_no,
         remarks=obj.remarks,
@@ -1097,6 +1117,7 @@ def _serialize_delivery_route(db: Session, route: DeliveryRoute) -> DeliveryRout
         driver_name=driver.name if driver else None,
         driver_phone=driver.phone if driver else None,
         remarks=route.remarks,
+        ritase=route.ritpiase,
         stops=stops_out,
         sale_id=sale.id if sale else None,
         sale_no=sale.sale_no if sale else None,
@@ -1386,6 +1407,7 @@ def create_delivery_route(payload: DeliveryRouteCreate, db: Session = Depends(ge
         date=payload.date,
         vehicle_type_id=payload.vehicle_type_id,
         remarks=payload.remarks,
+        ritpiase=payload.ritase,
     )
     db.add(obj)
     db.flush()
@@ -1411,6 +1433,7 @@ def update_delivery_route(
     obj.date = payload.date
     obj.vehicle_type_id = payload.vehicle_type_id
     obj.remarks = payload.remarks
+    obj.ritpiase = payload.ritase
     if payload.route_no:
         obj.route_no = payload.route_no
     replace_route_stops(db, obj, payload.stops)
@@ -1467,6 +1490,8 @@ def _warehouse_out(obj: WarehouseSetting) -> WarehouseOut:
         id=obj.id,
         name=obj.name,
         address=obj.address,
+        kelurahan=obj.kelurahan,
+        kecamatan=obj.kecamatan,
         city=obj.city,
         latitude=float(obj.latitude) if obj.latitude is not None else None,
         longitude=float(obj.longitude) if obj.longitude is not None else None,
@@ -1483,6 +1508,8 @@ def update_warehouse(payload: WarehouseUpdate, db: Session = Depends(get_db)):
     obj = _get_or_create_warehouse(db)
     obj.name = payload.name.strip()
     obj.address = payload.address.strip() if payload.address else None
+    obj.kelurahan = payload.kelurahan.strip() if payload.kelurahan else None
+    obj.kecamatan = payload.kecamatan.strip() if payload.kecamatan else None
     obj.city = payload.city.strip() if payload.city else None
     obj.latitude = payload.latitude
     obj.longitude = payload.longitude
@@ -1494,7 +1521,7 @@ def update_warehouse(payload: WarehouseUpdate, db: Session = Depends(get_db)):
 @router.post("/warehouse/geocode", response_model=WarehouseOut)
 def geocode_warehouse(db: Session = Depends(get_db)):
     obj = _get_or_create_warehouse(db)
-    lat, lng = geocode_address(obj.address, obj.city, obj.name)
+    lat, lng = geocode_address(obj.address, obj.kelurahan, obj.kecamatan, obj.city, obj.name)
     obj.latitude = lat
     obj.longitude = lng
     db.commit()
@@ -1507,7 +1534,7 @@ def geocode_customer(customer_id: int, db: Session = Depends(get_db)):
     obj = db.get(Customer, customer_id)
     if not obj:
         raise HTTPException(status_code=404, detail="Customer not found")
-    lat, lng = geocode_address(obj.address, obj.city, obj.name)
+    lat, lng = geocode_address(obj.address, obj.kelurahan, obj.kecamatan, obj.city, obj.name)
     obj.latitude = lat
     obj.longitude = lng
     db.commit()
@@ -1523,7 +1550,7 @@ def process_route(payload: RouteProcessRequest, db: Session = Depends(get_db)):
         origin_lat, origin_lng = (
             (float(warehouse.latitude), float(warehouse.longitude))
             if warehouse.latitude is not None and warehouse.longitude is not None
-            else geocode_address(warehouse.address, warehouse.city, warehouse.name)
+            else geocode_address(warehouse.address, warehouse.kelurahan, warehouse.kecamatan, warehouse.city, warehouse.name)
         )
     except HTTPException:
         raise HTTPException(
@@ -1544,7 +1571,7 @@ def process_route(payload: RouteProcessRequest, db: Session = Depends(get_db)):
             dest_lat, dest_lng = (
                 (float(customer.latitude), float(customer.longitude))
                 if customer.latitude is not None and customer.longitude is not None
-                else geocode_address(customer.address, customer.city, customer.name)
+                else geocode_address(customer.address, customer.kelurahan, customer.kecamatan, customer.city, customer.name)
             )
         except HTTPException:
             raise HTTPException(
@@ -1799,6 +1826,6 @@ def toll_reference(db: Session = Depends(get_db)):
 
 @router.post("/geocode", response_model=GeocodeOut)
 def geocode_point(payload: GeocodeRequest):
-    lat, lng = geocode_address(payload.address, payload.city, payload.name)
+    lat, lng = geocode_address(payload.address, payload.kelurahan, payload.kecamatan, payload.city, payload.name)
     return GeocodeOut(latitude=lat, longitude=lng)
 

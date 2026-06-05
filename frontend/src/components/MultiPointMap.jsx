@@ -42,8 +42,8 @@ const MultiPointMap = ({ points, height = 300 }) => {
       scrollWheelZoom={false}
     >
       <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        attribution='&copy; Google Maps'
+        url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
       />
       {points.length > 0 && <FitBounds points={points} />}
       {points.length > 1 && (

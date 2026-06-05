@@ -98,6 +98,7 @@ const DeliveryRouteForm = () => {
           route_no: route.route_no,
           date: route.date,
           vehicle_type_id: String(route.vehicle_type_id),
+          ritase: String(route.ritase || 1),
           remarks: route.remarks || '',
           stops: route.stops.length
             ? route.stops.sort((a, b) => a.sort_order - b.sort_order).map(mapStopFromApi)
@@ -152,6 +153,7 @@ const DeliveryRouteForm = () => {
       route_no: form.route_no || null,
       date: form.date,
       vehicle_type_id: parseInt(form.vehicle_type_id, 10),
+      ritase: parseInt(form.ritase, 10) || 1,
       remarks: form.remarks || null,
       stops: stopsPayload,
     };
@@ -348,6 +350,20 @@ const DeliveryRouteForm = () => {
                   {vehicleTypes.map((vt) => (
                     <option key={vt.id} value={vt.id}>
                       {vt.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Ritase</label>
+                <select
+                  className="form-input"
+                  value={form.ritase}
+                  onChange={(e) => setForm({ ...form, ritase: e.target.value })}
+                >
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
+                    <option key={n} value={n}>
+                      Rit {n}
                     </option>
                   ))}
                 </select>

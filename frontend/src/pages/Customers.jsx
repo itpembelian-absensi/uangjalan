@@ -108,6 +108,8 @@ const parseExcelCustomerRows = (sheet) => {
     return {
       code,
       name,
+      kelurahan: cellText(mapped.KELURAHAN ?? mapped.VILLAGE) || null,
+      kecamatan: cellText(mapped.KECAMATAN ?? mapped.DISTRICT) || null,
       address: cellText(mapped.ALAMAT ?? mapped.ADDRESS) || null,
       city: cellText(mapped.KOTA ?? mapped.CITY) || null,
       phone:
@@ -155,7 +157,11 @@ const calcAutoBbm = (distanceKm, vt) => {
   if (!distanceKm || !vt?.km_per_liter) return null;
   const base = distanceKm / vt.km_per_liter;
   const afterRoundTrip = base * 2;
-  if (vt.bbm_price) return Math.round(afterRoundTrip * vt.bbm_price);
+  if (vt.bbm_price) {
+    const rawPrice = afterRoundTrip * vt.bbm_price;
+    // Bulatkan ke ribuan terdekat
+    return Math.round(rawPrice / 1000) * 1000;
+  }
   return Math.round(afterRoundTrip);
 };
 
@@ -273,6 +279,8 @@ const Customers = () => {
     code: '',
     name: '',
     address: '',
+    kelurahan: '',
+    kecamatan: '',
     city: '',
     phone: '',
     email: '',
@@ -326,6 +334,8 @@ const Customers = () => {
           code: full.code || '',
           name: full.name || '',
           address: full.address || '',
+          kelurahan: full.kelurahan || '',
+          kecamatan: full.kecamatan || '',
           city: full.city || '',
           phone: full.phone || '',
           email: full.email || '',
@@ -344,6 +354,8 @@ const Customers = () => {
         code: '',
         name: '',
         address: '',
+        kelurahan: '',
+        kecamatan: '',
         city: '',
         phone: '',
         email: '',
@@ -467,6 +479,8 @@ const Customers = () => {
             code: form.code.trim(),
             name: form.name,
             address: form.address || null,
+            kelurahan: form.kelurahan || null,
+            kecamatan: form.kecamatan || null,
             city: form.city || null,
             phone: form.phone || null,
             email: form.email || null,
@@ -484,6 +498,8 @@ const Customers = () => {
           body: JSON.stringify({
             name: form.name,
             address: form.address || null,
+            kelurahan: form.kelurahan || null,
+            kecamatan: form.kecamatan || null,
             city: form.city || null,
           }),
         });
@@ -541,6 +557,8 @@ const Customers = () => {
       code: form.code.trim(),
       name: form.name.trim(),
       address: form.address || null,
+      kelurahan: form.kelurahan || null,
+      kecamatan: form.kecamatan || null,
       city: form.city || null,
       phone: form.phone || null,
       email: form.email || null,
@@ -633,8 +651,8 @@ const Customers = () => {
   };
 
   const downloadTemplate = () => {
-    const header = ['KODE', 'NAMA', 'ALAMAT', 'KOTA', 'TELEPON', 'EMAIL', 'LATITUDE', 'LONGITUDE'];
-    const example = ['CST-001', 'PT Contoh Jaya', 'Jl. Raya No.1', 'Jakarta', '08123456789', 'info@contoh.com', '-6.200000', '106.816666'];
+    const header = ['KODE', 'NAMA', 'ALAMAT', 'KELURAHAN', 'KECAMATAN', 'KOTA', 'TELEPON', 'EMAIL', 'LATITUDE', 'LONGITUDE'];
+    const example = ['CST-001', 'PT Contoh Jaya', 'Jl. Raya No.1', 'Sukagalih', 'Sukajadi', 'Bandung', '08123456789', 'info@contoh.com', '-6.200000', '106.816666'];
     const ws = XLSX.utils.aoa_to_sheet([header, example]);
     // Set column widths
     ws['!cols'] = header.map((h) => ({ wch: Math.max(h.length + 2, 16) }));
@@ -911,6 +929,33 @@ const Customers = () => {
                         value={form.address}
                         onChange={(e) => setForm({ ...form, address: e.target.value })}
                       />
+                    </div>
+
+                    <div className="grid-cols-2" style={{ gap: '1rem', marginBottom: '1rem' }}>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label" style={{ textTransform: 'none' }}>
+                          Kelurahan
+                        </label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          style={{ background: 'transparent' }}
+                          value={form.kelurahan}
+                          onChange={(e) => setForm({ ...form, kelurahan: e.target.value })}
+                        />
+                      </div>
+                      <div className="form-group" style={{ marginBottom: 0 }}>
+                        <label className="form-label" style={{ textTransform: 'none' }}>
+                          Kecamatan
+                        </label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          style={{ background: 'transparent' }}
+                          value={form.kecamatan}
+                          onChange={(e) => setForm({ ...form, kecamatan: e.target.value })}
+                        />
+                      </div>
                     </div>
 
                     <div className="grid-cols-2" style={{ gap: '1rem' }}>

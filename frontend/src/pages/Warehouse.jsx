@@ -11,6 +11,8 @@ const Warehouse = () => {
   const [form, setForm] = useState({
     name: 'Gudang Utama',
     address: '',
+    kelurahan: '',
+    kecamatan: '',
     city: '',
     latitude: '',
     longitude: '',
@@ -25,6 +27,8 @@ const Warehouse = () => {
       setForm({
         name: data.name || 'Gudang Utama',
         address: data.address || '',
+        kelurahan: data.kelurahan || '',
+        kecamatan: data.kecamatan || '',
         city: data.city || '',
         latitude: data.latitude != null ? String(data.latitude) : '',
         longitude: data.longitude != null ? String(data.longitude) : '',
@@ -49,6 +53,8 @@ const Warehouse = () => {
         body: JSON.stringify({
           name: form.name,
           address: form.address || null,
+          kelurahan: form.kelurahan || null,
+          kecamatan: form.kecamatan || null,
           city: form.city || null,
           latitude: form.latitude ? parseFloat(form.latitude) : null,
           longitude: form.longitude ? parseFloat(form.longitude) : null,
@@ -58,6 +64,8 @@ const Warehouse = () => {
       setForm({
         name: data.name,
         address: data.address || '',
+        kelurahan: data.kelurahan || '',
+        kecamatan: data.kecamatan || '',
         city: data.city || '',
         latitude: data.latitude != null ? String(data.latitude) : '',
         longitude: data.longitude != null ? String(data.longitude) : '',
@@ -80,6 +88,8 @@ const Warehouse = () => {
         body: JSON.stringify({
           name: form.name,
           address: form.address || null,
+          kelurahan: form.kelurahan || null,
+          kecamatan: form.kecamatan || null,
           city: form.city || null,
           latitude: form.latitude ? parseFloat(form.latitude) : null,
           longitude: form.longitude ? parseFloat(form.longitude) : null,
@@ -120,6 +130,16 @@ const Warehouse = () => {
             <div className="form-group">
               <label className="form-label">Alamat</label>
               <textarea className="form-input" rows={3} value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} readOnly={!canWrite} />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div className="form-group">
+                <label className="form-label">Kelurahan</label>
+                <input className="form-input" value={form.kelurahan} onChange={(e) => setForm({ ...form, kelurahan: e.target.value })} readOnly={!canWrite} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Kecamatan</label>
+                <input className="form-input" value={form.kecamatan} onChange={(e) => setForm({ ...form, kecamatan: e.target.value })} readOnly={!canWrite} />
+              </div>
             </div>
             <div className="form-group">
               <label className="form-label">Kota/Kabupaten</label>

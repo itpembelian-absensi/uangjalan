@@ -72,8 +72,8 @@ const LocationPickerMap = ({ latitude, longitude, onLocationChange, height = 360
     <div style={{ position: 'relative', height: mapHeight, width: '100%' }}>
       <MapContainer center={center} zoom={13} style={{ height: '100%', width: '100%', borderRadius: '8px' }} scrollWheelZoom={true}>
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; Google Maps'
+          url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
         />
         {fitPoints.length > 1 && <FitBounds points={fitPoints} />}
         <MapEvents onLocationSelected={onLocationChange} />

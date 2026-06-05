@@ -58,12 +58,15 @@ export function buildSaleDocument(form, { vehicles, drivers, customers }) {
   const uangJalan = multiCustomer ? maxNominal : detailRows[0]?.amount || 0;
   const { rounding, total: totalUangJalan } = computeUangJalanTotals(uangJalan, extraAmount);
 
+  const driverBankInfo = [driver?.bank_name, driver?.bank_account].filter(Boolean).join(' ');
+  const driverDisplay = driver ? (driverBankInfo ? `${driver.name} (Rek: ${driverBankInfo})` : driver.name) : '-';
+
   return {
     title: 'Form Transaksi Uang Jalan',
     saleNo: form.sale_no || '(Auto Generate)',
     date: formatDateId(form.date),
     vehicle: vehicle?.plate_number || '-',
-    driver: driver?.name || '-',
+    driver: driverDisplay,
     remarks: form.remarks || '-',
     vehicleTypeHeader,
     customerNames,
@@ -100,12 +103,15 @@ export function buildSaleDocumentFromSaleOut(sale) {
   const uangJalan = multiCustomer ? maxNominal : detailRows[0]?.amount || 0;
   const { rounding, total: totalUangJalan } = computeUangJalanTotals(uangJalan, extraAmount);
 
+  const driverBankInfo = [sale.driver_bank_name, sale.driver_bank_account].filter(Boolean).join(' ');
+  const driverDisplay = sale.driver_name ? (driverBankInfo ? `${sale.driver_name} (Rek: ${driverBankInfo})` : sale.driver_name) : '-';
+
   return {
     title: 'Form Transaksi Uang Jalan',
     saleNo: sale.sale_no || '-',
     date: formatDateId(sale.date),
     vehicle: sale.vehicle_plate || '-',
-    driver: sale.driver_name || '-',
+    driver: driverDisplay,
     remarks: sale.remarks || '-',
     vehicleTypeHeader,
     customerNames,
@@ -131,7 +137,8 @@ function enrichSaleRow(sale) {
   const { rounding, total } = computeUangJalanTotals(base, extra);
   const customerNames = details.map((d) => d.customer_name || '-').join(', ');
   const vehicleTypes = [...new Set(details.map((d) => d.vehicle_type_name || '-'))].join(', ');
-  return { ...sale, _base: base, _extra: extra, _rounding: rounding, _total: total, _customers: customerNames, _vehicleType: vehicleTypes };
+  const driverBankInfo = [sale.driver_bank_name, sale.driver_bank_account].filter(Boolean).join(' ');
+  return { ...sale, _base: base, _extra: extra, _rounding: rounding, _total: total, _customers: customerNames, _vehicleType: vehicleTypes, _driverBankInfo: driverBankInfo };
 }
 
 export function printBulkSales(sales, { fromLabel, toLabel } = {}) {
@@ -148,7 +155,7 @@ export function printBulkSales(sales, { fromLabel, toLabel } = {}) {
       <td style="text-align:center">${formatDateId(s.date)}</td>
       <td>${s.sale_no}</td>
       <td style="text-align:center">${s.vehicle_plate || '-'}</td>
-      <td>${s.driver_name || '-'}</td>
+      <td>${s.driver_name || '-'}${s._driverBankInfo ? `<br/><small style="color:#555">Rek: ${s._driverBankInfo}</small>` : ''}</td>
       <td>${s._customers}</td>
       <td style="text-align:center">${s._vehicleType}</td>
       <td class="num">${formatIDR(s._base)}</td>
@@ -206,7 +213,7 @@ export function exportBulkSalesPdf(sales, { fromLabel, toLabel } = {}) {
     startY: 26,
     head: [['No', 'Tanggal', 'No. Transaksi', 'Kendaraan', 'Sopir', 'Customer', 'Jenis', 'Uang Jalan', 'Tambahan', 'Pembulatan', 'Total']],
     body: enriched.map((s, i) => [
-      i + 1, formatDateId(s.date), s.sale_no, s.vehicle_plate || '-', s.driver_name || '-',
+      i + 1, formatDateId(s.date), s.sale_no, s.vehicle_plate || '-', s._driverBankInfo ? `${s.driver_name || '-'}\nRek: ${s._driverBankInfo}` : s.driver_name || '-',
       s._customers, s._vehicleType, formatIDR(s._base), formatIDR(s._extra), formatIDR(s._rounding), formatIDR(s._total),
     ]),
     foot: [[
@@ -239,7 +246,7 @@ export function exportBulkSalesExcel(sales, { fromLabel, toLabel } = {}) {
     [],
     ['No', 'Tanggal', 'No. Transaksi', 'Kendaraan', 'Sopir', 'Customer', 'Jenis Kendaraan', 'Uang Jalan', 'Tambahan', 'Pembulatan', 'Total'],
     ...enriched.map((s, i) => [
-      i + 1, formatDateId(s.date), s.sale_no, s.vehicle_plate || '-', s.driver_name || '-',
+      i + 1, formatDateId(s.date), s.sale_no, s.vehicle_plate || '-', s._driverBankInfo ? `${s.driver_name || '-'} (Rek: ${s._driverBankInfo})` : s.driver_name || '-',
       s._customers, s._vehicleType, s._base, s._extra, s._rounding, s._total,
     ]),
     [],

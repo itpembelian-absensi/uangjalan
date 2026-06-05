@@ -80,8 +80,15 @@ const getMaxNominal = (details) => {
   };
 };
 
-const saleDetailTotal = (sale) =>
-  (sale.details || []).reduce((acc, d) => acc + (parseFloat(d.amount) || 0), 0);
+const saleDetailTotal = (sale) => {
+  const amounts = (sale.details || []).map((d) => parseFloat(d.amount) || 0).filter((n) => n > 0);
+  const maxNom = amounts.length > 0 ? Math.max(...amounts) : 0;
+  const extraAmt = parseFloat(sale.extra_uang_jalan) || 0;
+  const multi = (sale.details || []).length > 1;
+  const baseUJ = multi ? maxNom : (amounts[0] || 0);
+  const { total } = computeUangJalanTotals(baseUJ, extraAmt);
+  return total;
+};
 
 const compareSales = (a, b, key, dir) => {
   const sign = dir === 'asc' ? 1 : -1;
@@ -664,10 +671,20 @@ const Sales = () => {
                       </td>
                       <td style={{ whiteSpace: 'nowrap' }}>{formatDate(s.date)}</td>
                       <td>{s.vehicle_plate || (s.delivery_route_id ? '— belum dipilih' : '—')}</td>
-                      <td>{s.driver_name || (s.delivery_route_id ? '—' : '—')}</td>
+                      <td>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ fontWeight: 500 }}>{s.driver_name || (s.delivery_route_id ? '—' : '—')}</span>
+                          {s.driver_phone && <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{s.driver_phone}</span>}
+                          {(s.driver_bank_name || s.driver_bank_account) && (
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                              Rek: {[s.driver_bank_name, s.driver_bank_account].filter(Boolean).join(' ')}
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td>{s.details.length} Customer</td>
                       <td style={{ textAlign: 'right', color: 'var(--success-color)', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                        {formatIDR(total)}
+                        {formatIDR(totalUJ)}
                       </td>
                       <td style={{ whiteSpace: 'nowrap' }}>
                         {s.is_finance_paid ? (
@@ -929,11 +946,19 @@ const Sales = () => {
                       onChange={(e) => setForm({ ...form, driver_id: e.target.value })}
                     >
                       <option value="">{fromRoute ? '-- Pilih sopir (gudang) --' : '-- Pilih Sopir --'}</option>
-                      {drivers.map((d) => (
-                        <option key={d.id} value={d.id}>
-                          {d.phone ? `${d.name} — ${d.phone}` : d.name}
-                        </option>
-                      ))}
+                      {drivers.map((d) => {
+                        const parts = [d.name];
+                        if (d.phone) parts.push(d.phone);
+                        if (d.bank_name || d.bank_account) {
+                          const bankInfo = [d.bank_name, d.bank_account].filter(Boolean).join(' ');
+                          parts.push(`(Rek: ${bankInfo})`);
+                        }
+                        return (
+                          <option key={d.id} value={d.id}>
+                            {parts.join(' — ')}
+                          </option>
+                        );
+                      })}
                     </select>
                   </div>
                 </div>
@@ -1079,7 +1104,7 @@ const Sales = () => {
 
                     const { customerCount, maxNominal } = getMaxNominal(form.details);
                     const showMap = selectedCustomerPoints.length > 1;
-                    const showTotals = customerCount > 1;
+                    const showTotals = customerCount > 0;
 
                     if (!showMap && !showTotals) return null;
 

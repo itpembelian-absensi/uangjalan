@@ -204,6 +204,7 @@ const DeliveryRoutesList = () => {
                 <th>No Rute</th>
                 <th>Tanggal</th>
                 <th>Jenis Kendaraan</th>
+                <th>Rit</th>
                 <th>Stop</th>
                 <th>Uang Jalan</th>
                 <th style={{ textAlign: 'right', minWidth: '220px', display: showRouteActions ? undefined : 'none' }}>Aksi</th>
@@ -212,13 +213,13 @@ const DeliveryRoutesList = () => {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan="6" style={{ textAlign: 'center', padding: '2rem' }}>
+                  <td colSpan="7" style={{ textAlign: 'center', padding: '2rem' }}>
                     Memuat...
                   </td>
                 </tr>
               ) : routes.length === 0 ? (
                 <tr>
-                  <td colSpan="6" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>
+                  <td colSpan="7" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>
                     {routesError ? (
                       'Daftar rute tidak dapat dimuat'
                     ) : (
@@ -240,6 +241,9 @@ const DeliveryRoutesList = () => {
                     <td style={{ fontWeight: 600 }}>{r.route_no}</td>
                     <td>{formatRouteDate(r.date)}</td>
                     <td>{r.vehicle_type_name || '-'}</td>
+                    <td>
+                      <span className="badge badge-blue" style={{ fontWeight: 600 }}>Rit {r.ritase || 1}</span>
+                    </td>
                     <td>
                       {r.stops.length} customer
                       {r.stops.some((s) => s.items?.length) && (

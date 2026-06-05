@@ -595,6 +595,25 @@ def ensure_schema() -> None:
             )
         )
 
+        conn.execute(
+            text(
+                """
+                ALTER TABLE delivery_routes
+                ADD COLUMN IF NOT EXISTS ritpiase INT NOT NULL DEFAULT 1
+                """
+            )
+        )
+
+        conn.execute(
+            text(
+                """
+                ALTER TABLE drivers
+                ADD COLUMN IF NOT EXISTS bank_name TEXT,
+                ADD COLUMN IF NOT EXISTS bank_account TEXT
+                """
+            )
+        )
+
     _seed_default_users()
     _seed_access_permissions()
 
