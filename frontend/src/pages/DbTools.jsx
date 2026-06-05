@@ -23,10 +23,15 @@ const DbTools = () => {
     setError(null);
     try {
       const res = await fetch('/api/db-tools/status', { credentials: 'include' });
+      if (res.status === 404) {
+        setError('DB Tools tidak aktif di server. Tambahkan ENABLE_DB_TOOLS=true di file .env backend lalu restart.');
+        setStatus(null);
+        return;
+      }
       const data = await res.json();
       setStatus(data);
     } catch (e) {
-      setError('Tidak dapat terhubung ke server. Pastikan ENABLE_DB_TOOLS=true di .env');
+      setError('Tidak dapat terhubung ke server backend.');
       setStatus(null);
     } finally {
       setLoading((l) => ({ ...l, status: false }));
