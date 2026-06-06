@@ -272,6 +272,16 @@ const Sales = () => {
     fetchData();
   }, []);
 
+  // Auto-fetch when date filters change (skip initial mount handled by fetchData above)
+  const initialLoadDone = React.useRef(false);
+  useEffect(() => {
+    if (!initialLoadDone.current) {
+      initialLoadDone.current = true;
+      return;
+    }
+    fetchSales();
+  }, [filterFrom, filterTo]);
+
   const getActiveTariffs = (customerId) => {
     const customer = customers.find((c) => String(c.id) === String(customerId));
     return (customer?.tariffs || []).filter((t) => tariffTotal(t) > 0);
