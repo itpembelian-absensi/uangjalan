@@ -304,8 +304,39 @@ def _execute_sql_statements(conn, sql_content: str, mode: str) -> None:
         sql_content: The full SQL dump file content as a string.
         mode: One of "full", "schema_only", or "data_only".
     """
-    # Split by semicolons to get individual statements
-    raw_statements = sql_content.split(";")
+    # Split by semicolons, but ignore semicolons inside string literals
+    raw_statements = []
+    current_statement = []
+    in_string = False
+    
+    i = 0
+    while i < len(sql_content):
+        char = sql_content[i]
+        
+        if in_string:
+            if char == '\\':
+                current_statement.append(char)
+                i += 1
+                if i < len(sql_content):
+                    current_statement.append(sql_content[i])
+            elif char == "'":
+                in_string = False
+                current_statement.append(char)
+            else:
+                current_statement.append(char)
+        else:
+            if char == "'":
+                in_string = True
+                current_statement.append(char)
+            elif char == ';':
+                raw_statements.append("".join(current_statement))
+                current_statement = []
+            else:
+                current_statement.append(char)
+        i += 1
+
+    if current_statement:
+        raw_statements.append("".join(current_statement))
 
     for raw_stmt in raw_statements:
         # Clean up the statement
