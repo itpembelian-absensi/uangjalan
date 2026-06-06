@@ -275,9 +275,86 @@ def _province_for_city(city: str | None) -> str | None:
         "subang",
         "bandung",
         "cirebon",
+        "sukabumi",
+        "cianjur",
+        "garut",
+        "tasikmalaya",
+        "sumedang",
+        "indramayu",
+        "majalengka",
+        "kuningan",
+        "ciamis",
+        "pangandaran",
+        "banjar",
     )
     if any(marker in city_n for marker in jabar_markers):
         return "Jawa Barat"
+    banten_markers = (
+        "serang",
+        "cilegon",
+        "pandeglang",
+        "lebak",
+        "rangkasbitung",
+    )
+    if any(marker in city_n for marker in banten_markers):
+        return "Banten"
+    jateng_markers = (
+        "semarang",
+        "solo",
+        "surakarta",
+        "pekalongan",
+        "tegal",
+        "brebes",
+        "cilacap",
+        "purwokerto",
+        "banyumas",
+        "kebumen",
+        "magelang",
+        "klaten",
+        "boyolali",
+        "demak",
+        "kendal",
+        "kudus",
+        "jepara",
+        "pati",
+        "blora",
+        "rembang",
+        "purbalingga",
+        "banjarnegara",
+        "wonosobo",
+        "temanggung",
+        "batang",
+        "pemalang",
+        "karanganyar",
+        "sragen",
+        "wonogiri",
+        "sukoharjo",
+        "grobogan",
+    )
+    if any(marker in city_n for marker in jateng_markers):
+        return "Jawa Tengah"
+    jatim_markers = (
+        "surabaya",
+        "malang",
+        "kediri",
+        "sidoarjo",
+        "gresik",
+        "mojokerto",
+        "pasuruan",
+        "probolinggo",
+        "jember",
+        "banyuwangi",
+        "madiun",
+        "ngawi",
+        "ponorogo",
+        "tulungagung",
+        "blitar",
+        "lamongan",
+        "tuban",
+        "bojonegoro",
+    )
+    if any(marker in city_n for marker in jatim_markers):
+        return "Jawa Timur"
     return None
 
 
@@ -297,20 +374,43 @@ def _geocode_query_variants(
         if cleaned and cleaned.lower() not in {q.lower() for q in queries}:
             queries.append(cleaned)
 
+    # --- Kelurahan/Kecamatan-focused queries (highest priority) ---
+    # These structured queries help Nominatim find Indonesian villages/subdistricts.
+    if kel and kec and city_s:
+        if province:
+            add(kel, kec, city_s, province, "Indonesia")
+            add(f"Kelurahan {kel}", f"Kecamatan {kec}", city_s, province, "Indonesia")
+            add(f"Desa {kel}", f"Kecamatan {kec}", city_s, province, "Indonesia")
+        add(kel, kec, city_s, "Indonesia")
+        add(f"Kelurahan {kel}", f"Kecamatan {kec}", city_s, "Indonesia")
+    elif kel and city_s:
+        if province:
+            add(kel, city_s, province, "Indonesia")
+        add(kel, city_s, "Indonesia")
+    elif kec and city_s:
+        if province:
+            add(kec, city_s, province, "Indonesia")
+        add(kec, city_s, "Indonesia")
+
+    # --- Full address queries ---
     if addr and city_s:
         if province:
             add(addr, kel, kec, city_s, province, "Indonesia")
         add(addr, kel, kec, city_s, "Indonesia")
         add(addr, city_s, "Indonesia")
-        
-    add(kel, kec, city_s, "Indonesia")
-    
+
     if addr:
         add(addr, "Indonesia")
     if name_s and addr:
         add(name_s, addr, kel, kec, city_s, "Indonesia")
     elif name_s:
         add(name_s, kel, kec, city_s, "Indonesia")
+
+    # --- Kecamatan-only fallback (broader area) ---
+    if kec and city_s:
+        if province:
+            add(f"Kecamatan {kec}", city_s, province, "Indonesia")
+        add(f"Kecamatan {kec}", city_s, "Indonesia")
 
     addr_n = _normalize_text(addr)
     if "terminal" in addr_n and city_s:
@@ -388,6 +488,34 @@ def _score_geocode_candidate(
         if _admin_city_conflicts(display_name, city):
             score -= 250
 
+    # --- Kelurahan / Kecamatan matching ---
+    kel_n = _normalize_text(kelurahan)
+    kec_n = _normalize_text(kecamatan)
+    address_details = item.get("address") or {}
+    nominatim_village = _normalize_text(
+        address_details.get("village")
+        or address_details.get("suburb")
+        or address_details.get("neighbourhood")
+    )
+    nominatim_district = _normalize_text(
+        address_details.get("county")
+        or address_details.get("city_district")
+        or address_details.get("district")
+    )
+
+    if kel_n:
+        if kel_n in nominatim_village or kel_n in result_name_n:
+            score += 80
+        elif kel_n in display_n:
+            score += 40
+    if kec_n:
+        if kec_n in nominatim_district or kec_n in display_n:
+            score += 50
+
+    # Prefer village/suburb type results when kelurahan is specified
+    if kel_n and item.get("type") in {"village", "suburb", "neighbourhood", "hamlet"}:
+        score += 30
+
     skip_tokens = {
         "terminal",
         "indonesia",
@@ -426,7 +554,9 @@ def _score_geocode_candidate(
         if item.get("type") in {"suburb", "village", "town", "city", "administrative"}:
             score -= 45
     elif item.get("type") in {"suburb", "village", "town", "city"}:
-        score -= 15
+        # Don't penalize village/suburb if kelurahan was specified
+        if not kel_n:
+            score -= 15
 
     return score
 
