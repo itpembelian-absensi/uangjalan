@@ -239,11 +239,13 @@ const Sidebar = () => {
   return (
     <aside className="sidebar">
       <div style={{ padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-        <img 
-          src={settings.logo_base64 ? (settings.logo_base64.startsWith('data:') ? settings.logo_base64 : `data:image/png;base64,${settings.logo_base64}`) : '/favicon.svg'} 
-          alt="Logo" 
-          style={{ width: '32px', height: '32px', objectFit: 'contain' }} 
-        />
+        {settings.logo_base64 && (
+          <img 
+            src={settings.logo_base64.startsWith('data:') ? settings.logo_base64 : `data:image/png;base64,${settings.logo_base64}`} 
+            alt="Logo" 
+            style={{ width: '32px', height: '32px', objectFit: 'contain' }} 
+          />
+        )}
         <div>
           <h2
             style={{
