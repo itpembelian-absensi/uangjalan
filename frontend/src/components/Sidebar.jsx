@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronDown, ChevronRight, Database, LogOut } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
+import { useAppSettings } from '../context/AppSettingsContext';
 import { MenuIcon } from '../config/menuIcons.jsx';
 
 const STORAGE_SECTIONS = 'sidebar-collapsed-sections';
@@ -84,6 +85,7 @@ function pathInGroup(group, pathname, menuPaths) {
 
 const Sidebar = () => {
   const { user, logout } = useAuth();
+  const { settings } = useAppSettings();
   const navigate = useNavigate();
   const location = useLocation();
   const pathname = location.pathname;
@@ -236,18 +238,27 @@ const Sidebar = () => {
 
   return (
     <aside className="sidebar">
-      <div style={{ padding: '0.5rem 1rem' }}>
-        <h2
-          style={{
-            background: 'var(--accent-gradient)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            fontSize: '1.4rem',
-          }}
-        >
-          Biaya Pengiriman
-        </h2>
-        <p style={{ fontSize: '0.8rem', opacity: 0.7 }}>Premium Logistics</p>
+      <div style={{ padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <img 
+          src={settings.logo_base64 ? (settings.logo_base64.startsWith('data:') ? settings.logo_base64 : `data:image/png;base64,${settings.logo_base64}`) : '/favicon.svg'} 
+          alt="Logo" 
+          style={{ width: '32px', height: '32px', objectFit: 'contain' }} 
+        />
+        <div>
+          <h2
+            style={{
+              background: 'var(--accent-gradient)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              fontSize: '1.4rem',
+            }}
+          >
+            {settings.app_name}
+          </h2>
+          {settings.app_subtitle && (
+            <p style={{ fontSize: '0.8rem', opacity: 0.7 }}>{settings.app_subtitle}</p>
+          )}
+        </div>
       </div>
 
       {user && (

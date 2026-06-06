@@ -622,4 +622,23 @@ class LoginRequest(BaseModel):
     remember_me: bool = False
 
 
+class AppSettingUpdate(BaseModel):
+    app_name: str | None = Field(default=None, min_length=1)
+    app_subtitle: str | None = Field(default=None)
+    logo_base64: str | None = None
+    favicon_base64: str | None = None
+
+
+class AppSettingOut(BaseModel):
+    id: int
+    app_name: str
+    app_subtitle: str
+    logo_base64: str | None = None
+    favicon_base64: str | None = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 AuthUserOut.model_rebuild()

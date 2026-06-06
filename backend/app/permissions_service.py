@@ -53,6 +53,7 @@ DEFAULT_MENUS: list[MenuDef] = [
     MenuDef("toll_sections", "Ruas Tol", "/toll-sections", "Master Data", "Route", 39, "toll:read", "toll:write"),
     MenuDef("users", "Manajemen User", "/users", "Administrasi", "Shield", 40, "users:read", "users:write"),
     MenuDef("access_matrix", "Matriks Akses", "/access-matrix", "Administrasi", "Table2", 41, "access_matrix:read", "access_matrix:write"),
+    MenuDef("app_settings", "Pengaturan Aplikasi", "/app-settings", "Administrasi", "Settings", 42, "app_settings:read", "app_settings:write"),
 ]
 
 
@@ -75,6 +76,7 @@ def _default_access_level(menu: MenuDef, role: Role) -> str:
         "reports": {Role.ADMIN: "read", Role.FINANCE: "read", Role.MARKETING: "read", Role.GUDANG: "read"},
         "users": {Role.ADMIN: "full", Role.FINANCE: "none", Role.MARKETING: "none", Role.GUDANG: "none"},
         "access_matrix": {Role.ADMIN: "full", Role.FINANCE: "read", Role.MARKETING: "read", Role.GUDANG: "none"},
+        "app_settings": {Role.ADMIN: "full", Role.FINANCE: "read", Role.MARKETING: "read", Role.GUDANG: "read"},
     }
     return defaults.get(menu.id, {}).get(role, "none")
 

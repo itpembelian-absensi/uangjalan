@@ -90,6 +90,20 @@ class WarehouseSetting(Base):
     )
 
 
+class AppSetting(Base):
+    __tablename__ = "app_settings"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    app_name: Mapped[str] = mapped_column(String, nullable=False, server_default="Biaya Pengiriman")
+    app_subtitle: Mapped[str] = mapped_column(String, nullable=False, server_default="Premium Logistics")
+    logo_base64: Mapped[str | None] = mapped_column(Text, nullable=True)
+    favicon_base64: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+
 class TollSection(Base):
     __tablename__ = "toll_sections"
 

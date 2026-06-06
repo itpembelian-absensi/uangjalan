@@ -35,6 +35,7 @@ from app.models import (
     TollSectionRate,
     TollGolongan,
     WarehouseSetting,
+    AppSetting,
 )
 from app.delivery_route_service import (
     format_stop_items_summary,
@@ -101,6 +102,8 @@ from app.schemas import (
     TollGolonganUpdate,
     TollGolonganOut,
     TollReferenceOut,
+    AppSettingOut,
+    AppSettingUpdate,
 )
 
 router = APIRouter(prefix="/api", dependencies=[Depends(require_api_access)])
@@ -1849,3 +1852,36 @@ def geocode_point(payload: GeocodeRequest):
     lat, lng = geocode_address(payload.address, payload.kelurahan, payload.kecamatan, payload.city, payload.name)
     return GeocodeOut(latitude=lat, longitude=lng)
 
+
+@router.get("/app-settings", response_model=AppSettingOut)
+def get_app_setting(db: Session = Depends(get_db)):
+    setting = db.scalars(select(AppSetting).limit(1)).first()
+    if not setting:
+        setting = AppSetting()
+        db.add(setting)
+        db.commit()
+        db.refresh(setting)
+    return setting
+
+
+@router.put("/app-settings", response_model=AppSettingOut, dependencies=[Depends(require_permission("app_settings:write"))])
+def update_app_setting(payload: AppSettingUpdate, db: Session = Depends(get_db)):
+    setting = db.scalars(select(AppSetting).limit(1)).first()
+    if not setting:
+        setting = AppSetting()
+        db.add(setting)
+    
+    update_data = payload.model_dump(exclude_unset=True)
+    
+    if "app_name" in update_data and update_data["app_name"] is not None:
+        setting.app_name = update_data["app_name"].strip()
+    if "app_subtitle" in update_data and update_data["app_subtitle"] is not None:
+        setting.app_subtitle = update_data["app_subtitle"].strip()
+    if "logo_base64" in update_data:
+        setting.logo_base64 = update_data["logo_base64"]
+    if "favicon_base64" in update_data:
+        setting.favicon_base64 = update_data["favicon_base64"]
+
+    db.commit()
+    db.refresh(setting)
+    return setting
