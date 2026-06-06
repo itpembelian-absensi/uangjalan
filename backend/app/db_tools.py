@@ -16,10 +16,17 @@ from decimal import Decimal
 from fastapi import APIRouter, BackgroundTasks, HTTPException, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from starlette.responses import JSONResponse
-from sqlalchemy import text
+from sqlalchemy import create_engine, text
 
 from app.core.config import settings
-from app.db import engine
+
+# Separate engine for db-tools to avoid starving the API connection pool
+_tools_engine = create_engine(
+    settings.database_url,
+    pool_size=2,
+    max_overflow=0,
+    pool_pre_ping=True,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +62,7 @@ _backup_jobs: dict[str, BackupJob] = {}
 # ---------------------------------------------------------------------------
 
 try:
-    with engine.connect() as _conn:
+    with _tools_engine.connect() as _conn:
         _conn.execute(text("SELECT 1"))
         _conn.commit()
     logger.info("Database tools ready — connected to %s", settings.database_url.split("/")[-1])
@@ -104,7 +111,7 @@ def get_status():
 
     # Test the connection
     try:
-        with engine.connect() as conn:
+        with _tools_engine.connect() as conn:
             conn.execute(text("SELECT 1"))
             conn.commit()
         return {"connected": True, "database": database, "host": host}
@@ -234,7 +241,7 @@ def restore_database(
 
     # Execute restore within a single transaction
     try:
-        with engine.begin() as conn:
+        with _tools_engine.begin() as conn:
             # Get table order and reverse it for drop/truncate operations
             tables = get_table_order(conn)
             reversed_tables = list(reversed(tables))
@@ -366,11 +373,8 @@ def run_backup(backup_id: str) -> None:
         filename = f"uang_pengiriman_{timestamp}.sql"
         file_path = os.path.join(backup_dir, filename)
 
-        # Connect and generate the dump
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))  # ensure clean connection state
-            conn.commit()
-
+        # Connect and generate the dump (REPEATABLE READ for consistent snapshot)
+        with _tools_engine.connect().execution_options(isolation_level="REPEATABLE READ") as conn:
             tables = get_table_order(conn)
 
             # Extract database name from settings
