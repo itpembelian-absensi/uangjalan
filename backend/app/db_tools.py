@@ -57,6 +57,7 @@ _backup_jobs: dict[str, BackupJob] = {}
 try:
     with engine.connect() as _conn:
         _conn.execute(text("SELECT 1"))
+        _conn.commit()
     logger.info("Database tools ready — connected to %s", settings.database_url.split("/")[-1])
 except Exception as exc:
     logger.warning("Database tools: connection failed — %s", exc)
@@ -105,6 +106,7 @@ def get_status():
     try:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
+            conn.commit()
         return {"connected": True, "database": database, "host": host}
     except Exception as exc:
         return {"connected": False, "database": database, "host": host, "error": str(exc)}
@@ -366,6 +368,9 @@ def run_backup(backup_id: str) -> None:
 
         # Connect and generate the dump
         with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))  # ensure clean connection state
+            conn.commit()
+
             tables = get_table_order(conn)
 
             # Extract database name from settings
