@@ -275,6 +275,7 @@ const Customers = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editId, setEditId] = useState(null);
   const [forceToll, setForceToll] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [form, setForm] = useState({
     code: '',
@@ -593,6 +594,7 @@ const Customers = () => {
     };
 
     setError('');
+    setIsSubmitting(true);
     try {
       if (editId) {
         await apiFetch(`/api/customers/${editId}`, {
@@ -611,6 +613,8 @@ const Customers = () => {
       fetchCustomers();
     } catch (err) {
       setError(err.message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -1300,8 +1304,13 @@ const Customers = () => {
                 <button type="button" className="btn btn-secondary" onClick={closeModal}>
                   Batal
                 </button>
-                <button type="submit" className="btn btn-primary" style={{ background: '#4f46e5' }}>
-                  {editId ? 'Simpan' : 'Tambah'}
+                <button 
+                  type="submit" 
+                  className="btn btn-primary" 
+                  style={{ background: '#4f46e5' }}
+                  disabled={geocoding || routeLoading || isSubmitting}
+                >
+                  {isSubmitting ? 'Menyimpan...' : (editId ? 'Simpan' : 'Tambah')}
                 </button>
               </div>
             </form>
