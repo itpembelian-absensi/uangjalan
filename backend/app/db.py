@@ -618,11 +618,16 @@ def ensure_schema() -> None:
         conn.execute(
             text(
                 """
-                SELECT setval(
-                    pg_get_serial_sequence('customer_vehicle_tariffs', 'id'),
-                    COALESCE((SELECT MAX(id) FROM customer_vehicle_tariffs), 0) + 1,
-                    false
-                )
+                DO $$
+                BEGIN
+                    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'customer_vehicle_tariffs') THEN
+                        PERFORM setval(
+                            pg_get_serial_sequence('customer_vehicle_tariffs', 'id'),
+                            COALESCE((SELECT MAX(id) FROM customer_vehicle_tariffs), 0) + 1,
+                            false
+                        );
+                    END IF;
+                END $$;
                 """
             )
         )
