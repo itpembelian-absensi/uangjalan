@@ -614,19 +614,33 @@ def ensure_schema() -> None:
             )
         )
 
-        # Reset sequences that may be out of sync after data import/restore
+        # Reset ALL sequences that may be out of sync after data import/restore
         conn.execute(
             text(
                 """
                 DO $$
+                DECLARE
+                    r RECORD;
                 BEGIN
-                    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'customer_vehicle_tariffs') THEN
-                        PERFORM setval(
-                            pg_get_serial_sequence('customer_vehicle_tariffs', 'id'),
-                            COALESCE((SELECT MAX(id) FROM customer_vehicle_tariffs), 0) + 1,
-                            false
+                    FOR r IN
+                        SELECT
+                            t.relname AS table_name,
+                            a.attname AS column_name,
+                            pg_get_serial_sequence(t.relname::text, a.attname::text) AS seq_name
+                        FROM pg_class t
+                        JOIN pg_attribute a ON a.attrelid = t.oid
+                        JOIN pg_namespace n ON n.oid = t.relnamespace
+                        WHERE n.nspname = 'public'
+                          AND t.relkind = 'r'
+                          AND a.attnum > 0
+                          AND NOT a.attisdropped
+                          AND pg_get_serial_sequence(t.relname::text, a.attname::text) IS NOT NULL
+                    LOOP
+                        EXECUTE format(
+                            'SELECT setval(%L, COALESCE((SELECT MAX(%I) FROM %I), 0) + 1, false)',
+                            r.seq_name, r.column_name, r.table_name
                         );
-                    END IF;
+                    END LOOP;
                 END $$;
                 """
             )
