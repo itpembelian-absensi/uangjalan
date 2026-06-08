@@ -320,6 +320,7 @@ def _replace_customer_tariffs(
     db.execute(
         delete(CustomerVehicleTariff).where(CustomerVehicleTariff.customer_id == customer_id)
     )
+    db.flush()
     for row in tariffs:
         if _tariff_uang_jalan(row) <= 0:
             continue
