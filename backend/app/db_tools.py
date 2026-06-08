@@ -276,6 +276,9 @@ def restore_database(
                     content={"detail": f"Mode restore tidak valid: {mode}"},
                 )
 
+            # Reset all sequences to match the max ID in each table
+            _reset_all_sequences(conn)
+
         # Return success
         restored_at = datetime.now().isoformat()
         return {
@@ -290,6 +293,33 @@ def restore_database(
             status_code=500,
             content={"detail": f"Restore gagal: {str(exc)}"},
         )
+
+
+def _reset_all_sequences(conn) -> None:
+    """Reset all sequences in the public schema to match the current max ID.
+
+    After a restore with explicit IDs, sequences may be out of sync.
+    This finds all serial/bigserial columns and resets their sequences.
+    """
+    seq_query = text("""
+        SELECT
+            t.relname AS table_name,
+            a.attname AS column_name,
+            pg_get_serial_sequence(t.relname::text, a.attname::text) AS seq_name
+        FROM pg_class t
+        JOIN pg_attribute a ON a.attrelid = t.oid
+        JOIN pg_namespace n ON n.oid = t.relnamespace
+        WHERE n.nspname = 'public'
+          AND t.relkind = 'r'
+          AND a.attnum > 0
+          AND NOT a.attisdropped
+          AND pg_get_serial_sequence(t.relname::text, a.attname::text) IS NOT NULL
+    """)
+    rows = conn.execute(seq_query).fetchall()
+    for table_name, column_name, seq_name in rows:
+        conn.execute(text(
+            f"SELECT setval('{seq_name}', COALESCE((SELECT MAX({column_name}) FROM \"{table_name}\"), 0) + 1, false)"
+        ))
 
 
 def _execute_sql_statements(conn, sql_content: str, mode: str) -> None:

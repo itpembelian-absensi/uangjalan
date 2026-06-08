@@ -614,6 +614,19 @@ def ensure_schema() -> None:
             )
         )
 
+        # Reset sequences that may be out of sync after data import/restore
+        conn.execute(
+            text(
+                """
+                SELECT setval(
+                    pg_get_serial_sequence('customer_vehicle_tariffs', 'id'),
+                    COALESCE((SELECT MAX(id) FROM customer_vehicle_tariffs), 0) + 1,
+                    false
+                )
+                """
+            )
+        )
+
     _seed_default_users()
     _seed_access_permissions()
 

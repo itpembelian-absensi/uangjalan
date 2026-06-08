@@ -253,10 +253,16 @@ def _load_vehicles_query():
 
 def _unique_violation_to_409(e: Exception) -> HTTPException:
     msg = str(e)
+    # pg8000 stores constraint info in orig_args dict or nested exception
+    orig = getattr(e, "orig", None)
+    if orig is not None:
+        msg = str(orig)
     if "customers_code_key" in msg:
         return HTTPException(status_code=409, detail="Kode customer sudah dipakai. Gunakan kode lain.")
     if "customers_name_key" in msg:
-        return HTTPException(status_code=409, detail="Kode customer sudah dipakai. Gunakan kode lain.")
+        return HTTPException(status_code=409, detail="Nama customer sudah ada di database. Hubungi admin jika ini tidak seharusnya.")
+    if "uq_customer_vehicle_type" in msg:
+        return HTTPException(status_code=409, detail="Tarif jenis kendaraan duplikat. Coba ulangi.")
     if "vehicle_brands" in msg:
         return HTTPException(status_code=409, detail="Merek kendaraan sudah ada.")
     if "vehicle_types" in msg:
@@ -266,7 +272,7 @@ def _unique_violation_to_409(e: Exception) -> HTTPException:
     if "drivers" in msg:
         return HTTPException(status_code=409, detail="Nama sopir sudah ada.")
     if "duplicate key" in msg.lower() or "23505" in msg:
-        return HTTPException(status_code=409, detail="Data duplikat — sudah ada di database.")
+        return HTTPException(status_code=409, detail=f"Data duplikat — sudah ada di database. ({msg[:200]})")
     return HTTPException(status_code=409, detail=msg)
 
 
@@ -320,6 +326,7 @@ def _replace_customer_tariffs(
     db.execute(
         delete(CustomerVehicleTariff).where(CustomerVehicleTariff.customer_id == customer_id)
     )
+    db.flush()
     for row in tariffs:
         if _tariff_uang_jalan(row) <= 0:
             continue
