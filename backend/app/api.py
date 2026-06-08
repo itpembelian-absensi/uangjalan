@@ -484,7 +484,9 @@ def create_customer(payload: CustomerCreate, db: Session = Depends(get_db)):
 
 @router.put("/customers/{customer_id}", response_model=CustomerOut)
 def update_customer(customer_id: int, payload: CustomerCreate, db: Session = Depends(get_db)):
-    obj = db.get(Customer, customer_id)
+    # Use with_for_update() to lock the customer row and prevent DELETE/INSERT race conditions
+    # on tariffs if there are concurrent update requests.
+    obj = db.execute(select(Customer).where(Customer.id == customer_id).with_for_update()).scalar_one_or_none()
     if not obj:
         raise HTTPException(status_code=404, detail="Customer not found")
 
@@ -1278,6 +1280,7 @@ def finance_unapprove_sale(
 
 @router.put("/sales/{sale_id}", response_model=SaleOut)
 def update_sale(sale_id: int, payload: SaleCreate, db: Session = Depends(get_db)):
+    db.execute(select(Sale).where(Sale.id == sale_id).with_for_update()).scalar_one_or_none()
     obj = db.get(Sale, sale_id)
     if not obj:
         raise HTTPException(status_code=404, detail="Penjualan tidak ditemukan")
@@ -1448,6 +1451,7 @@ def create_delivery_route(payload: DeliveryRouteCreate, db: Session = Depends(ge
 def update_delivery_route(
     route_id: int, payload: DeliveryRouteCreate, db: Session = Depends(get_db)
 ):
+    db.execute(select(DeliveryRoute).where(DeliveryRoute.id == route_id).with_for_update()).scalar_one_or_none()
     obj = _load_route(db, route_id)
     assert_route_editable(db, route_id)
     if not db.get(VehicleType, payload.vehicle_type_id):
