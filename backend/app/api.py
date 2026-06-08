@@ -253,6 +253,10 @@ def _load_vehicles_query():
 
 def _unique_violation_to_409(e: Exception) -> HTTPException:
     msg = str(e)
+    # pg8000 stores constraint info in orig_args dict or nested exception
+    orig = getattr(e, "orig", None)
+    if orig is not None:
+        msg = str(orig)
     if "customers_code_key" in msg:
         return HTTPException(status_code=409, detail="Kode customer sudah dipakai. Gunakan kode lain.")
     if "customers_name_key" in msg:
@@ -268,7 +272,7 @@ def _unique_violation_to_409(e: Exception) -> HTTPException:
     if "drivers" in msg:
         return HTTPException(status_code=409, detail="Nama sopir sudah ada.")
     if "duplicate key" in msg.lower() or "23505" in msg:
-        return HTTPException(status_code=409, detail=f"Data duplikat — sudah ada di database. ({msg[:120]})")
+        return HTTPException(status_code=409, detail=f"Data duplikat — sudah ada di database. ({msg[:200]})")
     return HTTPException(status_code=409, detail=msg)
 
 
