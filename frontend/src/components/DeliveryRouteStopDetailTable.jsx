@@ -9,7 +9,7 @@ const DeliveryRouteStopDetailTable = ({
   showSaleNo = false,
   maxHeight = '360px',
 }) => {
-  const colCount = showSaleNo ? 10 : 9;
+  const colCount = showSaleNo ? 9 : 8;
   const groups = groupStopRowsByRoute(stopRows);
   let rowNo = 0;
 
@@ -23,7 +23,6 @@ const DeliveryRouteStopDetailTable = ({
             <th>Tanggal</th>
             <th>Rit</th>
             <th>{showSaleNo ? 'Jenis Kendaraan' : 'Jenis'}</th>
-            <th style={{ textAlign: 'center' }}>Urut</th>
             <th>Customer</th>
             <th>Barang Dikirim</th>
             <th style={{ textAlign: 'center', minWidth: '72px' }}>Qty</th>
@@ -86,7 +85,6 @@ const DeliveryRouteStopDetailTable = ({
                     <td>{formatReportDate(s.route_date)}</td>
                     <td style={{ textAlign: 'center' }}>{s.ritase || 1}</td>
                     <td>{s.vehicle_type_name || '-'}</td>
-                    <td style={{ textAlign: 'center' }}>{s.stop_order}</td>
                     <td>{s.customer_name}</td>
                     <td>
                       <StopItemsNamesCell stop={s} />

@@ -91,7 +91,6 @@ const buildStopDetailPdfBody = (stopRows) => {
         formatReportDate(s.route_date),
         `Rit ${s.ritase || 1}`,
         s.vehicle_type_name,
-        s.stop_order,
         s.customer_name,
         formatStopItemsNamesExport(s),
         formatStopItemsQtyExport(s),
@@ -144,12 +143,11 @@ export const exportDeliveryRoutePdf = (report, { fromDate, toDate }) => {
     1: 24,
     2: 14,
     3: 24,
-    4: 10,
-    5: 44,
-    6: 58,
-    7: 16,
-    8: 30,
-    9: tableWidth - (32 + 24 + 14 + 24 + 10 + 44 + 58 + 16 + 30),
+    4: 44,
+    5: 58,
+    6: 16,
+    7: 30,
+    8: tableWidth - (32 + 24 + 14 + 24 + 44 + 58 + 16 + 30),
   };
 
   pdf.setFontSize(16);
@@ -272,7 +270,6 @@ export const exportDeliveryRoutePdf = (report, { fromDate, toDate }) => {
           'Tanggal',
           'Rit',
           'Jenis Kendaraan',
-          'Urut',
           'Customer',
           'Barang',
           'Qty',
@@ -300,12 +297,11 @@ export const exportDeliveryRoutePdf = (report, { fromDate, toDate }) => {
         1: { cellWidth: stopDetailWidths[1], halign: 'center' },
         2: { cellWidth: stopDetailWidths[2], halign: 'center' },
         3: { cellWidth: stopDetailWidths[3] },
-        4: { cellWidth: stopDetailWidths[4], halign: 'center' },
+        4: { cellWidth: stopDetailWidths[4] },
         5: { cellWidth: stopDetailWidths[5] },
-        6: { cellWidth: stopDetailWidths[6] },
-        7: { cellWidth: stopDetailWidths[7], halign: 'center' },
+        6: { cellWidth: stopDetailWidths[6], halign: 'center' },
+        7: { cellWidth: stopDetailWidths[7] },
         8: { cellWidth: stopDetailWidths[8] },
-        9: { cellWidth: stopDetailWidths[9] },
       },
     });
   }
@@ -351,7 +347,6 @@ export const exportDeliveryRouteExcel = (report, { fromDate, toDate }) => {
       'Tanggal',
       'Rit',
       'Jenis Kendaraan',
-      'Urutan',
       'Customer',
       'Barang Dikirim',
       'Qty',
@@ -373,7 +368,6 @@ export const exportDeliveryRouteExcel = (report, { fromDate, toDate }) => {
           formatReportDate(group.route_date),
           `Rit ${group.ritase || 1}`,
           group.vehicle_type_name || '',
-          '',
           `${group.stops.length} customer`,
           '',
           formatItemQuantity(sumStopRowsQty(group.stops)),
@@ -393,7 +387,6 @@ export const exportDeliveryRouteExcel = (report, { fromDate, toDate }) => {
             formatReportDate(s.route_date),
             `Rit ${s.ritase || 1}`,
             s.vehicle_type_name,
-            s.stop_order,
             s.customer_name,
             formatStopItemsNamesExport(s) === '-' ? '' : formatStopItemsNamesExport(s),
             formatStopItemsQtyExport(s) === '-' ? '' : formatStopItemsQtyExport(s),
@@ -421,7 +414,7 @@ export const exportDeliveryRouteExcel = (report, { fromDate, toDate }) => {
 
   const wsDetail = XLSX.utils.aoa_to_sheet(detailSheet);
   wsDetail['!cols'] = [
-    { wch: 5 }, { wch: 18 }, { wch: 14 }, { wch: 8 }, { wch: 14 }, { wch: 6 },
+    { wch: 5 }, { wch: 18 }, { wch: 14 }, { wch: 8 }, { wch: 14 },
     { wch: 28 }, { wch: 32 }, { wch: 10 }, { wch: 10 }, { wch: 18 }, { wch: 14 },
     { wch: 18 }, { wch: 14 }, { wch: 18 }, { wch: 20 },
   ];
@@ -475,7 +468,6 @@ export const printDeliveryRouteReport = (report, { fromDate, toDate }) => {
         <td class="center">${formatReportDate(s.route_date)}</td>
         <td class="center">Rit ${s.ritase || 1}</td>
         <td>${s.vehicle_type_name}</td>
-        <td class="center">${s.stop_order}</td>
         <td>${s.customer_name}</td>
         <td style="white-space:pre-line">${formatStopItemsNamesExport(s)}</td>
         <td class="center" style="white-space:pre-line;font-weight:600">${formatStopItemsQtyExport(s)}</td>
@@ -523,7 +515,7 @@ export const printDeliveryRouteReport = (report, { fromDate, toDate }) => {
     </table>
     ${stop_rows.length > 0 ? `<h2>Detail Customer & Barang</h2>
     <table>
-      <thead><tr><th class="center">No</th><th>No. Rute</th><th class="center">Tanggal</th><th class="center">Rit</th><th>Jenis Kendaraan</th><th class="center">Urut</th><th>Customer</th><th>Barang</th><th class="center">Qty</th><th>Nomor SO</th><th>Kode Entity</th><th>No. Transaksi</th></tr></thead>
+      <thead><tr><th class="center">No</th><th>No. Rute</th><th class="center">Tanggal</th><th class="center">Rit</th><th>Jenis Kendaraan</th><th>Customer</th><th>Barang</th><th class="center">Qty</th><th>Nomor SO</th><th>Kode Entity</th><th>No. Transaksi</th></tr></thead>
       <tbody>${stopDetailRows}</tbody>
     </table>` : ''}
   </body></html>`);
