@@ -52,7 +52,7 @@ def can_generate_sale_from_route(role: str) -> bool:
 
 
 def resolve_api_permission(path: str, method: str) -> str | None:
-    if "/generate-sale" in path and method in WRITE_METHODS:
+    if ("/generate-sale" in path or "/sync-sales" in path) and method in WRITE_METHODS:
         return None
     for prefix, resource in PATH_RESOURCE_MAP:
         if path == prefix or path.startswith(f"{prefix}/"):
@@ -116,7 +116,7 @@ def require_api_access(
     user = require_authenticated(request, db)
     path = request.url.path
     method = request.method
-    if "/generate-sale" in path and method in WRITE_METHODS:
+    if ("/generate-sale" in path or "/sync-sales" in path) and method in WRITE_METHODS:
         if not can_generate_sale_from_route(user.role):
             raise HTTPException(status_code=403, detail="Anda tidak memiliki akses ke fitur ini")
         return user

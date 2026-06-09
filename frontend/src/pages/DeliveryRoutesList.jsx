@@ -21,6 +21,7 @@ const DeliveryRoutesList = () => {
   const [filterTo, setFilterTo] = useState(tomorrowIso);
   const [filterVehicleType, setFilterVehicleType] = useState('');
   const [generatingId, setGeneratingId] = useState(null);
+  const [syncingAll, setSyncingAll] = useState(false);
 
   const buildListQuery = () => {
     const params = new URLSearchParams();
@@ -87,6 +88,51 @@ const DeliveryRoutesList = () => {
       return;
     }
     navigate(`/delivery-routes/${route.id}/edit`);
+  };
+
+  const handleSyncAll = async () => {
+    if (!filterFrom || !filterTo) {
+      alert('Isi rentang tanggal terlebih dahulu.');
+      return;
+    }
+    const vtLabel = filterVehicleType
+      ? vehicleTypes.find((vt) => String(vt.id) === String(filterVehicleType))?.name
+      : null;
+    const periodLabel = `${filterFrom} s/d ${filterTo}`;
+    const scopeLabel = vtLabel ? `${periodLabel} (jenis: ${vtLabel})` : periodLabel;
+    const msg =
+      `Sync semua transaksi uang jalan untuk periode ${scopeLabel}?\n\n` +
+      'Rute yang sudah dibayar Finance akan dilewati. Nominal dihitung ulang dari tarif customer.';
+    if (!window.confirm(msg)) return;
+
+    setSyncingAll(true);
+    try {
+      const result = await apiFetch(`/api/delivery-routes/sync-sales${buildListQuery()}`, {
+        method: 'POST',
+      });
+      await fetchRoutes();
+
+      const errorLines = (result.skipped_errors || [])
+        .slice(0, 8)
+        .map((item) => `- ${item.route_no}: ${item.reason}`);
+      const moreErrors =
+        (result.skipped_errors?.length || 0) > 8
+          ? `\n...dan ${result.skipped_errors.length - 8} rute lainnya`
+          : '';
+
+      alert(
+        `Sync selesai.\n\n` +
+          `Total rute: ${result.total_routes}\n` +
+          `Berhasil: ${result.synced} (baru: ${result.created}, diperbarui: ${result.updated})\n` +
+          `Dilewati (Finance): ${result.skipped_locked}\n` +
+          `Gagal: ${result.skipped_errors?.length || 0}` +
+          (errorLines.length ? `\n\nDetail gagal:\n${errorLines.join('\n')}${moreErrors}` : ''),
+      );
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setSyncingAll(false);
+    }
   };
 
   const handleGenerateSale = async (routeId, hasSale) => {
@@ -195,6 +241,19 @@ const DeliveryRoutesList = () => {
               ))}
             </select>
           </div>
+          {canGenerateSale && (
+            <button
+              type="button"
+              className="btn btn-primary"
+              style={{ whiteSpace: 'nowrap' }}
+              disabled={syncingAll || loading || generatingId !== null}
+              title="Buat/perbarui uang jalan untuk semua rute dalam periode filter"
+              onClick={handleSyncAll}
+            >
+              <RefreshCw size={16} className={syncingAll ? 'spin' : ''} />
+              {syncingAll ? 'Sync...' : 'Sync Semua'}
+            </button>
+          )}
         </div>
 
         <div className="table-container" style={{ padding: 0 }}>

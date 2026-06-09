@@ -274,6 +274,21 @@ class DeliveryRouteCreate(BaseModel):
     stops: list[DeliveryRouteStopItem] = Field(default_factory=list, min_length=1)
 
 
+class DeliveryRouteBulkSyncError(BaseModel):
+    route_id: int
+    route_no: str
+    reason: str
+
+
+class DeliveryRouteBulkSyncOut(BaseModel):
+    total_routes: int
+    created: int
+    updated: int
+    synced: int
+    skipped_locked: int
+    skipped_errors: list[DeliveryRouteBulkSyncError] = Field(default_factory=list)
+
+
 class DeliveryRouteOut(BaseModel):
     id: int
     route_no: str

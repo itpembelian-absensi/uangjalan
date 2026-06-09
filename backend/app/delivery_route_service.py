@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 from fastapi import HTTPException
 from sqlalchemy import delete, select
@@ -114,6 +114,59 @@ def sync_sale_from_route(db: Session, route: DeliveryRoute) -> Sale:
             )
         )
     return sale
+
+
+def sync_sales_for_period(
+    db: Session,
+    from_date: date | None = None,
+    to_date: date | None = None,
+    vehicle_type_id: int | None = None,
+) -> dict:
+    """Buat/perbarui uang jalan untuk semua rute dalam periode (kecuali sudah dikunci Finance)."""
+    stmt = (
+        select(DeliveryRoute)
+        .options(selectinload(DeliveryRoute.stops))
+        .order_by(DeliveryRoute.date.asc(), DeliveryRoute.id.asc())
+    )
+    if from_date:
+        stmt = stmt.where(DeliveryRoute.date >= from_date)
+    if to_date:
+        stmt = stmt.where(DeliveryRoute.date <= to_date)
+    if vehicle_type_id:
+        stmt = stmt.where(DeliveryRoute.vehicle_type_id == vehicle_type_id)
+
+    routes = db.scalars(stmt).all()
+    created = 0
+    updated = 0
+    skipped_locked = 0
+    skipped_errors: list[dict] = []
+
+    for route in routes:
+        existing = db.scalar(select(Sale).where(Sale.delivery_route_id == route.id))
+        if existing and sale_finance_locked(existing):
+            skipped_locked += 1
+            continue
+        try:
+            had_sale = existing is not None
+            sync_sale_from_route(db, route)
+            if had_sale:
+                updated += 1
+            else:
+                created += 1
+        except HTTPException as exc:
+            detail = exc.detail if isinstance(exc.detail, str) else str(exc.detail)
+            skipped_errors.append(
+                {"route_id": route.id, "route_no": route.route_no, "reason": detail}
+            )
+
+    return {
+        "total_routes": len(routes),
+        "created": created,
+        "updated": updated,
+        "synced": created + updated,
+        "skipped_locked": skipped_locked,
+        "skipped_errors": skipped_errors,
+    }
 
 
 def resync_sales_for_customer(db: Session, customer_id: int) -> int:

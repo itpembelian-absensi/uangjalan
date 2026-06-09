@@ -42,6 +42,7 @@ from app.delivery_route_service import (
     replace_route_stops,
     resync_sales_for_customer,
     sync_sale_from_route,
+    sync_sales_for_period,
 )
 from app.reports_service import (
     customer_summary,
@@ -83,6 +84,7 @@ from app.schemas import (
     SaleOut,
     SaleDetailOut,
     DeliveryRouteCreate,
+    DeliveryRouteBulkSyncOut,
     DeliveryRouteOut,
     DeliveryRouteReportOut,
     DeliveryRouteStopLineOut,
@@ -1430,6 +1432,31 @@ def list_delivery_routes(
         stmt = stmt.where(DeliveryRoute.vehicle_id == vehicle_id)
     routes = db.scalars(stmt).all()
     return [_serialize_delivery_route(db, r) for r in routes]
+
+
+@router.post("/delivery-routes/sync-sales", response_model=DeliveryRouteBulkSyncOut)
+def bulk_sync_sales_from_routes(
+    from_date: date = Query(..., alias="from"),
+    to_date: date = Query(..., alias="to"),
+    vehicle_type_id: int | None = None,
+    db: Session = Depends(get_db),
+):
+    if from_date > to_date:
+        raise HTTPException(status_code=400, detail="Tanggal awal tidak boleh setelah tanggal akhir.")
+    if vehicle_type_id and not db.get(VehicleType, vehicle_type_id):
+        raise HTTPException(status_code=400, detail="Jenis kendaraan tidak ditemukan")
+    try:
+        result = sync_sales_for_period(
+            db,
+            from_date=from_date,
+            to_date=to_date,
+            vehicle_type_id=vehicle_type_id,
+        )
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise _unique_violation_to_409(e)
+    return result
 
 
 @router.get("/delivery-routes/{route_id}", response_model=DeliveryRouteOut)
