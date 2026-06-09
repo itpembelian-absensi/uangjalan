@@ -40,6 +40,7 @@ from app.models import (
 from app.delivery_route_service import (
     format_stop_items_summary,
     replace_route_stops,
+    resync_sales_for_customer,
     sync_sale_from_route,
 )
 from app.reports_service import (
@@ -515,6 +516,7 @@ def update_customer(customer_id: int, payload: CustomerCreate, db: Session = Dep
 
     try:
         _replace_customer_tariffs(db, obj.id, payload.tariffs)
+        resync_sales_for_customer(db, obj.id)
         db.commit()
     except Exception as e:
         db.rollback()

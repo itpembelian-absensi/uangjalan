@@ -4,7 +4,7 @@ from datetime import datetime
 
 from fastapi import HTTPException
 from sqlalchemy import delete, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models import (
     Customer,
@@ -28,9 +28,13 @@ def _tariff_amount(row: CustomerVehicleTariff) -> float:
         + float(row.parkir)
         + float(row.lain_lain)
     )
+    stored = float(row.uang_jalan or 0)
+    # Gunakan total tersimpan jika komponen di DB belum lengkap (mis. BBM belum terisi).
+    if stored > 0 and stored > component:
+        return stored
     if component > 0:
         return component
-    return float(row.uang_jalan)
+    return stored
 
 
 def resolve_vehicle_type_id(db: Session, route: DeliveryRoute) -> int:
@@ -110,6 +114,30 @@ def sync_sale_from_route(db: Session, route: DeliveryRoute) -> Sale:
             )
         )
     return sale
+
+
+def resync_sales_for_customer(db: Session, customer_id: int) -> int:
+    """Hitung ulang uang jalan rute yang memuat customer ini (kecuali sudah dibayar Finance)."""
+    route_ids = db.scalars(
+        select(DeliveryRouteStop.route_id)
+        .where(DeliveryRouteStop.customer_id == customer_id)
+        .distinct()
+    ).all()
+    synced = 0
+    for route_id in route_ids:
+        route = db.scalar(
+            select(DeliveryRoute)
+            .where(DeliveryRoute.id == route_id)
+            .options(selectinload(DeliveryRoute.stops))
+        )
+        if not route:
+            continue
+        sale = db.scalar(select(Sale).where(Sale.delivery_route_id == route_id))
+        if not sale or sale_finance_locked(sale):
+            continue
+        sync_sale_from_route(db, route)
+        synced += 1
+    return synced
 
 
 def _normalize_stop_lines(stop: DeliveryRouteStopItem) -> list[tuple[str, float]]:
