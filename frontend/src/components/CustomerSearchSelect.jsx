@@ -12,6 +12,7 @@ const CustomerSearchSelect = ({
   customers = [],
   value,
   onChange,
+  onAfterSelect,
   disabled = false,
   placeholder = 'Klik ikon cari untuk memilih customer',
   excludeIds = [],
@@ -25,6 +26,9 @@ const CustomerSearchSelect = ({
 
   const handleSelect = (customer) => {
     onChange(String(customer.id));
+    if (onAfterSelect) {
+      requestAnimationFrame(() => onAfterSelect());
+    }
   };
 
   const handleClear = () => {
@@ -48,6 +52,7 @@ const CustomerSearchSelect = ({
         <button
           type="button"
           className="customer-lookup-open-btn"
+          tabIndex={-1}
           disabled={disabled}
           onClick={(e) => {
             e.preventDefault();
@@ -63,6 +68,7 @@ const CustomerSearchSelect = ({
           <button
             type="button"
             className="customer-lookup-clear-btn"
+            tabIndex={-1}
             onClick={handleClear}
             aria-label="Hapus pilihan"
           >

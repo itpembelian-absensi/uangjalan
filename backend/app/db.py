@@ -354,8 +354,7 @@ def ensure_schema() -> None:
                   route_id BIGINT NOT NULL REFERENCES delivery_routes(id) ON DELETE CASCADE,
                   customer_id BIGINT NOT NULL REFERENCES customers(id) ON UPDATE CASCADE,
                   sort_order INT NOT NULL DEFAULT 0,
-                  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-                  UNIQUE(route_id, customer_id)
+                  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
                 )
                 """
             )
@@ -381,6 +380,31 @@ def ensure_schema() -> None:
                 """
                 ALTER TABLE delivery_route_stops
                 ADD COLUMN IF NOT EXISTS entity_code VARCHAR(64)
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                ALTER TABLE delivery_route_stops
+                DROP CONSTRAINT IF EXISTS delivery_route_stops_route_id_customer_id_key
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                ALTER TABLE delivery_route_stops
+                DROP CONSTRAINT IF EXISTS uq_route_customer
+                """
+            )
+        )
+        conn.execute(text("DROP INDEX IF EXISTS uq_route_customer_so"))
+        conn.execute(
+            text(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_route_customer_so
+                ON delivery_route_stops (route_id, customer_id, COALESCE(description, ''))
                 """
             )
         )

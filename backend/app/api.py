@@ -1121,6 +1121,14 @@ def _serialize_delivery_route(db: Session, route: DeliveryRoute) -> DeliveryRout
                 items=lines_out,
             )
         )
+    sale_vehicle_plate = None
+    sale_driver_name = None
+    if sale:
+        sale_vehicle = db.get(Vehicle, sale.vehicle_id) if sale.vehicle_id else None
+        sale_driver = db.get(Driver, sale.driver_id) if sale.driver_id else None
+        sale_vehicle_plate = sale_vehicle.plate_number if sale_vehicle else None
+        sale_driver_name = sale_driver.name if sale_driver else None
+
     return DeliveryRouteOut(
         id=route.id,
         route_no=route.route_no,
@@ -1137,6 +1145,8 @@ def _serialize_delivery_route(db: Session, route: DeliveryRoute) -> DeliveryRout
         stops=stops_out,
         sale_id=sale.id if sale else None,
         sale_no=sale.sale_no if sale else None,
+        sale_vehicle_plate=sale_vehicle_plate,
+        sale_driver_name=sale_driver_name,
         is_finance_paid=sale_finance_locked(sale),
         finance_paid_at=sale.finance_paid_at if sale else None,
         created_at=route.created_at,

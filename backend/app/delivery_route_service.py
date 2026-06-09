@@ -130,12 +130,17 @@ def _normalize_stop_lines(stop: DeliveryRouteStopItem) -> list[tuple[str, float]
 
 def replace_route_stops(db: Session, route: DeliveryRoute, stops: list[DeliveryRouteStopItem]) -> None:
     db.execute(delete(DeliveryRouteStop).where(DeliveryRouteStop.route_id == route.id))
-    seen: set[int] = set()
+    seen: set[tuple[int, str]] = set()
     for idx, stop_item in enumerate(stops):
         customer_id = stop_item.customer_id
-        if customer_id in seen:
-            raise HTTPException(status_code=400, detail="Customer duplikat pada rute")
-        seen.add(customer_id)
+        so_key = (stop_item.description or "").strip().casefold()
+        stop_key = (customer_id, so_key)
+        if stop_key in seen:
+            raise HTTPException(
+                status_code=400,
+                detail="Customer dengan nomor SO yang sama tidak boleh duplikat pada rute",
+            )
+        seen.add(stop_key)
         if not db.get(Customer, customer_id):
             raise HTTPException(status_code=400, detail=f"Customer {customer_id} tidak ditemukan")
 

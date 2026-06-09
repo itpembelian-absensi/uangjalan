@@ -1,5 +1,5 @@
 import React from 'react';
-import { formatReportDate } from '../utils/deliveryRouteReportExport';
+import { formatReportDate, formatSaleTransactionText } from '../utils/deliveryRouteReportExport';
 import { groupStopRowsByRoute, formatItemQuantity, sumStopRowsQty } from '../utils/deliveryRouteUtils';
 import { StopItemsNamesCell, StopItemsQtyCell } from './StopItemsCells';
 
@@ -54,10 +54,18 @@ const DeliveryRouteStopDetailTable = ({
                       {group.vehicle_type_name || '-'}
                       {' · '}
                       Rit {group.ritase || 1}
-                      {showSaleNo && group.sale_no && (
+                      {showSaleNo && (group.sale_no || group.sale_vehicle_plate || group.sale_driver_name) && (
                         <>
                           {' · '}
-                          <span style={{ fontFamily: 'monospace', fontSize: '0.85em' }}>{group.sale_no}</span>
+                          <span style={{ fontSize: '0.85em' }}>
+                            {[
+                              group.sale_no,
+                              group.sale_vehicle_plate && `Kendaraan: ${group.sale_vehicle_plate}`,
+                              group.sale_driver_name && `Sopir: ${group.sale_driver_name}`,
+                            ]
+                              .filter(Boolean)
+                              .join(' · ')}
+                          </span>
                         </>
                       )}
                       {' · '}
@@ -89,7 +97,9 @@ const DeliveryRouteStopDetailTable = ({
                     <td>{s.description || '-'}</td>
                     <td>{s.entity_code || '-'}</td>
                     {showSaleNo && (
-                      <td style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{s.sale_no || '-'}</td>
+                      <td style={{ whiteSpace: 'pre-line', lineHeight: 1.35, fontSize: '0.8rem' }}>
+                        {formatSaleTransactionText(s)}
+                      </td>
                     )}
                   </tr>
                 );

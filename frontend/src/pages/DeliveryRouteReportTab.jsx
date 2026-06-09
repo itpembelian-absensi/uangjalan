@@ -9,6 +9,7 @@ import {
   exportDeliveryRouteExcel,
   printDeliveryRouteReport,
   formatReportDate,
+  formatSaleTransactionText,
 } from '../utils/deliveryRouteReportExport';
 import { formatItemQuantity } from '../utils/deliveryRouteUtils';
 
@@ -150,7 +151,9 @@ const DeliveryRouteReportTab = ({ fromDate, toDate }) => {
                   <td>{formatReportDate(r.date)}</td>
                   <td style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{r.route_no}</td>
                   <td>{r.vehicle_type_name || '-'}</td>
-                  <td style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{r.sale_no || '-'}</td>
+                  <td style={{ whiteSpace: 'pre-line', lineHeight: 1.35, fontSize: '0.85rem' }}>
+                    {formatSaleTransactionText(r)}
+                  </td>
                   <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.stop_count}</td>
                   <td>{r.customers}</td>
                   <td>{r.remarks || '-'}</td>

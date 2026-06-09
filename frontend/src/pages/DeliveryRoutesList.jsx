@@ -4,7 +4,7 @@ import { Plus, Trash2, Edit, RefreshCw, Wallet, AlertCircle, FileBarChart } from
 import GlassCard from '../components/GlassCard';
 import { apiFetch } from '../api';
 import { useAuth } from '../auth/AuthContext';
-import { formatRouteDate, todayIso } from '../utils/deliveryRouteUtils';
+import { formatRouteDate, tomorrowIso } from '../utils/deliveryRouteUtils';
 
 const DeliveryRoutesList = () => {
   const navigate = useNavigate();
@@ -17,8 +17,8 @@ const DeliveryRoutesList = () => {
   const [vehicleTypes, setVehicleTypes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [routesError, setRoutesError] = useState(null);
-  const [filterFrom, setFilterFrom] = useState(todayIso);
-  const [filterTo, setFilterTo] = useState(todayIso);
+  const [filterFrom, setFilterFrom] = useState(tomorrowIso);
+  const [filterTo, setFilterTo] = useState(tomorrowIso);
   const [filterVehicleType, setFilterVehicleType] = useState('');
   const [generatingId, setGeneratingId] = useState(null);
 
@@ -266,6 +266,16 @@ const DeliveryRoutesList = () => {
                             </button>
                           ) : (
                             <span style={{ color: 'var(--success-color)' }}>{r.sale_no}</span>
+                          )}
+                          {(r.sale_vehicle_plate || r.sale_driver_name) && (
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.35 }}>
+                              {r.sale_vehicle_plate && (
+                                <span style={{ display: 'block' }}>Kendaraan: {r.sale_vehicle_plate}</span>
+                              )}
+                              {r.sale_driver_name && (
+                                <span style={{ display: 'block' }}>Sopir: {r.sale_driver_name}</span>
+                              )}
+                            </span>
                           )}
                           {r.is_finance_paid && (
                             <span className="badge-finance-paid" title="Uang jalan sudah disetujui dibayar">

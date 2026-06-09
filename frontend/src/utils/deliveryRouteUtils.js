@@ -9,6 +9,12 @@ export const formatRouteDate = (dateString) => {
 
 export const todayIso = () => new Date().toISOString().split('T')[0];
 
+export const tomorrowIso = () => {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().split('T')[0];
+};
+
 export const formatItemQuantity = (qty) => {
   const n = Number(qty);
   if (Number.isNaN(n)) return '-';
@@ -53,6 +59,8 @@ export const groupStopRowsByRoute = (stopRows = []) => {
         route_date: stop.route_date,
         vehicle_type_name: stop.vehicle_type_name,
         sale_no: stop.sale_no,
+        sale_vehicle_plate: stop.sale_vehicle_plate,
+        sale_driver_name: stop.sale_driver_name,
         stops: [stop],
       });
     } else {
@@ -68,7 +76,7 @@ export const emptyStop = () => ({ customer_id: '', description: '', entity_code:
 
 export const defaultRouteForm = () => ({
   route_no: '',
-  date: todayIso(),
+  date: tomorrowIso(),
   vehicle_type_id: '',
   ritase: '1',
   remarks: '',

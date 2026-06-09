@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   Plus,
@@ -41,6 +41,11 @@ const DeliveryRouteForm = () => {
   const [isMapFullscreen, setIsMapFullscreen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(defaultRouteForm());
+  const soInputRefs = useRef([]);
+
+  const focusSoInput = (idx) => {
+    requestAnimationFrame(() => soInputRefs.current[idx]?.focus());
+  };
 
   const loadFormData = async () => {
     if (!canWrite) {
@@ -147,6 +152,16 @@ const DeliveryRouteForm = () => {
     if (stopsPayload.length === 0) {
       alert('Minimal 1 customer pada rute.');
       return;
+    }
+
+    const seenStops = new Set();
+    for (const stop of stopsPayload) {
+      const key = `${stop.customer_id}|${(stop.description || '').trim().toLowerCase()}`;
+      if (seenStops.has(key)) {
+        alert('Customer dengan nomor SO yang sama tidak boleh duplikat pada rute.');
+        return;
+      }
+      seenStops.add(key);
     }
 
     const payload = {
@@ -400,16 +415,15 @@ const DeliveryRouteForm = () => {
                               customers={customers}
                               value={row.customer_id}
                               onChange={(customerId) => updateStop(idx, { customer_id: customerId })}
+                              onAfterSelect={() => focusSoInput(idx)}
                               disabled={customers.length === 0}
-                              excludeIds={form.stops
-                                .map((s, i) =>
-                                  i !== idx && s.customer_id ? parseInt(s.customer_id, 10) : null,
-                                )
-                                .filter((id) => id != null && !Number.isNaN(id))}
                             />
                           </td>
                           <td>
                             <input
+                              ref={(el) => {
+                                soInputRefs.current[idx] = el;
+                              }}
                               type="text"
                               className="form-input"
                               placeholder="Nomor SO"

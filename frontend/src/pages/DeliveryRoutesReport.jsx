@@ -3,13 +3,14 @@ import { Printer, FileText, Download, RefreshCw } from 'lucide-react';
 import GlassCard from '../components/GlassCard';
 import DeliveryRouteStopDetailTable from '../components/DeliveryRouteStopDetailTable';
 import { apiFetch } from '../api';
-import { todayIso, formatItemQuantity } from '../utils/deliveryRouteUtils';
+import { tomorrowIso, formatItemQuantity } from '../utils/deliveryRouteUtils';
 import {
   buildReportQuery,
   exportDeliveryRoutePdf,
   exportDeliveryRouteExcel,
   printDeliveryRouteReport,
   formatReportDate,
+  formatSaleTransactionText,
 } from '../utils/deliveryRouteReportExport';
 
 const emptyReport = () => ({ total_routes: 0, total_stops: 0, total_items_qty: 0, routes: [], stop_rows: [] });
@@ -20,8 +21,8 @@ const DeliveryRoutesReport = () => {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [reportError, setReportError] = useState(null);
-  const [filterFrom, setFilterFrom] = useState(todayIso);
-  const [filterTo, setFilterTo] = useState(todayIso);
+  const [filterFrom, setFilterFrom] = useState(tomorrowIso);
+  const [filterTo, setFilterTo] = useState(tomorrowIso);
   const [filterVehicleType, setFilterVehicleType] = useState('');
 
   const filterParams = { fromDate: filterFrom, toDate: filterTo, vehicleTypeId: filterVehicleType };
@@ -246,7 +247,9 @@ const DeliveryRoutesReport = () => {
                     <td style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{r.route_no}</td>
                     <td><span className="badge badge-blue">Rit {r.ritase || 1}</span></td>
                     <td>{r.vehicle_type_name}</td>
-                    <td>{r.sale_no || '-'}</td>
+                    <td style={{ whiteSpace: 'pre-line', lineHeight: 1.35 }}>
+                      {formatSaleTransactionText(r)}
+                    </td>
                     <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.stop_count}</td>
                     <td>{r.customers}</td>
                     <td>{r.remarks || '-'}</td>
@@ -258,7 +261,7 @@ const DeliveryRoutesReport = () => {
         </div>
 
         <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.95rem' }}>Detail Customer & Barang</h4>
-        <DeliveryRouteStopDetailTable stopRows={stop_rows} loading={loading} />
+        <DeliveryRouteStopDetailTable stopRows={stop_rows} loading={loading} showSaleNo />
       </GlassCard>
     </div>
   );

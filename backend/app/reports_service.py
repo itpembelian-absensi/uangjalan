@@ -15,7 +15,9 @@ from app.models import (
     Customer,
     DeliveryRoute,
     DeliveryRouteStop,
+    Driver,
     Sale,
+    Vehicle,
     VehicleType,
 )
 
@@ -148,6 +150,13 @@ def delivery_route_report(
         sale = db.scalar(select(Sale).where(Sale.delivery_route_id == route.id))
         type_name = vehicle_type.name if vehicle_type else "-"
         sale_no = sale.sale_no if sale else None
+        sale_vehicle_plate = None
+        sale_driver_name = None
+        if sale:
+            sale_vehicle = db.get(Vehicle, sale.vehicle_id) if sale.vehicle_id else None
+            sale_driver = db.get(Driver, sale.driver_id) if sale.driver_id else None
+            sale_vehicle_plate = sale_vehicle.plate_number if sale_vehicle else None
+            sale_driver_name = sale_driver.name if sale_driver else None
 
         sorted_stops = sorted(route.stops, key=lambda s: s.sort_order)
         customer_names: list[str] = []
@@ -174,6 +183,8 @@ def delivery_route_report(
                     "items_summary": format_stop_items_summary(stop) or None,
                     "remarks": route.remarks,
                     "sale_no": sale_no,
+                    "sale_vehicle_plate": sale_vehicle_plate,
+                    "sale_driver_name": sale_driver_name,
                 }
             )
 
@@ -191,6 +202,8 @@ def delivery_route_report(
                 "ritase": route.ritpiase,
                 "remarks": route.remarks,
                 "sale_no": sale_no,
+                "sale_vehicle_plate": sale_vehicle_plate,
+                "sale_driver_name": sale_driver_name,
             }
         )
 

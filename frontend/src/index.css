@@ -705,33 +705,25 @@ body.customer-lookup-dragging .customer-lookup-drag-handle {
   line-height: 1.4;
 }
 
-.customer-lookup-table td .customer-lookup-link {
-  white-space: nowrap;
-}
-
 .customer-lookup-table th {
   position: sticky;
   top: 0;
   z-index: 1;
 }
 
-.customer-lookup-row:hover {
-  background: #f8fafc;
-}
-
-.customer-lookup-link {
-  border: none;
-  background: none;
-  padding: 0;
-  color: #2563eb;
-  font-weight: 600;
+.customer-lookup-row-selectable {
   cursor: pointer;
-  text-decoration: underline;
-  font-size: inherit;
+  color: var(--text-primary);
 }
 
-.customer-lookup-link:hover {
-  color: #1d4ed8;
+.customer-lookup-row-selectable td {
+  color: inherit;
+}
+
+.customer-lookup-row-selectable:hover,
+.customer-lookup-row-selectable:focus-visible {
+  background: #f1f5f9;
+  outline: none;
 }
 
 .customer-lookup-hint {

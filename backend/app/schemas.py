@@ -290,6 +290,8 @@ class DeliveryRouteOut(BaseModel):
     stops: list[DeliveryRouteStopOut] = Field(default_factory=list)
     sale_id: int | None = None
     sale_no: str | None = None
+    sale_vehicle_plate: str | None = None
+    sale_driver_name: str | None = None
     is_finance_paid: bool = False
     finance_paid_at: datetime | None = None
     created_at: datetime
@@ -308,6 +310,8 @@ class DeliveryRouteReportRouteRow(BaseModel):
     ritase: int = 1
     remarks: str | None = None
     sale_no: str | None = None
+    sale_vehicle_plate: str | None = None
+    sale_driver_name: str | None = None
 
 
 class DeliveryRouteReportItemLine(BaseModel):
@@ -330,6 +334,8 @@ class DeliveryRouteReportStopRow(BaseModel):
     items_summary: str | None = None
     remarks: str | None = None
     sale_no: str | None = None
+    sale_vehicle_plate: str | None = None
+    sale_driver_name: str | None = None
 
 
 class DeliveryRouteReportOut(BaseModel):

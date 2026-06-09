@@ -12,6 +12,8 @@ const formatCustomerCoords = (latitude, longitude) => {
   return { lat: lat.toFixed(7), lng: lng.toFixed(7) };
 };
 
+const DEFAULT_SEARCH_FIELD = 'name';
+
 const SEARCH_FIELDS = [
   { id: 'code', label: 'Kode Customer' },
   { id: 'name', label: 'Nama Customer' },
@@ -56,20 +58,20 @@ const CustomerLookupModal = ({
   excludeIds = [],
   title = 'Pilih Customer',
 }) => {
-  const [searchBy, setSearchBy] = useState('code');
+  const [searchBy, setSearchBy] = useState(DEFAULT_SEARCH_FIELD);
   const [searchInput, setSearchInput] = useState('');
   const [appliedTerm, setAppliedTerm] = useState('');
-  const [appliedField, setAppliedField] = useState('code');
+  const [appliedField, setAppliedField] = useState(DEFAULT_SEARCH_FIELD);
   const [page, setPage] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const modalRef = useRef(null);
 
   useEffect(() => {
     if (!open) return;
-    setSearchBy('code');
+    setSearchBy(DEFAULT_SEARCH_FIELD);
     setSearchInput('');
     setAppliedTerm('');
-    setAppliedField('code');
+    setAppliedField(DEFAULT_SEARCH_FIELD);
     setPage(1);
   }, [open]);
 
@@ -116,8 +118,8 @@ const CustomerLookupModal = ({
   const clearSearch = () => {
     setSearchInput('');
     setAppliedTerm('');
-    setAppliedField('code');
-    setSearchBy('code');
+    setAppliedField(DEFAULT_SEARCH_FIELD);
+    setSearchBy(DEFAULT_SEARCH_FIELD);
     setPage(1);
   };
 
@@ -314,12 +316,21 @@ const CustomerLookupModal = ({
                 pageRows.map((c) => {
                   const coords = formatCustomerCoords(c.latitude, c.longitude);
                   return (
-                  <tr key={c.id} className="customer-lookup-row">
-                    <td>
-                      <button type="button" className="customer-lookup-link" onClick={() => handleSelect(c)}>
-                        {c.code || '—'}
-                      </button>
-                    </td>
+                  <tr
+                    key={c.id}
+                    className="customer-lookup-row customer-lookup-row-selectable"
+                    onClick={() => handleSelect(c)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handleSelect(c);
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    title={`Pilih ${c.name || c.code || 'customer'}`}
+                  >
+                    <td>{c.code || '—'}</td>
                     <td>{c.name}</td>
                     <td>{c.city || '—'}</td>
                     <td style={{ fontSize: '0.85rem', lineHeight: 1.4, whiteSpace: 'nowrap' }}>
@@ -341,7 +352,7 @@ const CustomerLookupModal = ({
           </table>
         </div>
         <p className="customer-lookup-hint">
-          Klik kode customer untuk memilih. Menampilkan {PAGE_SIZE} baris per halaman. Geser dari judul
+          Klik baris customer untuk memilih. Menampilkan {PAGE_SIZE} baris per halaman. Geser dari judul
           untuk memindahkan jendela. Tutup dengan tombol X.
         </p>
       </div>

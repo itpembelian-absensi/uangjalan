@@ -160,9 +160,11 @@ CREATE TABLE IF NOT EXISTS delivery_route_stops (
   sort_order    INT NOT NULL DEFAULT 0,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   description   TEXT,
-  entity_code   VARCHAR(64),
-  UNIQUE(route_id, customer_id)
+  entity_code   VARCHAR(64)
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_route_customer_so
+  ON delivery_route_stops (route_id, customer_id, COALESCE(description, ''));
 
 -- Delivery Route Stop Lines
 CREATE TABLE IF NOT EXISTS delivery_route_stop_lines (

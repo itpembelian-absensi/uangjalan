@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { apiFetch } from '../api';
 import { useAuth } from '../auth/AuthContext';
+import { tomorrowIso } from '../utils/deliveryRouteUtils';
 import {
   buildSaleDocument,
   buildSaleDocumentFromSaleOut,
@@ -177,8 +178,8 @@ const Sales = () => {
   const [customers, setCustomers] = useState([]);
   const [warehouse, setWarehouse] = useState(null);
 
-  const [filterFrom, setFilterFrom] = useState(new Date().toISOString().split('T')[0]);
-  const [filterTo, setFilterTo] = useState(new Date().toISOString().split('T')[0]);
+  const [filterFrom, setFilterFrom] = useState(tomorrowIso);
+  const [filterTo, setFilterTo] = useState(tomorrowIso);
   const [filterSaleNo, setFilterSaleNo] = useState('');
 
   const [loading, setLoading] = useState(true);

@@ -9,6 +9,14 @@ import {
   sumStopRowsQty,
 } from './deliveryRouteUtils';
 
+const saleGroupMeta = (group) => {
+  const parts = [];
+  if (group.sale_no) parts.push(group.sale_no);
+  if (group.sale_vehicle_plate) parts.push(`Kendaraan: ${group.sale_vehicle_plate}`);
+  if (group.sale_driver_name) parts.push(`Sopir: ${group.sale_driver_name}`);
+  return parts.length ? ` · ${parts.join(' · ')}` : '';
+};
+
 export const formatStopItemsNamesExport = (stop) => {
   const lines = getStopItemLines(stop);
   if (!lines.length) return '-';
@@ -30,12 +38,34 @@ export const formatReportDate = (d) => {
   });
 };
 
+export const formatSaleTransactionText = (row) => {
+  if (!row?.sale_no && !row?.sale_vehicle_plate && !row?.sale_driver_name) return '-';
+  const lines = [];
+  if (row.sale_no) lines.push(row.sale_no);
+  if (row.sale_vehicle_plate) lines.push(`Kendaraan: ${row.sale_vehicle_plate}`);
+  if (row.sale_driver_name) lines.push(`Sopir: ${row.sale_driver_name}`);
+  return lines.join('\n');
+};
+
+export const formatSaleTransactionHtml = (row) => {
+  if (!row?.sale_no && !row?.sale_vehicle_plate && !row?.sale_driver_name) return '-';
+  const parts = [];
+  if (row.sale_no) parts.push(`<span style="font-family:monospace">${row.sale_no}</span>`);
+  if (row.sale_vehicle_plate) {
+    parts.push(`<span style="font-size:0.9em;color:#64748b">Kendaraan: ${row.sale_vehicle_plate}</span>`);
+  }
+  if (row.sale_driver_name) {
+    parts.push(`<span style="font-size:0.9em;color:#64748b">Sopir: ${row.sale_driver_name}</span>`);
+  }
+  return parts.join('<br/>');
+};
+
 const buildStopDetailPdfBody = (stopRows) => {
   const body = [];
   groupStopRowsByRoute(stopRows).forEach((group, groupIndex) => {
     body.push([
       {
-        content: `Rute ${groupIndex + 1}: ${group.route_no} · ${formatReportDate(group.route_date)} · ${group.vehicle_type_name || '-'} · ${group.stops.length} customer`,
+        content: `Rute ${groupIndex + 1}: ${group.route_no} · ${formatReportDate(group.route_date)} · ${group.vehicle_type_name || '-'}${saleGroupMeta(group)} · ${group.stops.length} customer`,
         colSpan: 9,
         styles: {
           fillColor: [226, 232, 240],
@@ -295,7 +325,7 @@ export const exportDeliveryRouteExcel = (report, { fromDate, toDate }) => {
     ['Total Customer', total_stops],
     ['Total Qty Barang', total_items_qty],
     [],
-    ['No', 'Tanggal', 'No. Rute', 'Rit', 'Jenis Kendaraan', 'No. Transaksi', 'Jumlah Customer', 'Customer', 'Keterangan'],
+    ['No', 'Tanggal', 'No. Rute', 'Rit', 'Jenis Kendaraan', 'No. Transaksi', 'Kendaraan', 'Sopir', 'Jumlah Customer', 'Customer', 'Keterangan'],
     ...routes.map((r, i) => [
       i + 1,
       formatReportDate(r.date),
@@ -303,6 +333,8 @@ export const exportDeliveryRouteExcel = (report, { fromDate, toDate }) => {
       `Rit ${r.ritase || 1}`,
       r.vehicle_type_name,
       r.sale_no || '',
+      r.sale_vehicle_plate || '',
+      r.sale_driver_name || '',
       r.stop_count,
       r.customers,
       r.remarks || '',
@@ -327,6 +359,8 @@ export const exportDeliveryRouteExcel = (report, { fromDate, toDate }) => {
       'Nomor SO',
       'Kode Entity',
       'No. Transaksi',
+      'Kendaraan',
+      'Sopir',
       'Keterangan Rute',
     ],
     ...(() => {
@@ -346,7 +380,9 @@ export const exportDeliveryRouteExcel = (report, { fromDate, toDate }) => {
           '',
           '',
           '',
-          '',
+          group.sale_no || '',
+          group.sale_vehicle_plate || '',
+          group.sale_driver_name || '',
           '',
         ]);
         group.stops.forEach((s) => {
@@ -365,6 +401,8 @@ export const exportDeliveryRouteExcel = (report, { fromDate, toDate }) => {
             s.description || '',
             s.entity_code || '',
             s.sale_no || '',
+            s.sale_vehicle_plate || '',
+            s.sale_driver_name || '',
             s.remarks || '',
           ]);
         });
@@ -376,15 +414,16 @@ export const exportDeliveryRouteExcel = (report, { fromDate, toDate }) => {
   const wb = XLSX.utils.book_new();
   const wsSummary = XLSX.utils.aoa_to_sheet(summarySheet);
   wsSummary['!cols'] = [
-    { wch: 5 }, { wch: 14 }, { wch: 18 }, { wch: 14 }, { wch: 16 },
-    { wch: 12 }, { wch: 40 }, { wch: 20 },
+    { wch: 5 }, { wch: 14 }, { wch: 18 }, { wch: 8 }, { wch: 16 },
+    { wch: 18 }, { wch: 14 }, { wch: 18 }, { wch: 8 }, { wch: 40 }, { wch: 20 },
   ];
   XLSX.utils.book_append_sheet(wb, wsSummary, 'Ringkasan Rute');
 
   const wsDetail = XLSX.utils.aoa_to_sheet(detailSheet);
   wsDetail['!cols'] = [
-    { wch: 5 }, { wch: 18 }, { wch: 14 }, { wch: 14 }, { wch: 12 },
-    { wch: 28 }, { wch: 32 }, { wch: 14 }, { wch: 12 }, { wch: 18 }, { wch: 18 }, { wch: 18 }, { wch: 20 },
+    { wch: 5 }, { wch: 18 }, { wch: 14 }, { wch: 8 }, { wch: 14 }, { wch: 6 },
+    { wch: 28 }, { wch: 32 }, { wch: 10 }, { wch: 10 }, { wch: 18 }, { wch: 14 },
+    { wch: 18 }, { wch: 14 }, { wch: 18 }, { wch: 20 },
   ];
   XLSX.utils.book_append_sheet(wb, wsDetail, 'Detail Customer');
 
@@ -408,7 +447,7 @@ export const printDeliveryRouteReport = (report, { fromDate, toDate }) => {
         <td>${r.route_no}</td>
         <td class="center">Rit ${r.ritase || 1}</td>
         <td class="center">${r.vehicle_type_name}</td>
-        <td>${r.sale_no || '-'}</td>
+        <td style="white-space:pre-line;line-height:1.35">${formatSaleTransactionHtml(r)}</td>
         <td class="center">${r.stop_count}</td>
         <td>${r.customers}</td>
         <td>${r.remarks || '-'}</td>
@@ -423,7 +462,7 @@ export const printDeliveryRouteReport = (report, { fromDate, toDate }) => {
       const header = `
       <tr class="route-group-header">
         <td colspan="11" style="background:#e8f0fe;font-weight:700;padding:8px;${borderTop}">
-          Rute ${gi + 1}: ${group.route_no} · ${formatReportDate(group.route_date)} · ${group.vehicle_type_name || '-'} · ${group.stops.length} customer · ${formatItemQuantity(sumStopRowsQty(group.stops))} qty
+          Rute ${gi + 1}: ${group.route_no} · ${formatReportDate(group.route_date)} · ${group.vehicle_type_name || '-'}${saleGroupMeta(group)} · ${group.stops.length} customer · ${formatItemQuantity(sumStopRowsQty(group.stops))} qty
         </td>
       </tr>`;
       const body = group.stops
@@ -442,7 +481,7 @@ export const printDeliveryRouteReport = (report, { fromDate, toDate }) => {
         <td class="center" style="white-space:pre-line;font-weight:600">${formatStopItemsQtyExport(s)}</td>
         <td>${s.description || '-'}</td>
         <td>${s.entity_code || '-'}</td>
-        <td>${s.sale_no || '-'}</td>
+        <td style="white-space:pre-line;line-height:1.35">${formatSaleTransactionHtml(s)}</td>
       </tr>`;
         })
         .join('');

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint, func
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint, func, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -343,7 +343,13 @@ class DeliveryRouteStop(Base):
 
     __table_args__ = (
         Index("idx_delivery_route_stops_route", "route_id"),
-        UniqueConstraint("route_id", "customer_id", name="uq_route_customer"),
+        Index(
+            "uq_route_customer_so",
+            "route_id",
+            "customer_id",
+            text("COALESCE(description, '')"),
+            unique=True,
+        ),
     )
 
 
