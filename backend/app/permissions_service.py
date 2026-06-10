@@ -49,11 +49,12 @@ DEFAULT_MENUS: list[MenuDef] = [
     MenuDef("vehicle_types", "Jenis Kendaraan", "/vehicle-types", "Master Data", "Minus", 35, "vehicle_types:read", "vehicle_types:write"),
     MenuDef("bbm", "Master BBM", "/bbm", "Master Data", "Minus", 36, "bbm:read", "bbm:write"),
     MenuDef("toll_golongan", "Golongan Tol", "/toll-golongan", "Master Data", "Minus", 37, "toll:read", "toll:write"),
-    MenuDef("warehouse", "Gudang", "/warehouse", "Master Data", "Warehouse", 38, "warehouse:read", "warehouse:write"),
-    MenuDef("toll_sections", "Ruas Tol", "/toll-sections", "Master Data", "Route", 39, "toll:read", "toll:write"),
-    MenuDef("users", "Manajemen User", "/users", "Administrasi", "Shield", 40, "users:read", "users:write"),
-    MenuDef("access_matrix", "Matriks Akses", "/access-matrix", "Administrasi", "Table2", 41, "access_matrix:read", "access_matrix:write"),
-    MenuDef("app_settings", "Pengaturan Aplikasi", "/app-settings", "Administrasi", "Settings", 42, "app_settings:read", "app_settings:write"),
+    MenuDef("toll_gates", "Gerbang Tol", "/toll-gates", "Master Data", "Minus", 38, "toll:read", "toll:write"),
+    MenuDef("warehouse", "Gudang", "/warehouse", "Master Data", "Warehouse", 39, "warehouse:read", "warehouse:write"),
+    MenuDef("toll_sections", "Ruas Tol", "/toll-sections", "Master Data", "Route", 40, "toll:read", "toll:write"),
+    MenuDef("users", "Manajemen User", "/users", "Administrasi", "Shield", 41, "users:read", "users:write"),
+    MenuDef("access_matrix", "Matriks Akses", "/access-matrix", "Administrasi", "Table2", 42, "access_matrix:read", "access_matrix:write"),
+    MenuDef("app_settings", "Pengaturan Aplikasi", "/app-settings", "Administrasi", "Settings", 43, "app_settings:read", "app_settings:write"),
 ]
 
 
@@ -69,6 +70,7 @@ def _default_access_level(menu: MenuDef, role: Role) -> str:
         "warehouse": {Role.ADMIN: "full", Role.FINANCE: "read", Role.MARKETING: "full", Role.GUDANG: "full"},
         "bbm": {Role.ADMIN: "full", Role.FINANCE: "none", Role.MARKETING: "full", Role.GUDANG: "none"},
         "toll_golongan": {Role.ADMIN: "full", Role.FINANCE: "none", Role.MARKETING: "full", Role.GUDANG: "none"},
+        "toll_gates": {Role.ADMIN: "full", Role.FINANCE: "none", Role.MARKETING: "full", Role.GUDANG: "none"},
         "toll_sections": {Role.ADMIN: "full", Role.FINANCE: "none", Role.MARKETING: "full", Role.GUDANG: "none"},
         "delivery_routes": {Role.ADMIN: "full", Role.FINANCE: "read", Role.MARKETING: "full", Role.GUDANG: "read"},
         "delivery_routes_report": {Role.ADMIN: "full", Role.FINANCE: "read", Role.MARKETING: "read", Role.GUDANG: "read"},

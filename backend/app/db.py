@@ -163,6 +163,46 @@ def ensure_schema() -> None:
         conn.execute(
             text(
                 """
+                CREATE TABLE IF NOT EXISTS toll_gates (
+                  id BIGSERIAL PRIMARY KEY,
+                  section_id BIGINT NOT NULL REFERENCES toll_sections(id) ON DELETE CASCADE,
+                  code TEXT NOT NULL,
+                  name TEXT NOT NULL,
+                  latitude NUMERIC(10,7),
+                  longitude NUMERIC(10,7),
+                  sort_order INT NOT NULL DEFAULT 0,
+                  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                  UNIQUE(section_id, code)
+                )
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                CREATE INDEX IF NOT EXISTS idx_toll_gates_section ON toll_gates(section_id)
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS toll_gate_fares (
+                  id BIGSERIAL PRIMARY KEY,
+                  entry_gate_id BIGINT NOT NULL REFERENCES toll_gates(id) ON DELETE CASCADE,
+                  exit_gate_id BIGINT NOT NULL REFERENCES toll_gates(id) ON DELETE CASCADE,
+                  golongan_id BIGINT NOT NULL REFERENCES toll_golongan(id) ON DELETE CASCADE,
+                  rate NUMERIC(14,2) NOT NULL DEFAULT 0,
+                  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                  UNIQUE(entry_gate_id, exit_gate_id, golongan_id)
+                )
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
                 ALTER TABLE vehicle_types
                 ADD COLUMN IF NOT EXISTS toll_golongan_id BIGINT
                 REFERENCES toll_golongan(id) ON DELETE SET NULL

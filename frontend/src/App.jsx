@@ -19,6 +19,7 @@ import DeliveryRouteForm from './pages/DeliveryRouteForm';
 import Warehouse from './pages/Warehouse';
 import TollSections from './pages/TollSections';
 import TollGolongan from './pages/TollGolongan';
+import TollGates from './pages/TollGates';
 import Bbm from './pages/Bbm';
 import Users from './pages/Users';
 import AccessMatrix from './pages/AccessMatrix';
@@ -49,6 +50,7 @@ function App() {
                 <Route path="warehouse" element={<Warehouse />} />
                 <Route path="toll-sections" element={<TollSections />} />
                 <Route path="toll-golongan" element={<TollGolongan />} />
+                <Route path="toll-gates" element={<TollGates />} />
                 <Route path="bbm" element={<Bbm />} />
                 <Route path="reports" element={<Reports />} />
                 <Route path="users" element={<Users />} />

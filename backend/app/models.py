@@ -159,6 +159,58 @@ class TollSectionRate(Base):
     )
 
 
+class TollGate(Base):
+    __tablename__ = "toll_gates"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    section_id: Mapped[int] = mapped_column(
+        ForeignKey("toll_sections.id", ondelete="CASCADE"), nullable=False
+    )
+    code: Mapped[str] = mapped_column(String, nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    latitude: Mapped[float | None] = mapped_column(Numeric(10, 7), nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Numeric(10, 7), nullable=True)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    section: Mapped[TollSection] = relationship()
+
+    __table_args__ = (
+        UniqueConstraint("section_id", "code", name="uq_toll_gate_section_code"),
+        Index("idx_toll_gates_section", "section_id"),
+    )
+
+
+class TollGateFare(Base):
+    __tablename__ = "toll_gate_fares"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    entry_gate_id: Mapped[int] = mapped_column(
+        ForeignKey("toll_gates.id", ondelete="CASCADE"), nullable=False
+    )
+    exit_gate_id: Mapped[int] = mapped_column(
+        ForeignKey("toll_gates.id", ondelete="CASCADE"), nullable=False
+    )
+    golongan_id: Mapped[int] = mapped_column(
+        ForeignKey("toll_golongan.id", ondelete="CASCADE"), nullable=False
+    )
+    rate: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    entry_gate: Mapped[TollGate] = relationship(foreign_keys=[entry_gate_id])
+    exit_gate: Mapped[TollGate] = relationship(foreign_keys=[exit_gate_id])
+    golongan: Mapped[TollGolongan] = relationship()
+
+    __table_args__ = (
+        UniqueConstraint("entry_gate_id", "exit_gate_id", "golongan_id", name="uq_toll_gate_fare"),
+    )
+
+
 class CustomerVehicleTariff(Base):
     __tablename__ = "customer_vehicle_tariffs"
 

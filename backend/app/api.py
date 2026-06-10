@@ -34,9 +34,12 @@ from app.models import (
     TollSection,
     TollSectionRate,
     TollGolongan,
+    TollGate,
+    TollGateFare,
     WarehouseSetting,
     AppSetting,
 )
+from app.toll_gate_service import TOLL_NOTE_BPJT, estimate_toll_bpjt_gates, serialize_gate_fare_context
 from app.delivery_route_service import (
     format_stop_items_summary,
     replace_route_stops,
@@ -52,6 +55,8 @@ from app.reports_service import (
     driver_summary,
 )
 from app.routing_service import (
+    VEHICLE_TOLL_CLASS,
+    _match_toll_vehicle_key,
     calculate_route,
     estimate_tolls_by_vehicle,
     geocode_address,
@@ -106,6 +111,12 @@ from app.schemas import (
     TollSectionRateOut,
     TollGolonganCreate,
     TollGolonganUpdate,
+    TollGateOut,
+    TollGateCreate,
+    TollGateUpdate,
+    TollGateFareOut,
+    TollGateFareCreate,
+    TollGateFareUpdate,
     TollGolonganOut,
     TollReferenceOut,
     AppSettingOut,
@@ -204,6 +215,73 @@ def _replace_section_rates(db: Session, section: TollSection, rate_items: list) 
     for rate in section.rates:
         db.refresh(rate, attribute_names=["golongan"])
     _sync_legacy_section_amounts(section)
+
+
+def _load_toll_gate_fare_context(db: Session) -> dict:
+    gates = db.scalars(
+        select(TollGate)
+        .where(TollGate.is_active.is_(True))
+        .options(selectinload(TollGate.section))
+        .order_by(TollGate.section_id.asc(), TollGate.sort_order.asc(), TollGate.id.asc())
+    ).all()
+    fare_rows = db.execute(
+        select(TollGateFare, TollGolongan.code)
+        .join(TollGolongan, TollGateFare.golongan_id == TollGolongan.id)
+        .join(TollGate, TollGateFare.entry_gate_id == TollGate.id)
+        .where(TollGate.is_active.is_(True))
+    ).all()
+    return serialize_gate_fare_context(gates, fare_rows)
+
+
+def _toll_gate_out(obj: TollGate) -> TollGateOut:
+    return TollGateOut(
+        id=obj.id,
+        section_id=obj.section_id,
+        section_name=obj.section.name if obj.section else None,
+        code=obj.code,
+        name=obj.name,
+        latitude=float(obj.latitude) if obj.latitude is not None else None,
+        longitude=float(obj.longitude) if obj.longitude is not None else None,
+        sort_order=obj.sort_order,
+        is_active=obj.is_active,
+    )
+
+
+def _toll_gate_fare_out(db: Session, obj: TollGateFare) -> TollGateFareOut:
+    entry = db.get(TollGate, obj.entry_gate_id)
+    exit_gate = db.get(TollGate, obj.exit_gate_id)
+    gol = obj.golongan or db.get(TollGolongan, obj.golongan_id)
+    section_id = entry.section_id if entry else 0
+    section_name = entry.section.name if entry and entry.section else None
+    return TollGateFareOut(
+        id=obj.id,
+        section_id=section_id,
+        section_name=section_name,
+        entry_gate_id=obj.entry_gate_id,
+        entry_gate_code=entry.code if entry else "-",
+        entry_gate_name=entry.name if entry else "-",
+        exit_gate_id=obj.exit_gate_id,
+        exit_gate_code=exit_gate.code if exit_gate else "-",
+        exit_gate_name=exit_gate.name if exit_gate else "-",
+        golongan_id=obj.golongan_id,
+        golongan_code=gol.code if gol else "?",
+        golongan_name=gol.name if gol else "-",
+        rate=float(obj.rate),
+    )
+
+
+def _validate_gate_fare(db: Session, entry_gate_id: int, exit_gate_id: int, golongan_id: int) -> tuple[TollGate, TollGate]:
+    if entry_gate_id == exit_gate_id:
+        raise HTTPException(status_code=400, detail="Gerbang masuk dan keluar tidak boleh sama.")
+    entry = db.get(TollGate, entry_gate_id)
+    exit_gate = db.get(TollGate, exit_gate_id)
+    if not entry or not exit_gate:
+        raise HTTPException(status_code=400, detail="Gerbang tol tidak ditemukan.")
+    if entry.section_id != exit_gate.section_id:
+        raise HTTPException(status_code=400, detail="Gerbang masuk dan keluar harus pada ruas tol yang sama.")
+    if not db.get(TollGolongan, golongan_id):
+        raise HTTPException(status_code=400, detail="Golongan tol tidak ditemukan.")
+    return entry, exit_gate
 
 
 def _vehicle_type_out(obj: VehicleType) -> VehicleTypeOut:
@@ -1673,7 +1751,16 @@ def process_route(payload: RouteProcessRequest, db: Session = Depends(get_db)):
         db.commit()
 
     sections = _load_active_toll_sections(db)
-    route = calculate_route(origin_lat, origin_lng, dest_lat, dest_lng, sections=sections, force_toll=payload.force_toll)
+    gate_context = _load_toll_gate_fare_context(db)
+    route = calculate_route(
+        origin_lat,
+        origin_lng,
+        dest_lat,
+        dest_lng,
+        sections=sections,
+        force_toll=payload.force_toll,
+        gate_context=gate_context,
+    )
 
     if customer is not None:
         customer_name = customer.name
@@ -1687,21 +1774,53 @@ def process_route(payload: RouteProcessRequest, db: Session = Depends(get_db)):
     origin_address = ", ".join(p for p in [warehouse.address, warehouse.city] if p)
 
     vehicle_types = db.scalars(_load_vehicle_types_query()).all()
-    toll_by_vehicle_raw = estimate_tolls_by_vehicle(
-        route["distance_km"],
-        [
-            (
-                vt.id,
-                vt.name,
-                vt.toll_golongan.code if vt.toll_golongan else None,
-                vt.toll_golongan.name if vt.toll_golongan else None,
+    if gate_context.get("fares") and not route["toll_is_estimate"]:
+        toll_by_vehicle_raw = []
+        for vt in vehicle_types:
+            gol_code = vt.toll_golongan.code if vt.toll_golongan else "II"
+            meta = VEHICLE_TOLL_CLASS.get(
+                _match_toll_vehicle_key(vt.name) or "", {}
             )
-            for vt in vehicle_types
-        ],
-        base_toll_idr=route["toll_idr"],
-        toll_is_estimate=route["toll_is_estimate"],
-        sections=sections,
-    )
+            bpjt = estimate_toll_bpjt_gates(
+                origin_lat,
+                origin_lng,
+                dest_lat,
+                dest_lng,
+                gate_context["gates"],
+                gate_context["fares"],
+                gol_code,
+            )
+            toll = round(bpjt[0] * 2, 0) if bpjt else route["toll_idr"]
+            if toll > 0:
+                toll = float(((int(toll) + 999) // 1000) * 1000)
+            rate_per_km = round(toll / route["distance_km"], 0) if route["distance_km"] else 0.0
+            toll_by_vehicle_raw.append(
+                {
+                    "vehicle_type_id": vt.id,
+                    "vehicle_type_name": vt.name,
+                    "golongan": gol_code,
+                    "gandar": meta.get("gandar", "-") if isinstance(meta, dict) else "-",
+                    "toll_idr": toll,
+                    "rate_per_km": rate_per_km,
+                }
+            )
+        toll_by_vehicle_raw.sort(key=lambda item: item["vehicle_type_name"].lower())
+    else:
+        toll_by_vehicle_raw = estimate_tolls_by_vehicle(
+            route["distance_km"],
+            [
+                (
+                    vt.id,
+                    vt.name,
+                    vt.toll_golongan.code if vt.toll_golongan else None,
+                    vt.toll_golongan.name if vt.toll_golongan else None,
+                )
+                for vt in vehicle_types
+            ],
+            base_toll_idr=route["toll_idr"],
+            toll_is_estimate=route["toll_is_estimate"],
+            sections=sections,
+        )
     if toll_by_vehicle_raw:
         route["toll_idr"] = toll_by_vehicle_raw[0]["toll_idr"]
 
@@ -1786,13 +1905,16 @@ def delete_toll_golongan(golongan_id: int, db: Session = Depends(get_db)):
     obj = db.get(TollGolongan, golongan_id)
     if not obj:
         raise HTTPException(status_code=404, detail="Golongan tol tidak ditemukan")
-    in_use = db.scalar(
+    in_use_rates = db.scalar(
         select(exists().where(TollSectionRate.golongan_id == golongan_id))
     )
-    if in_use:
+    in_use_fares = db.scalar(
+        select(exists().where(TollGateFare.golongan_id == golongan_id))
+    )
+    if in_use_rates or in_use_fares:
         raise HTTPException(
             status_code=400,
-            detail="Golongan masih dipakai di ruas tol. Hapus tarif ruas terlebih dahulu.",
+            detail="Golongan masih dipakai di ruas tol atau tarif gerbang.",
         )
     db.delete(obj)
     db.commit()
@@ -1859,6 +1981,156 @@ def delete_toll_section(section_id: int, db: Session = Depends(get_db)):
     db.commit()
 
 
+@router.get("/toll-gates", response_model=list[TollGateOut])
+def list_toll_gates(
+    section_id: int | None = None,
+    db: Session = Depends(get_db),
+):
+    stmt = (
+        select(TollGate)
+        .options(selectinload(TollGate.section))
+        .order_by(TollGate.section_id.asc(), TollGate.sort_order.asc(), TollGate.id.asc())
+    )
+    if section_id:
+        stmt = stmt.where(TollGate.section_id == section_id)
+    rows = db.scalars(stmt).all()
+    return [_toll_gate_out(row) for row in rows]
+
+
+@router.post("/toll-gates", response_model=TollGateOut, status_code=201)
+def create_toll_gate(payload: TollGateCreate, db: Session = Depends(get_db)):
+    if not db.get(TollSection, payload.section_id):
+        raise HTTPException(status_code=404, detail="Ruas tol tidak ditemukan")
+    obj = TollGate(
+        section_id=payload.section_id,
+        code=payload.code.strip().upper(),
+        name=payload.name.strip(),
+        latitude=payload.latitude,
+        longitude=payload.longitude,
+        sort_order=payload.sort_order,
+        is_active=payload.is_active,
+    )
+    db.add(obj)
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise _unique_violation_to_409(e) from e
+    db.refresh(obj)
+    obj = db.scalar(
+        select(TollGate).where(TollGate.id == obj.id).options(selectinload(TollGate.section))
+    )
+    return _toll_gate_out(obj)
+
+
+@router.put("/toll-gates/{gate_id}", response_model=TollGateOut)
+def update_toll_gate(gate_id: int, payload: TollGateUpdate, db: Session = Depends(get_db)):
+    obj = db.get(TollGate, gate_id)
+    if not obj:
+        raise HTTPException(status_code=404, detail="Gerbang tol tidak ditemukan")
+    data = payload.model_dump(exclude_unset=True)
+    if "section_id" in data and data["section_id"] is not None:
+        if not db.get(TollSection, data["section_id"]):
+            raise HTTPException(status_code=404, detail="Ruas tol tidak ditemukan")
+    if "code" in data and data["code"] is not None:
+        data["code"] = data["code"].strip().upper()
+    if "name" in data and data["name"] is not None:
+        data["name"] = data["name"].strip()
+    for key, value in data.items():
+        setattr(obj, key, value)
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise _unique_violation_to_409(e) from e
+    db.refresh(obj)
+    obj = db.scalar(
+        select(TollGate).where(TollGate.id == obj.id).options(selectinload(TollGate.section))
+    )
+    return _toll_gate_out(obj)
+
+
+@router.delete("/toll-gates/{gate_id}", status_code=204)
+def delete_toll_gate(gate_id: int, db: Session = Depends(get_db)):
+    obj = db.get(TollGate, gate_id)
+    if not obj:
+        raise HTTPException(status_code=404, detail="Gerbang tol tidak ditemukan")
+    db.delete(obj)
+    db.commit()
+
+
+@router.get("/toll-gate-fares", response_model=list[TollGateFareOut])
+def list_toll_gate_fares(
+    section_id: int | None = None,
+    db: Session = Depends(get_db),
+):
+    stmt = (
+        select(TollGateFare)
+        .join(TollGate, TollGateFare.entry_gate_id == TollGate.id)
+        .options(
+            selectinload(TollGateFare.entry_gate).selectinload(TollGate.section),
+            selectinload(TollGateFare.exit_gate),
+            selectinload(TollGateFare.golongan),
+        )
+        .order_by(TollGate.section_id.asc(), TollGateFare.id.asc())
+    )
+    if section_id:
+        stmt = stmt.where(TollGate.section_id == section_id)
+    rows = db.scalars(stmt).all()
+    return [_toll_gate_fare_out(db, row) for row in rows]
+
+
+@router.post("/toll-gate-fares", response_model=TollGateFareOut, status_code=201)
+def create_toll_gate_fare(payload: TollGateFareCreate, db: Session = Depends(get_db)):
+    _validate_gate_fare(db, payload.entry_gate_id, payload.exit_gate_id, payload.golongan_id)
+    obj = TollGateFare(
+        entry_gate_id=payload.entry_gate_id,
+        exit_gate_id=payload.exit_gate_id,
+        golongan_id=payload.golongan_id,
+        rate=payload.rate,
+    )
+    db.add(obj)
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise _unique_violation_to_409(e) from e
+    db.refresh(obj)
+    return _toll_gate_fare_out(db, obj)
+
+
+@router.put("/toll-gate-fares/{fare_id}", response_model=TollGateFareOut)
+def update_toll_gate_fare(
+    fare_id: int, payload: TollGateFareUpdate, db: Session = Depends(get_db)
+):
+    obj = db.get(TollGateFare, fare_id)
+    if not obj:
+        raise HTTPException(status_code=404, detail="Tarif gerbang tidak ditemukan")
+    data = payload.model_dump(exclude_unset=True)
+    entry_id = data.get("entry_gate_id", obj.entry_gate_id)
+    exit_id = data.get("exit_gate_id", obj.exit_gate_id)
+    gol_id = data.get("golongan_id", obj.golongan_id)
+    _validate_gate_fare(db, entry_id, exit_id, gol_id)
+    for key, value in data.items():
+        setattr(obj, key, value)
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise _unique_violation_to_409(e) from e
+    db.refresh(obj)
+    return _toll_gate_fare_out(db, obj)
+
+
+@router.delete("/toll-gate-fares/{fare_id}", status_code=204)
+def delete_toll_gate_fare(fare_id: int, db: Session = Depends(get_db)):
+    obj = db.get(TollGateFare, fare_id)
+    if not obj:
+        raise HTTPException(status_code=404, detail="Tarif gerbang tidak ditemukan")
+    db.delete(obj)
+    db.commit()
+
+
 @router.get("/routing/toll-reference", response_model=TollReferenceOut)
 def toll_reference(db: Session = Depends(get_db)):
     golongan_rows = db.scalars(
@@ -1897,7 +2169,7 @@ def toll_reference(db: Session = Depends(get_db)):
     return TollReferenceOut(
         golongan=golongan_out,
         sections=section_out,
-        note=get_toll_reference()["note"],
+        note=TOLL_NOTE_BPJT,
     )
 
 

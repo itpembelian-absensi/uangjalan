@@ -19,7 +19,7 @@ const TollReferenceTable = ({ reference }) => {
   return (
     <div style={{ marginBottom: '1.25rem' }}>
       <p className="form-label" style={{ marginBottom: '0.5rem', fontSize: '0.75rem' }}>
-        Acuan Tarif Tol Jabodetabek
+        Acuan Tarif Tol (ruas — fallback)
       </p>
       <div
         style={{
@@ -61,6 +61,10 @@ const TollReferenceTable = ({ reference }) => {
           {reference.note}{' '}
           <Link to="/toll-golongan" style={{ color: '#4f46e5' }}>
             Golongan
+          </Link>
+          {' · '}
+          <Link to="/toll-gates" style={{ color: '#4f46e5' }}>
+            Gerbang tol
           </Link>
           {' · '}
           <Link to="/toll-sections" style={{ color: '#4f46e5' }}>

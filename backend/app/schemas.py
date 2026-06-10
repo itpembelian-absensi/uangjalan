@@ -557,6 +557,68 @@ class TollGolonganUpdate(BaseModel):
     is_active: bool | None = None
 
 
+class TollGateOut(BaseModel):
+    id: int
+    section_id: int
+    section_name: str | None = None
+    code: str
+    name: str
+    latitude: float | None = None
+    longitude: float | None = None
+    sort_order: int
+    is_active: bool
+
+
+class TollGateCreate(BaseModel):
+    section_id: int
+    code: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    latitude: float | None = None
+    longitude: float | None = None
+    sort_order: int = 0
+    is_active: bool = True
+
+
+class TollGateUpdate(BaseModel):
+    section_id: int | None = None
+    code: str | None = Field(default=None, min_length=1)
+    name: str | None = Field(default=None, min_length=1)
+    latitude: float | None = None
+    longitude: float | None = None
+    sort_order: int | None = None
+    is_active: bool | None = None
+
+
+class TollGateFareOut(BaseModel):
+    id: int
+    section_id: int
+    section_name: str | None = None
+    entry_gate_id: int
+    entry_gate_code: str
+    entry_gate_name: str
+    exit_gate_id: int
+    exit_gate_code: str
+    exit_gate_name: str
+    golongan_id: int
+    golongan_code: str
+    golongan_name: str
+    rate: float
+
+
+class TollGateFareCreate(BaseModel):
+    entry_gate_id: int
+    exit_gate_id: int
+    golongan_id: int
+    rate: float = Field(ge=0)
+
+
+class TollGateFareUpdate(BaseModel):
+    entry_gate_id: int | None = None
+    exit_gate_id: int | None = None
+    golongan_id: int | None = None
+    rate: float | None = Field(default=None, ge=0)
+
+
 class TollReferenceOut(BaseModel):
     golongan: list[TollGolonganOut]
     sections: list[TollSectionOut]

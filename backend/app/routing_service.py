@@ -9,6 +9,7 @@ import urllib.request
 from fastapi import HTTPException
 
 from app.core.config import settings
+from app.toll_gate_service import TOLL_NOTE_BPJT, estimate_toll_bpjt_gates
 
 USER_AGENT = "UangPengiriman/1.0"
 OSRM_BASE = "https://router.project-osrm.org/route/v1/driving"
@@ -26,9 +27,8 @@ VEHICLE_TOLL_CLASS: dict[str, dict[str, str]] = {
 }
 
 TOLL_NOTE_JABODETABEK = (
-    "Estimasi berdasarkan acuan ruas tol Jabodetabek per golongan kendaraan. "
-    "Golongan II & III tarif sama; Golongan IV & V tarif lebih tinggi. "
-    "Tarif aktual bergantung gerbang masuk/keluar — rujukan: Kalkulator Jasa Marga / BPJT Info Tol."
+    "Estimasi ruas tol (fallback jika tarif gerbang BPJT/Jasa Marga belum diisi). "
+    "Isi master Gerbang Tol + tarif antar gerbang dari daftar resmi BPJT/Jasa Marga."
 )
 
 
@@ -806,6 +806,7 @@ def calculate_route(
     dest_lng: float,
     sections: list[dict] | None = None,
     force_toll: bool = False,
+    gate_context: dict | None = None,
 ) -> dict:
     url = f"{OSRM_BASE}/{origin_lng},{origin_lat};{dest_lng},{dest_lat}?overview=full&geometries=geojson&steps=true&alternatives=3"
     data = _http_get_json(url)
@@ -843,8 +844,25 @@ def calculate_route(
 
     sections = sections or _default_sections_from_settings()
     google_toll = _google_toll_idr(origin_lat, origin_lng, dest_lat, dest_lng)
-    
-    if google_toll and google_toll > 0:
+
+    bpjt_one_way: tuple[float, str] | None = None
+    if (uses_toll or force_toll) and gate_context:
+        bpjt_one_way = estimate_toll_bpjt_gates(
+            origin_lat,
+            origin_lng,
+            dest_lat,
+            dest_lng,
+            gate_context.get("gates") or [],
+            gate_context.get("fares") or [],
+            golongan_code="II",
+        )
+
+    if bpjt_one_way:
+        one_way, gate_desc = bpjt_one_way
+        toll_idr = one_way * 2
+        toll_is_estimate = False
+        toll_note = f"{TOLL_NOTE_BPJT} {gate_desc}."
+    elif google_toll and google_toll > 0:
         toll_idr = google_toll * 2
         toll_is_estimate = False
         toll_note = "Tarif tol Pulang-Pergi dari Google Maps (Golongan II/III). Kendaraan Gol IV/V disesuaikan proporsional."
