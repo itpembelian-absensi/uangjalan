@@ -43,6 +43,7 @@ from app.delivery_route_service import (
     resync_sales_for_customer,
     sync_sale_from_route,
     sync_sales_for_period,
+    customers_missing_tariff,
 )
 from app.reports_service import (
     customer_summary,
@@ -54,6 +55,7 @@ from app.routing_service import (
     calculate_route,
     estimate_tolls_by_vehicle,
     geocode_address,
+    parse_coords_from_share,
     get_toll_reference,
     serialize_toll_sections,
     _default_sections_from_settings,
@@ -96,6 +98,7 @@ from app.schemas import (
     RoutePoint,
     VehicleTollEstimate,
     GeocodeRequest,
+    GeocodeFromShareRequest,
     GeocodeOut,
     TollSectionCreate,
     TollSectionUpdate,
@@ -1153,6 +1156,7 @@ def _serialize_delivery_route(db: Session, route: DeliveryRoute) -> DeliveryRout
         sale_driver_name=sale_driver_name,
         is_finance_paid=sale_finance_locked(sale),
         finance_paid_at=sale.finance_paid_at if sale else None,
+        missing_tariff_customers=customers_missing_tariff(db, route),
         created_at=route.created_at,
     )
 
@@ -1900,6 +1904,12 @@ def toll_reference(db: Session = Depends(get_db)):
 @router.post("/geocode", response_model=GeocodeOut)
 def geocode_point(payload: GeocodeRequest):
     lat, lng = geocode_address(payload.address, payload.kelurahan, payload.kecamatan, payload.city, payload.name)
+    return GeocodeOut(latitude=lat, longitude=lng)
+
+
+@router.post("/geocode/from-share", response_model=GeocodeOut)
+def geocode_from_share(payload: GeocodeFromShareRequest):
+    lat, lng = parse_coords_from_share(payload.text)
     return GeocodeOut(latitude=lat, longitude=lng)
 
 

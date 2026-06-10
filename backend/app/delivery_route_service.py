@@ -15,6 +15,7 @@ from app.models import (
     Sale,
     SaleDetail,
     Vehicle,
+    VehicleType,
 )
 from app.sale_lock import MSG_ROUTE_FINANCE_PAID, sale_finance_locked
 from app.schemas import DeliveryRouteStopItem
@@ -59,6 +60,37 @@ def tariff_amount_for_customer(db: Session, customer_id: int, vehicle_type_id: i
     return _tariff_amount(row)
 
 
+def customers_missing_tariff(db: Session, route: DeliveryRoute) -> list[str]:
+    """Nama customer yang belum punya tarif uang jalan untuk jenis kendaraan rute."""
+    vehicle_type_id = resolve_vehicle_type_id(db, route)
+    missing: list[str] = []
+    seen: set[int] = set()
+    for stop in sorted(route.stops, key=lambda s: s.sort_order):
+        if stop.customer_id in seen:
+            continue
+        seen.add(stop.customer_id)
+        if tariff_amount_for_customer(db, stop.customer_id, vehicle_type_id) <= 0:
+            cust = db.get(Customer, stop.customer_id)
+            missing.append(cust.name if cust else f"Customer #{stop.customer_id}")
+    return missing
+
+
+def assert_route_tariffs_complete(db: Session, route: DeliveryRoute) -> None:
+    missing = customers_missing_tariff(db, route)
+    if not missing:
+        return
+    vehicle_type = db.get(VehicleType, resolve_vehicle_type_id(db, route))
+    vt_name = vehicle_type.name if vehicle_type else "jenis kendaraan rute"
+    names = ", ".join(missing)
+    raise HTTPException(
+        status_code=400,
+        detail=(
+            f"Lengkapi master customer terlebih dahulu. "
+            f"Tarif uang jalan ({vt_name}) belum diisi untuk: {names}."
+        ),
+    )
+
+
 def build_sale_details_from_route(db: Session, route: DeliveryRoute) -> list[dict]:
     vehicle_type_id = resolve_vehicle_type_id(db, route)
     stops = sorted(route.stops, key=lambda s: s.sort_order)
@@ -77,6 +109,7 @@ def build_sale_details_from_route(db: Session, route: DeliveryRoute) -> list[dic
 
 
 def sync_sale_from_route(db: Session, route: DeliveryRoute) -> Sale:
+    assert_route_tariffs_complete(db, route)
     details_data = build_sale_details_from_route(db, route)
     existing = db.scalar(select(Sale).where(Sale.delivery_route_id == route.id))
 

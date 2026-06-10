@@ -23,6 +23,13 @@ const DeliveryRoutesList = () => {
   const [generatingId, setGeneratingId] = useState(null);
   const [syncingAll, setSyncingAll] = useState(false);
 
+  const missingTariffMessage = (route) => {
+    const names = route.missing_tariff_customers || [];
+    if (!names.length) return null;
+    const vt = route.vehicle_type_name || 'jenis kendaraan rute';
+    return `Lengkapi master customer terlebih dahulu. Tarif uang jalan (${vt}) belum diisi untuk: ${names.join(', ')}.`;
+  };
+
   const buildListQuery = () => {
     const params = new URLSearchParams();
     if (filterFrom) params.set('from', filterFrom);
@@ -135,14 +142,20 @@ const DeliveryRoutesList = () => {
     }
   };
 
-  const handleGenerateSale = async (routeId, hasSale) => {
+  const handleGenerateSale = async (route) => {
+    const tariffMsg = missingTariffMessage(route);
+    if (tariffMsg) {
+      alert(tariffMsg);
+      return;
+    }
+    const hasSale = Boolean(route.sale_id);
     const msg = hasSale
       ? 'Perbarui transaksi uang jalan dari rute ini? Nominal customer dihitung ulang dari tarif.'
       : 'Buat transaksi uang jalan dari rute ini?';
     if (!window.confirm(msg)) return;
-    setGeneratingId(routeId);
+    setGeneratingId(route.id);
     try {
-      await apiFetch(`/api/delivery-routes/${routeId}/generate-sale`, { method: 'POST' });
+      await apiFetch(`/api/delivery-routes/${route.id}/generate-sale`, { method: 'POST' });
       await fetchData();
       if (window.confirm('Uang jalan berhasil dibuat/diperbarui. Buka halaman Uang Jalan?')) {
         navigate('/sales');
@@ -295,7 +308,10 @@ const DeliveryRoutesList = () => {
                   </td>
                 </tr>
               ) : (
-                routes.map((r) => (
+                routes.map((r) => {
+                  const tariffBlocked = (r.missing_tariff_customers?.length || 0) > 0;
+                  const tariffMsg = missingTariffMessage(r);
+                  return (
                   <tr key={r.id}>
                     <td style={{ fontWeight: 600 }}>{r.route_no}</td>
                     <td>{formatRouteDate(r.date)}</td>
@@ -343,7 +359,17 @@ const DeliveryRoutesList = () => {
                           )}
                         </span>
                       ) : (
-                        <span style={{ color: 'var(--text-secondary)' }}>Belum dibuat</span>
+                        <span style={{ display: 'inline-flex', flexDirection: 'column', gap: '0.15rem' }}>
+                          <span style={{ color: 'var(--text-secondary)' }}>Belum dibuat</span>
+                          {(r.missing_tariff_customers?.length || 0) > 0 && (
+                            <span
+                              style={{ fontSize: '0.75rem', color: '#b45309', lineHeight: 1.35, maxWidth: '220px' }}
+                              title={missingTariffMessage(r)}
+                            >
+                              Lengkapi master customer terlebih dahulu
+                            </span>
+                          )}
+                        </span>
                       )}
                     </td>
                     {showRouteActions && (
@@ -360,25 +386,27 @@ const DeliveryRoutesList = () => {
                         {canGenerateSale && (
                         <button
                           type="button"
-                          className={`btn btn-secondary${r.is_finance_paid ? ' btn-sync-disabled' : ''}`}
+                          className={`btn btn-secondary${r.is_finance_paid || tariffBlocked ? ' btn-sync-disabled' : ''}`}
                           style={{
                             padding: '0.4rem 0.6rem',
                             fontSize: '0.8rem',
                             whiteSpace: 'nowrap',
                           }}
                           disabled={
-                            generatingId === r.id || !canGenerateSale || Boolean(r.is_finance_paid)
+                            generatingId === r.id || !canGenerateSale || Boolean(r.is_finance_paid) || tariffBlocked
                           }
                           title={
                             !canGenerateSale
                               ? 'Tidak ada izin membuat uang jalan'
                               : r.is_finance_paid
                                 ? 'Rute dikunci — uang jalan sudah disetujui dibayar Finance.'
-                                : r.sale_id
-                                  ? 'Perbarui transaksi uang jalan dari perubahan rute'
-                                  : 'Buat transaksi uang jalan dari rute'
+                                : tariffBlocked
+                                  ? tariffMsg
+                                  : r.sale_id
+                                    ? 'Perbarui transaksi uang jalan dari perubahan rute'
+                                    : 'Buat transaksi uang jalan dari rute'
                           }
-                          onClick={() => handleGenerateSale(r.id, Boolean(r.sale_id))}
+                          onClick={() => handleGenerateSale(r)}
                         >
                           <Wallet size={14} /> {r.sale_id ? 'Sync' : 'Uang Jalan'}
                         </button>
@@ -419,7 +447,8 @@ const DeliveryRoutesList = () => {
                     </td>
                     )}
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>

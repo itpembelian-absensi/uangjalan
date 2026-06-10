@@ -466,6 +466,32 @@ p {
   width: 100%;
 }
 
+.customer-lookup-wrap {
+  width: 100%;
+}
+
+.customer-lookup-name-below {
+  margin-top: 0.25rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.customer-lookup-field--compact {
+  align-items: center;
+}
+
+.customer-lookup-field--compact .customer-lookup-display {
+  padding: 0.35rem 0.5rem;
+  font-size: inherit;
+}
+
+.customer-lookup-field--compact .customer-lookup-open-btn {
+  padding: 0.35rem 0.5rem;
+}
+
 .customer-lookup-display {
   flex: 1;
   min-width: 0;
@@ -730,6 +756,10 @@ body.customer-lookup-dragging .customer-lookup-drag-handle {
   margin: 0.75rem 0 0;
   font-size: 0.8rem;
   color: var(--text-secondary);
+}
+
+.route-stop-header-row td {
+  vertical-align: top;
 }
 
 .route-stop-lines-row td {

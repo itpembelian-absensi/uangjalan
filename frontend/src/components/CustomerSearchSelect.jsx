@@ -8,6 +8,11 @@ export const customerLabel = (c) => {
   return code ? `${code} — ${c.name}` : c.name || '';
 };
 
+export const customerCodeLabel = (c) => {
+  if (!c) return '';
+  return c.code?.trim() || c.name || '';
+};
+
 const CustomerSearchSelect = ({
   customers = [],
   value,
@@ -16,6 +21,9 @@ const CustomerSearchSelect = ({
   disabled = false,
   placeholder = 'Klik ikon cari untuk memilih customer',
   excludeIds = [],
+  codeOnly = false,
+  showNameBelow = false,
+  compact = false,
 }) => {
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -37,43 +45,48 @@ const CustomerSearchSelect = ({
 
   return (
     <>
-      <div className="customer-lookup-field">
-        <input
-          type="text"
-          className="form-input customer-lookup-display"
-          readOnly
-          disabled={disabled}
-          placeholder={placeholder}
-          value={selected ? customerLabel(selected) : ''}
-          onClick={() => {
-            if (!disabled) setModalOpen(true);
-          }}
-        />
-        <button
-          type="button"
-          className="customer-lookup-open-btn"
-          tabIndex={-1}
-          disabled={disabled}
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            if (!disabled) setModalOpen(true);
-          }}
-          title="Cari customer"
-          aria-label="Cari customer"
-        >
-          <Search size={18} />
-        </button>
-        {value && !disabled && (
+      <div className="customer-lookup-wrap">
+        <div className={`customer-lookup-field${compact ? ' customer-lookup-field--compact' : ''}`}>
+          <input
+            type="text"
+            className="form-input customer-lookup-display"
+            readOnly
+            disabled={disabled}
+            placeholder={placeholder}
+            value={selected ? (codeOnly ? customerCodeLabel(selected) : customerLabel(selected)) : ''}
+            onClick={() => {
+              if (!disabled) setModalOpen(true);
+            }}
+          />
           <button
             type="button"
-            className="customer-lookup-clear-btn"
+            className="customer-lookup-open-btn"
             tabIndex={-1}
-            onClick={handleClear}
-            aria-label="Hapus pilihan"
+            disabled={disabled}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (!disabled) setModalOpen(true);
+            }}
+            title="Cari customer"
+            aria-label="Cari customer"
           >
-            ×
+            <Search size={compact ? 16 : 18} />
           </button>
+          {value && !disabled && (
+            <button
+              type="button"
+              className="customer-lookup-clear-btn"
+              tabIndex={-1}
+              onClick={handleClear}
+              aria-label="Hapus pilihan"
+            >
+              ×
+            </button>
+          )}
+        </div>
+        {showNameBelow && selected?.name && (
+          <div className="customer-lookup-name-below">{selected.name}</div>
         )}
       </div>
 

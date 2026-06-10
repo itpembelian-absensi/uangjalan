@@ -650,6 +650,83 @@ def _google_geocode_address(
     return float(location["lat"]), float(location["lng"])
 
 
+def _is_valid_coord(lat: float, lng: float) -> bool:
+    return -90 <= lat <= 90 and -180 <= lng <= 180
+
+
+def _extract_coords_from_text(text: str) -> tuple[float, float] | None:
+    decoded = urllib.parse.unquote(text)
+    patterns = [
+        r"[?&]q=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)",
+        r"[?&]query=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)",
+        r"[?&]ll=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)",
+        r"[?&]center=(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)",
+        r"@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)(?:,\d+(?:\.\d+)?z)?",
+        r"!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)",
+        r"^\s*(-?\d+(?:\.\d+)?)\s*[,;\s]\s*(-?\d+(?:\.\d+)?)\s*$",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, decoded, flags=re.IGNORECASE)
+        if not match:
+            continue
+        lat = float(match.group(1))
+        lng = float(match.group(2))
+        if _is_valid_coord(lat, lng):
+            return lat, lng
+    return None
+
+
+def _extract_url_from_text(text: str) -> str | None:
+    match = re.search(r"https?://[^\s<>\"']+", text)
+    return match.group(0) if match else None
+
+
+def _resolve_maps_url(url: str) -> str:
+    req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return resp.geturl()
+    except urllib.error.HTTPError as exc:
+        location = exc.headers.get("Location")
+        if location and exc.code in {301, 302, 303, 307, 308}:
+            return urllib.parse.urljoin(url, location)
+        raise HTTPException(
+            status_code=400,
+            detail="Link share lokasi tidak bisa dibuka. Coba salin link penuh dari Google Maps.",
+        ) from exc
+    except urllib.error.URLError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail="Gagal membuka link share lokasi. Periksa koneksi internet.",
+        ) from exc
+
+
+def parse_coords_from_share(text: str) -> tuple[float, float]:
+    """Ambil koordinat dari teks/link share lokasi WhatsApp atau Google Maps."""
+    raw = (text or "").strip()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Link atau koordinat kosong.")
+
+    coords = _extract_coords_from_text(raw)
+    if coords:
+        return coords
+
+    url = _extract_url_from_text(raw) or (raw if raw.startswith("http") else None)
+    if url:
+        final_url = _resolve_maps_url(url)
+        coords = _extract_coords_from_text(final_url)
+        if coords:
+            return coords
+
+    raise HTTPException(
+        status_code=400,
+        detail=(
+            "Format share lokasi tidak dikenali. Tempel link Google Maps dari WhatsApp "
+            "atau koordinat lat, lng."
+        ),
+    )
+
+
 def geocode_address(address: str | None, kelurahan: str | None = None, kecamatan: str | None = None, city: str | None = None, name: str | None = None) -> tuple[float, float]:
     if not (address or name or city or kelurahan or kecamatan):
         raise HTTPException(status_code=400, detail="Alamat kosong, tidak bisa geocode")

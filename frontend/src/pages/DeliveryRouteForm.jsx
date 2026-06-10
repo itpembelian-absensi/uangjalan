@@ -406,7 +406,7 @@ const DeliveryRouteForm = () => {
                   <tbody>
                     {form.stops.map((row, idx) => (
                       <React.Fragment key={idx}>
-                        <tr>
+                        <tr className="route-stop-header-row">
                           <td rowSpan={2} style={{ verticalAlign: 'top' }}>
                             {idx + 1}
                           </td>
@@ -417,6 +417,9 @@ const DeliveryRouteForm = () => {
                               onChange={(customerId) => updateStop(idx, { customer_id: customerId })}
                               onAfterSelect={() => focusSoInput(idx)}
                               disabled={customers.length === 0}
+                              codeOnly
+                              showNameBelow
+                              compact
                             />
                           </td>
                           <td>

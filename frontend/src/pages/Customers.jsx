@@ -6,6 +6,7 @@ import LocationPickerMap from '../components/LocationPickerMap';
 import TollEstimateTable from '../components/TollEstimateTable';
 import TollReferenceTable from '../components/TollReferenceTable';
 import { useCrudWrite, CrudActionsHeader, CrudActionsCell } from '../components/CrudWriteAccess';
+import { parseCoordsFromShareText } from '../utils/locationParse';
 
 const formatIDR = (val) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
@@ -267,6 +268,8 @@ const Customers = () => {
   const [sortDir, setSortDir] = useState('asc');
   const [error, setError] = useState('');
   const [geocoding, setGeocoding] = useState(false);
+  const [parsingShare, setParsingShare] = useState(false);
+  const [shareLocationInput, setShareLocationInput] = useState('');
   const [routeInfo, setRouteInfo] = useState(null);
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState('');
@@ -381,6 +384,7 @@ const Customers = () => {
         tariffs: buildTariffRows(vehicleTypes),
       });
     }
+    setShareLocationInput('');
     if (window.location.hash !== '#modal') {
       window.history.pushState(null, '', window.location.pathname + '#modal');
     }
@@ -408,6 +412,41 @@ const Customers = () => {
       setIsModalOpen(false);
       setRouteInfo(null);
       setRouteError('');
+      setShareLocationInput('');
+    }
+  };
+
+  const applyCoords = (latitude, longitude) => {
+    setForm((prev) => ({
+      ...prev,
+      latitude: String(latitude),
+      longitude: String(longitude),
+    }));
+  };
+
+  const handleParseShareLocation = async () => {
+    const text = shareLocationInput.trim();
+    if (!text) return;
+
+    setParsingShare(true);
+    setError('');
+    try {
+      const local = parseCoordsFromShareText(text);
+      if (local) {
+        applyCoords(local.latitude, local.longitude);
+        return;
+      }
+
+      const data = await apiFetch('/api/geocode/from-share', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      applyCoords(data.latitude, data.longitude);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setParsingShare(false);
     }
   };
 
@@ -528,11 +567,7 @@ const Customers = () => {
           }),
         });
       }
-      setForm((prev) => ({
-        ...prev,
-        latitude: String(data.latitude),
-        longitude: String(data.longitude),
-      }));
+      applyCoords(data.latitude, data.longitude);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -1081,9 +1116,35 @@ const Customers = () => {
                           <MapPin size={16} /> {geocoding ? '...' : 'Geocode'}
                         </button>
                       </div>
-                      <small style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                      <small style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', display: 'block', marginTop: '0.35rem' }}>
                         Koordinat dipakai untuk hitung rute gudang → customer di form Uang Jalan. Setelah Geocode, pastikan titik di peta sudah benar — geser manual jika perlu.
                       </small>
+                      <div style={{ marginTop: '0.75rem' }}>
+                        <label className="form-label" style={{ textTransform: 'none', fontSize: '0.85rem', marginBottom: '0.35rem' }}>
+                          Share lokasi WA / Google Maps
+                        </label>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.5rem', alignItems: 'end' }}>
+                          <input
+                            type="text"
+                            className="form-input"
+                            style={{ background: 'transparent' }}
+                            placeholder="Tempel link share lokasi dari WhatsApp"
+                            value={shareLocationInput}
+                            onChange={(e) => setShareLocationInput(e.target.value)}
+                          />
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            onClick={handleParseShareLocation}
+                            disabled={parsingShare || !shareLocationInput.trim()}
+                          >
+                            <MapPin size={16} /> {parsingShare ? '...' : 'Ambil Koordinat'}
+                          </button>
+                        </div>
+                        <small style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', display: 'block', marginTop: '0.35rem' }}>
+                          Mendukung link Google Maps dari WhatsApp (termasuk maps.app.goo.gl) atau koordinat lat, lng.
+                        </small>
+                      </div>
                     </div>
 
                     <div className="form-group" style={{ marginTop: '1.25rem', marginBottom: 0 }}>

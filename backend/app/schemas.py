@@ -309,6 +309,7 @@ class DeliveryRouteOut(BaseModel):
     sale_driver_name: str | None = None
     is_finance_paid: bool = False
     finance_paid_at: datetime | None = None
+    missing_tariff_customers: list[str] = Field(default_factory=list)
     created_at: datetime
 
     class Config:
@@ -483,6 +484,10 @@ class GeocodeRequest(BaseModel):
     kecamatan: str | None = None
     city: str | None = None
     name: str | None = None
+
+
+class GeocodeFromShareRequest(BaseModel):
+    text: str = Field(min_length=1)
 
 
 class GeocodeOut(BaseModel):
