@@ -5,9 +5,12 @@
 ### 1. Self-hosted Runner
 Di GitHub repo: **Settings > Actions > Runners > New self-hosted runner**
 
+Label runner minimal: **`self-hosted`** (label `uangjalan` opsional).
+
 Requirement di server:
 - Docker & Docker Compose
-- Itu saja
+- Node.js 20+ & npm
+- Git & curl
 
 ### 2. File `.env` di server
 
@@ -47,8 +50,15 @@ Semua service lain berkomunikasi lewat Docker network internal.
 
 ## Cara Deploy
 
-**Otomatis:** push ke `main`
+**Otomatis:** push ke `main` (workflow `.github/workflows/deploy.yml`)
+
 **Manual:** tab Actions > Deploy > Run workflow
+
+**Manual di server (jika CI gagal):**
+```bash
+cd /srv/docker/uangjalan
+GIT_SHA=$(git rev-parse origin/main) bash scripts/deploy.sh
+```
 
 ## Build
 
