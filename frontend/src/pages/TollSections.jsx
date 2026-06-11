@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { Plus, Trash2, Edit2, RefreshCw, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { Plus, Trash2, Edit2, RefreshCw, ArrowUp, ArrowDown, ArrowUpDown, Download, Upload } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../api';
 import {
@@ -64,6 +64,60 @@ const TollSections = () => {
   const [filterNetwork, setFilterNetwork] = useState('');
   const [sortCol, setSortCol] = useState('sort_order');
   const [sortDir, setSortDir] = useState('asc');
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef(null);
+
+  const handleExportJson = async () => {
+    try {
+      const data = await apiFetch('/api/toll-data/export');
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `ruas_tol_${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError('Gagal export: ' + err.message);
+    }
+  };
+
+  const handleImportClick = () => {
+    if (fileInputRef.current) fileInputRef.current.click();
+  };
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    if (!window.confirm('PERINGATAN: Import akan MENGHAPUS seluruh data ruas & gerbang tol yang ada di server dan menggantinya dengan data dari file JSON. Lanjutkan?')) {
+      e.target.value = null;
+      return;
+    }
+
+    setImporting(true);
+    setError('');
+    setSyncInfo(null);
+    try {
+      const text = await file.text();
+      const payload = JSON.parse(text);
+      
+      await apiFetch('/api/toll-data/import', {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      });
+      
+      setSyncInfo({ source_title: 'File JSON', sections: { total: payload.sections.length, created: 0, updated: payload.sections.length } });
+      await fetchGolongan();
+      await fetchSections();
+      alert('Import berhasil.');
+    } catch (err) {
+      setError('Gagal import: ' + err.message);
+    } finally {
+      setImporting(false);
+      e.target.value = null;
+    }
+  };
 
   const fetchGolongan = async () => {
     const data = await apiFetch('/api/toll-golongan');
@@ -214,10 +268,10 @@ const TollSections = () => {
 
   return (
     <div>
-      <div className="page-header">
-        <div>
-          <h1>Ruas &amp; Tarif Tol</h1>
-          <p>
+      <div className="page-header" style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div style={{ flex: 1, minWidth: '300px', maxWidth: '500px' }}>
+          <h1 style={{ marginBottom: '0.5rem' }}>Ruas &amp; Tarif Tol</h1>
+          <p style={{ margin: 0, lineHeight: '1.4' }}>
             Master ruas tol sesuai acuan BPJT: jaringan, ruas, asal/tujuan, dan tarif per golongan.
             Matriks gerbang detail di{' '}
             <Link to="/toll-golongan" style={{ color: '#4f46e5' }}>
@@ -230,13 +284,14 @@ const TollSections = () => {
             .
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'nowrap', alignItems: 'center' }}>
           {canWrite && (
             <>
               <button
                 type="button"
                 className="btn btn-primary"
                 onClick={() => navigate('/toll-sections/new')}
+                style={{ whiteSpace: 'nowrap' }}
               >
                 <Plus size={18} /> Tambah Ruas
               </button>
@@ -244,12 +299,39 @@ const TollSections = () => {
                 type="button"
                 className="btn btn-secondary"
                 onClick={handleSyncBpjt}
-                disabled={syncing}
+                disabled={syncing || importing}
                 style={{ whiteSpace: 'nowrap' }}
               >
                 <RefreshCw size={18} />
-                {syncing ? 'Mengimpor BPJT...' : 'Impor dari BPJT'}
+                {syncing ? 'Mengimpor...' : 'Impor BPJT'}
               </button>
+
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleExportJson}
+                style={{ whiteSpace: 'nowrap' }}
+                title="Unduh data master ke file JSON"
+              >
+                <Download size={18} /> Export JSON
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleImportClick}
+                disabled={importing || syncing}
+                style={{ whiteSpace: 'nowrap', color: '#b45309' }}
+                title="Unggah dan timpa data master dari file JSON"
+              >
+                <Upload size={18} /> {importing ? 'Mengimpor JSON...' : 'Import JSON'}
+              </button>
+              <input
+                type="file"
+                ref={fileInputRef}
+                style={{ display: 'none' }}
+                accept="application/json"
+                onChange={handleFileChange}
+              />
             </>
           )}
         </div>

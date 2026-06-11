@@ -808,3 +808,53 @@ class AppSettingOut(BaseModel):
 
 
 AuthUserOut.model_rebuild()
+
+
+
+class TollDataExportGolongan(BaseModel):
+    id: int
+    name: str
+    code: str
+    description: str | None = None
+    sort_order: int
+    is_active: bool
+
+class TollDataExportSection(BaseModel):
+    id: int
+    network: str | None = None
+    name: str
+    origin_name: str | None = None
+    destination_name: str | None = None
+    length_km: float
+    gol23: float = 0
+    gol45: float = 0
+    sort_order: int
+    is_active: bool
+
+class TollDataExportSectionRate(BaseModel):
+    section_id: int
+    golongan_id: int
+    rate: float
+
+class TollDataExportGate(BaseModel):
+    id: int
+    section_id: int
+    code: str
+    name: str
+    latitude: float | None = None
+    longitude: float | None = None
+    sort_order: int
+    is_active: bool
+
+class TollDataExportGateFare(BaseModel):
+    entry_gate_id: int
+    exit_gate_id: int
+    golongan_id: int
+    rate: float
+
+class TollDataExport(BaseModel):
+    golongan: list[TollDataExportGolongan]
+    sections: list[TollDataExportSection]
+    section_rates: list[TollDataExportSectionRate]
+    gates: list[TollDataExportGate]
+    gate_fares: list[TollDataExportGateFare]
