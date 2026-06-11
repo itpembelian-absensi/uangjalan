@@ -3,6 +3,12 @@ export async function apiFetch(url, options = {}) {
   try {
     res = await fetch(url, {
       credentials: 'include',
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+        ...(options.headers || {})
+      },
       ...options,
     });
   } catch {
