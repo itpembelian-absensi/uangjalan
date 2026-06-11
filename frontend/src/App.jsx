@@ -18,6 +18,7 @@ import DeliveryRoutesReport from './pages/DeliveryRoutesReport';
 import DeliveryRouteForm from './pages/DeliveryRouteForm';
 import Warehouse from './pages/Warehouse';
 import TollSections from './pages/TollSections';
+import TollSectionForm from './pages/TollSectionForm';
 import TollGolongan from './pages/TollGolongan';
 import TollGates from './pages/TollGates';
 import Bbm from './pages/Bbm';
@@ -49,6 +50,8 @@ function App() {
                 <Route path="sales" element={<Sales />} />
                 <Route path="warehouse" element={<Warehouse />} />
                 <Route path="toll-sections" element={<TollSections />} />
+                <Route path="toll-sections/new" element={<TollSectionForm />} />
+                <Route path="toll-sections/:id/edit" element={<TollSectionForm />} />
                 <Route path="toll-golongan" element={<TollGolongan />} />
                 <Route path="toll-gates" element={<TollGates />} />
                 <Route path="bbm" element={<Bbm />} />

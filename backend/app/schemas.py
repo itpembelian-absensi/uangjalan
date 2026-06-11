@@ -446,6 +446,7 @@ class RouteProcessRequest(BaseModel):
     longitude: float | None = None
     name: str | None = None
     force_toll: bool | None = False
+    prefer_cheapest_toll: bool | None = False
 
 
 class RoutePoint(BaseModel):
@@ -464,6 +465,28 @@ class VehicleTollEstimate(BaseModel):
     rate_per_km: float
 
 
+class RouteTollSegmentOut(BaseModel):
+    source: str
+    section_name: str
+    section_id: int | None = None
+    entry_gate_code: str | None = None
+    entry_gate_name: str | None = None
+    exit_gate_code: str | None = None
+    exit_gate_name: str | None = None
+    detail: str | None = None
+    weight_pct: float | None = None
+    one_way_idr: float
+    round_trip_idr: float
+    rates_by_golongan: dict[str, float] | None = None
+
+
+class RouteTollRoadOut(BaseModel):
+    name: str
+    latitude: float | None = None
+    longitude: float | None = None
+    geometry: list[list[float]] = Field(default_factory=list)
+
+
 class RouteProcessOut(BaseModel):
     customer_id: int | None = None
     customer_name: str
@@ -474,8 +497,27 @@ class RouteProcessOut(BaseModel):
     toll_idr: float
     toll_is_estimate: bool
     toll_note: str | None = None
+    toll_source: str = "none"
+    toll_breakdown: list[RouteTollSegmentOut] = Field(default_factory=list)
+    toll_roads: list[RouteTollRoadOut] = Field(default_factory=list)
     toll_by_vehicle: list[VehicleTollEstimate] = Field(default_factory=list)
     geometry: list[list[float]] = Field(default_factory=list)
+    route_selection: str | None = None
+    alternatives_compared: int = 0
+    toll_savings_idr: float | None = None
+
+
+class ManualTollBreakdownRequest(BaseModel):
+    section_ids: list[int] = Field(min_length=1)
+
+
+class ManualTollBreakdownOut(BaseModel):
+    segments: list[RouteTollSegmentOut] = Field(default_factory=list)
+    one_way_idr: float = 0.0
+    toll_idr: float = 0.0
+    toll_source: str = "manual"
+    toll_is_estimate: bool = False
+    toll_note: str | None = None
 
 
 class GeocodeRequest(BaseModel):
@@ -509,7 +551,10 @@ class TollSectionRateItem(BaseModel):
 
 class TollSectionOut(BaseModel):
     id: int
+    network: str | None = None
     name: str
+    origin_name: str | None = None
+    destination_name: str | None = None
     length_km: float
     sort_order: int
     is_active: bool
@@ -517,7 +562,10 @@ class TollSectionOut(BaseModel):
 
 
 class TollSectionCreate(BaseModel):
+    network: str | None = None
     name: str = Field(min_length=1)
+    origin_name: str | None = None
+    destination_name: str | None = None
     length_km: float = Field(gt=0)
     sort_order: int = 0
     is_active: bool = True
@@ -525,11 +573,41 @@ class TollSectionCreate(BaseModel):
 
 
 class TollSectionUpdate(BaseModel):
+    network: str | None = None
     name: str | None = Field(default=None, min_length=1)
+    origin_name: str | None = None
+    destination_name: str | None = None
     length_km: float | None = Field(default=None, gt=0)
     sort_order: int | None = None
     is_active: bool | None = None
     rates: list[TollSectionRateItem] | None = None
+
+
+class BpjtImportResultOut(BaseModel):
+    network: str
+    created: int
+    updated: int
+    total: int
+    source_title: str | None = None
+    source_page: str | None = None
+    pdf_url: str | None = None
+    source_modified: str | None = None
+
+
+class BpjtGateImportResultOut(BaseModel):
+    network: str
+    sections_imported: int
+    sections_skipped: list[str] = Field(default_factory=list)
+    gates_created: int
+    gates_updated: int
+    fares_created: int
+    source: str | None = None
+    source_url: str | None = None
+
+
+class BpjtFullImportResultOut(BaseModel):
+    sections: BpjtImportResultOut
+    gates: BpjtGateImportResultOut
 
 
 class TollGolonganOut(BaseModel):

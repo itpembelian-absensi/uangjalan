@@ -221,9 +221,45 @@ def resync_sales_for_customer(db: Session, customer_id: int) -> int:
         sale = db.scalar(select(Sale).where(Sale.delivery_route_id == route_id))
         if not sale or sale_finance_locked(sale):
             continue
-        sync_sale_from_route(db, route)
-        synced += 1
+        try:
+            sync_sale_from_route(db, route)
+            synced += 1
+        except HTTPException:
+            continue
     return synced
+
+
+def refresh_customer_tariff_in_sales(db: Session, customer_id: int) -> int:
+    """Perbarui nominal uang jalan customer ini saja di sale rute terkait (tanpa validasi customer lain)."""
+    route_ids = db.scalars(
+        select(DeliveryRouteStop.route_id)
+        .where(DeliveryRouteStop.customer_id == customer_id)
+        .distinct()
+    ).all()
+    updated = 0
+    for route_id in route_ids:
+        route = db.scalar(select(DeliveryRoute).where(DeliveryRoute.id == route_id))
+        if not route:
+            continue
+        sale = db.scalar(select(Sale).where(Sale.delivery_route_id == route_id))
+        if not sale or sale_finance_locked(sale):
+            continue
+        try:
+            vehicle_type_id = resolve_vehicle_type_id(db, route)
+        except HTTPException:
+            continue
+        amount = tariff_amount_for_customer(db, customer_id, vehicle_type_id)
+        rows = db.scalars(
+            select(SaleDetail).where(
+                SaleDetail.sale_id == sale.id,
+                SaleDetail.customer_id == customer_id,
+            )
+        ).all()
+        for row in rows:
+            row.amount = amount
+            row.vehicle_type_id = vehicle_type_id
+            updated += 1
+    return updated
 
 
 def _normalize_stop_lines(stop: DeliveryRouteStopItem) -> list[tuple[str, float]]:

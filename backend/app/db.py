@@ -163,6 +163,34 @@ def ensure_schema() -> None:
         conn.execute(
             text(
                 """
+                ALTER TABLE toll_sections
+                ADD COLUMN IF NOT EXISTS network TEXT,
+                ADD COLUMN IF NOT EXISTS origin_name TEXT,
+                ADD COLUMN IF NOT EXISTS destination_name TEXT
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                UPDATE toll_sections
+                SET network = 'Jabodetabek'
+                WHERE network IS NULL OR TRIM(network) = ''
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                INSERT INTO toll_golongan (name, code, description, sort_order)
+                SELECT 'Golongan I', 'I', 'Kendaraan ringan (mobil, motor)', 0
+                WHERE NOT EXISTS (SELECT 1 FROM toll_golongan WHERE code = 'I')
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
                 CREATE TABLE IF NOT EXISTS toll_gates (
                   id BIGSERIAL PRIMARY KEY,
                   section_id BIGINT NOT NULL REFERENCES toll_sections(id) ON DELETE CASCADE,

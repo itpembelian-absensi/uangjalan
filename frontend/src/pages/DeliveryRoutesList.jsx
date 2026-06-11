@@ -1,11 +1,33 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Trash2, Edit, RefreshCw, Wallet, AlertCircle, FileBarChart } from 'lucide-react';
+import { Plus, Trash2, Edit, RefreshCw, Wallet, AlertCircle, FileBarChart, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import GlassCard from '../components/GlassCard';
 import { apiFetch } from '../api';
 import { useAuth } from '../auth/AuthContext';
 import { formatRouteDate, tomorrowIso } from '../utils/deliveryRouteUtils';
 
+/* ---------- Sort helpers ---------- */
+const SortIcon = ({ active, dir }) => {
+  if (!active) return <ArrowUpDown size={13} style={{ opacity: 0.35, marginLeft: 4 }} />;
+  return dir === 'asc'
+    ? <ArrowUp size={13} style={{ marginLeft: 4, color: '#4f46e5' }} />
+    : <ArrowDown size={13} style={{ marginLeft: 4, color: '#4f46e5' }} />;
+};
+
+const SortableTh = ({ id, label, sortCol, sortDir, onSort, style }) => (
+  <th
+    style={{ cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap', ...style }}
+    onClick={() => onSort(id)}
+    title={`Urutkan berdasarkan ${label}`}
+  >
+    <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+      {label}
+      <SortIcon active={sortCol === id} dir={sortDir} />
+    </span>
+  </th>
+);
+
+/* ---------- Component ---------- */
 const DeliveryRoutesList = () => {
   const navigate = useNavigate();
   const { hasPermission, canWritePage } = useAuth();
@@ -22,6 +44,8 @@ const DeliveryRoutesList = () => {
   const [filterVehicleType, setFilterVehicleType] = useState('');
   const [generatingId, setGeneratingId] = useState(null);
   const [syncingAll, setSyncingAll] = useState(false);
+  const [sortCol, setSortCol] = useState('route_no');
+  const [sortDir, setSortDir] = useState('asc');
 
   const missingTariffMessage = (route) => {
     const names = route.missing_tariff_customers || [];
@@ -167,6 +191,54 @@ const DeliveryRoutesList = () => {
     }
   };
 
+  const handleSort = useCallback((col) => {
+    setSortCol((prev) => {
+      if (prev === col) {
+        setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+        return prev;
+      }
+      setSortDir('asc');
+      return col;
+    });
+  }, []);
+
+  const sortedRoutes = useMemo(() => {
+    if (!routes.length) return routes;
+
+    const cmp = (a, b) => {
+      let va, vb;
+      switch (sortCol) {
+        case 'route_no':
+          return (a.route_no || '').localeCompare(b.route_no || '');
+        case 'date':
+          return (a.date || '').localeCompare(b.date || '');
+        case 'vehicle_type':
+          va = (a.vehicle_type_name || '').toLowerCase();
+          vb = (b.vehicle_type_name || '').toLowerCase();
+          return va.localeCompare(vb, 'id');
+        case 'ritase':
+          va = a.ritase || 1;
+          vb = b.ritase || 1;
+          return va - vb;
+        case 'stops':
+          va = a.stops?.length || 0;
+          vb = b.stops?.length || 0;
+          return va - vb;
+        case 'sale_no':
+          va = a.sale_no || '';
+          vb = b.sale_no || '';
+          return va.localeCompare(vb);
+        default:
+          return 0;
+      }
+    };
+
+    return [...routes].sort((a, b) => {
+      const result = cmp(a, b);
+      return sortDir === 'asc' ? result : -result;
+    });
+  }, [routes, sortCol, sortDir]);
+
   return (
     <div className="page-container">
       <div className="page-header">
@@ -273,12 +345,12 @@ const DeliveryRoutesList = () => {
           <table className="glass-table">
             <thead>
               <tr>
-                <th>No Rute</th>
-                <th>Tanggal</th>
-                <th>Jenis Kendaraan</th>
-                <th>Rit</th>
-                <th>Stop</th>
-                <th>Uang Jalan</th>
+                <SortableTh id="route_no" label="No Rute" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                <SortableTh id="date" label="Tanggal" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                <SortableTh id="vehicle_type" label="Jenis Kendaraan" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                <SortableTh id="ritase" label="Rit" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                <SortableTh id="stops" label="Stop" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                <SortableTh id="sale_no" label="Uang Jalan" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
                 <th style={{ textAlign: 'right', minWidth: '220px', display: showRouteActions ? undefined : 'none' }}>Aksi</th>
               </tr>
             </thead>
@@ -289,7 +361,7 @@ const DeliveryRoutesList = () => {
                     Memuat...
                   </td>
                 </tr>
-              ) : routes.length === 0 ? (
+              ) : sortedRoutes.length === 0 ? (
                 <tr>
                   <td colSpan="7" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-secondary)' }}>
                     {routesError ? (
@@ -308,7 +380,7 @@ const DeliveryRoutesList = () => {
                   </td>
                 </tr>
               ) : (
-                routes.map((r) => {
+                sortedRoutes.map((r) => {
                   const tariffBlocked = (r.missing_tariff_customers?.length || 0) > 0;
                   const tariffMsg = missingTariffMessage(r);
                   return (

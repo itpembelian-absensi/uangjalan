@@ -1,0 +1,209 @@
+{
+  "source_title": "Tarif Tol JABODETABEK",
+  "source_url": "https://bpjt.pu.go.id/info-tarif-dan-golongan/",
+  "pdf_url": "https://bpjt.pu.go.id/wp-content/uploads/Tarif-Tol-Jabodetabek.pdf",
+  "fetched_via": "BPJT WordPress REST API (tarif_dan_golongan/2785)",
+  "note": "Tarif acuan ruas penuh (baris utama tabel BPJT). Matriks gerbang detail diimpor terpisah jika diperlukan.",
+  "sections": [
+    {
+      "sort_order": 1,
+      "name": "Jakarta-Bogor-Ciawi",
+      "origin_name": "Jakarta",
+      "destination_name": "Ciawi",
+      "length_km": 59.0,
+      "rates": { "I": 7500, "II": 12000, "III": 12000, "IV": 17000, "V": 17000 }
+    },
+    {
+      "sort_order": 2,
+      "name": "Prof.Dr.Ir.Soedijatmo",
+      "origin_name": "Prof.Dr.Ir.Soedijatmo",
+      "destination_name": "Prof.Dr.Ir.Soedijatmo",
+      "length_km": 14.3,
+      "rates": { "I": 8500, "II": 11000, "III": 11000, "IV": 12000, "V": 12000 }
+    },
+    {
+      "sort_order": 3,
+      "name": "Cawang-Tomang-Pluit (CTC)",
+      "origin_name": "Cawang",
+      "destination_name": "Pluit",
+      "length_km": 23.55,
+      "rates": { "I": 11000, "II": 16500, "III": 16500, "IV": 19000, "V": 19000 }
+    },
+    {
+      "sort_order": 4,
+      "name": "Cawang-Tj. Priok-Ancol Timur-Jembatan Tiga/Pluit",
+      "origin_name": "Cawang",
+      "destination_name": "Jembatan Tiga/Pluit",
+      "length_km": 27.05,
+      "rates": { "I": 11000, "II": 16500, "III": 16500, "IV": 19000, "V": 19000 }
+    },
+    {
+      "sort_order": 5,
+      "name": "JORR S",
+      "origin_name": "Pondok Pinang",
+      "destination_name": "Taman Mini",
+      "length_km": 14.25,
+      "rates": { "I": 17000, "II": 25000, "III": 25000, "IV": 33500, "V": 33500 }
+    },
+    {
+      "sort_order": 6,
+      "name": "JORR NON S",
+      "origin_name": "Rorotan",
+      "destination_name": "Kebon Bawang",
+      "length_km": 31.18,
+      "rates": { "I": 17000, "II": 25000, "III": 25000, "IV": 33500, "V": 33500 }
+    },
+    {
+      "sort_order": 7,
+      "name": "JORR W1 (Kebon Jeruk-Penjaringan)",
+      "origin_name": "Kebon Jeruk",
+      "destination_name": "Penjaringan",
+      "length_km": 9.85,
+      "rates": { "I": 17000, "II": 25000, "III": 25000, "IV": 33500, "V": 33500 }
+    },
+    {
+      "sort_order": 8,
+      "name": "JORR W2 Utara (Kebon Jeruk-Ulujami)",
+      "origin_name": "Kebon Jeruk",
+      "destination_name": "Ulujami",
+      "length_km": 7.87,
+      "rates": { "I": 17000, "II": 25000, "III": 25000, "IV": 33500, "V": 33500 }
+    },
+    {
+      "sort_order": 9,
+      "name": "Akses Tanjung Priuk",
+      "origin_name": "Akses Tanjung Priuk",
+      "destination_name": "Seksi E1,E2,E2A",
+      "length_km": 11.4,
+      "rates": { "I": 17000, "II": 25000, "III": 25000, "IV": 33500, "V": 33500 }
+    },
+    {
+      "sort_order": 10,
+      "name": "Bogor Ring Road Seksi I-IIIA (Sentul Selatan-Simpang Semplak)",
+      "origin_name": "Sentul Selatan",
+      "destination_name": "Simpang Semplak",
+      "length_km": 11.3,
+      "rates": { "I": 15000, "II": 22500, "III": 22500, "IV": 30000, "V": 30000 }
+    },
+    {
+      "sort_order": 11,
+      "name": "Cinere-Jagorawi",
+      "origin_name": "SS Cimanggis",
+      "destination_name": "Cinere",
+      "length_km": 14.64,
+      "rates": { "I": 15000, "II": 23000, "III": 23000, "IV": 30500, "V": 30500 }
+    },
+    {
+      "sort_order": 12,
+      "name": "Pondok Aren-Bintaro Viaduct-Ulujami",
+      "origin_name": "Pondok Aren",
+      "destination_name": "Ulujami",
+      "length_km": 8.5,
+      "rates": { "I": 17000, "II": 25000, "III": 25000, "IV": 33500, "V": 33500 }
+    },
+    {
+      "sort_order": 13,
+      "name": "Pondok Aren-Serpong",
+      "origin_name": "Pondok Aren",
+      "destination_name": "Serpong",
+      "length_km": 6.2,
+      "rates": { "I": 9500, "II": 14000, "III": 14000, "IV": 18500, "V": 18500 }
+    },
+    {
+      "sort_order": 14,
+      "name": "Bekasi-Cawang-Kampung Melayu",
+      "origin_name": "Casablanca",
+      "destination_name": "GT Jatiwaringin 1 dan 2",
+      "length_km": 21.5,
+      "rates": { "I": 10500, "II": 15500, "III": 15500, "IV": 20500, "V": 20500 }
+    },
+    {
+      "sort_order": 15,
+      "name": "Depok-Antasari",
+      "origin_name": "Antasari-Brigif-Sawangan",
+      "destination_name": null,
+      "length_km": 12.8,
+      "rates": { "I": 8000, "II": 12000, "III": 12000, "IV": 16000, "V": 16000 }
+    },
+    {
+      "sort_order": 16,
+      "name": "Kunciran-Serpong",
+      "origin_name": "JC Kunciran",
+      "destination_name": "SS Parigi",
+      "length_km": 18.0,
+      "rates": { "I": 12500, "II": 19000, "III": 19000, "IV": 25000, "V": 25000 }
+    },
+    {
+      "sort_order": 17,
+      "name": "Cimanggis-Cibitung Seksi 1-2A",
+      "origin_name": "Junction Cimanggis",
+      "destination_name": "On/Off Ramp Jatikarya",
+      "length_km": 9.5,
+      "rates": { "I": 5500, "II": 8500, "III": 8500, "IV": 11500, "V": 11500 }
+    },
+    {
+      "sort_order": 18,
+      "name": "Cimanggis-Cibitung Seksi 2B",
+      "origin_name": "Jatikarya",
+      "destination_name": "SS Cikeas",
+      "length_km": 12.0,
+      "rates": { "I": 8000, "II": 11500, "III": 11500, "IV": 15500, "V": 15500 }
+    },
+    {
+      "sort_order": 19,
+      "name": "Serpong-Cinere",
+      "origin_name": "Junction Serpong",
+      "destination_name": "Pamulang",
+      "length_km": 10.5,
+      "rates": { "I": 12000, "II": 18000, "III": 18000, "IV": 24000, "V": 24000 }
+    },
+    {
+      "sort_order": 20,
+      "name": "Cengkareng-Batu Ceper-Kunciran",
+      "origin_name": "JC Benda",
+      "destination_name": "Tanah Tinggi",
+      "length_km": 15.2,
+      "rates": { "I": 15500, "II": 23000, "III": 23000, "IV": 30500, "V": 30500 }
+    },
+    {
+      "sort_order": 21,
+      "name": "Cibitung-Cilincing Seksi 1",
+      "origin_name": "Jc Cibitung",
+      "destination_name": "Telaga Asih",
+      "length_km": 8.0,
+      "rates": { "I": 6500, "II": 9500, "III": 9500, "IV": 13000, "V": 13000 }
+    },
+    {
+      "sort_order": 22,
+      "name": "Cibitung-Cilincing Seksi 2 & 3",
+      "origin_name": "Cibitung",
+      "destination_name": "Gabus",
+      "length_km": 22.0,
+      "rates": { "I": 25500, "II": 38000, "III": 38000, "IV": 50500, "V": 50500 }
+    },
+    {
+      "sort_order": 23,
+      "name": "Cibitung-Cilincing Seksi 4",
+      "origin_name": "Cibitung",
+      "destination_name": "Cilincing",
+      "length_km": 28.5,
+      "rates": { "I": 68500, "II": 102500, "III": 102500, "IV": 136500, "V": 136500 }
+    },
+    {
+      "sort_order": 24,
+      "name": "6 (Enam) Ruas Dalam Kota Jakarta Seksi A (Kelapa Gading-Pulo Gebang)",
+      "origin_name": "Kelapa Gading",
+      "destination_name": "Pulogebang",
+      "length_km": 18.0,
+      "rates": { "I": 22000, "II": 33000, "III": 33000, "IV": 44000, "V": 44000 }
+    },
+    {
+      "sort_order": 25,
+      "name": "Serpong-Balaraja Seksi 1 (Serpong-SS Legok)",
+      "origin_name": "Serpong",
+      "destination_name": "SS CBD",
+      "length_km": 7.5,
+      "rates": { "I": 6000, "II": 9000, "III": 9000, "IV": 12500, "V": 12500 }
+    }
+  ]
+}

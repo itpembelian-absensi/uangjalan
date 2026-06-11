@@ -5,13 +5,22 @@ const formatIDR = (num) =>
     Number(num) || 0
   );
 
-const TollEstimateTable = ({ items, isEstimate = true }) => {
+const TollEstimateTable = ({ items, isEstimate = true, tollSource = null }) => {
   if (!items?.length) return null;
+
+  const sourceLabel =
+    tollSource === 'bpjt'
+      ? '(BPJT Gerbang)'
+      : tollSource === 'google'
+        ? '(Google Maps)'
+        : isEstimate
+          ? '(Acuan Jabodetabek)'
+          : '(Google Maps)';
 
   return (
     <div style={{ marginBottom: '1rem' }}>
       <p className="form-label" style={{ marginBottom: '0.5rem', fontSize: '0.75rem' }}>
-        Estimasi Tol per Jenis Kendaraan {isEstimate ? '(Acuan Jabodetabek)' : '(Google Maps)'}
+        Estimasi Tol per Jenis Kendaraan {sourceLabel}
       </p>
       <div
         style={{

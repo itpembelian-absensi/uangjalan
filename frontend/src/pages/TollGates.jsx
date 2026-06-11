@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Trash2, Edit2 } from 'lucide-react';
+import { Plus, Trash2, Edit2, RefreshCw } from 'lucide-react';
 import GlassCard from '../components/GlassCard';
 import { apiFetch } from '../api';
 import {
@@ -9,6 +9,10 @@ import {
   CrudActionsHeader,
   CrudActionsCell,
 } from '../components/CrudWriteAccess';
+import TablePager from '../components/TablePager';
+
+const GATES_PAGE_SIZE = 20;
+const FARES_PAGE_SIZE = 25;
 
 const formatIDR = (num) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(
@@ -43,6 +47,10 @@ const TollGates = () => {
   const [fareForm, setFareForm] = useState(emptyFareForm());
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncInfo, setSyncInfo] = useState(null);
+  const [gatesPage, setGatesPage] = useState(1);
+  const [faresPage, setFaresPage] = useState(1);
   const [editGateId, setEditGateId] = useState(null);
   const [editGateForm, setEditGateForm] = useState(emptyGateForm());
   const [isGateModalOpen, setIsGateModalOpen] = useState(false);
@@ -64,6 +72,26 @@ const TollGates = () => {
   useEffect(() => {
     fetchAll().catch((err) => setError(err.message));
   }, [filterSection]);
+
+  useEffect(() => {
+    setGatesPage(1);
+    setFaresPage(1);
+  }, [filterSection, gates.length, fares.length]);
+
+  const gatesTotalPages = Math.max(1, Math.ceil(gates.length / GATES_PAGE_SIZE));
+  const faresTotalPages = Math.max(1, Math.ceil(fares.length / FARES_PAGE_SIZE));
+  const safeGatesPage = Math.min(gatesPage, gatesTotalPages);
+  const safeFaresPage = Math.min(faresPage, faresTotalPages);
+
+  const paginatedGates = useMemo(() => {
+    const start = (safeGatesPage - 1) * GATES_PAGE_SIZE;
+    return gates.slice(start, start + GATES_PAGE_SIZE);
+  }, [gates, safeGatesPage]);
+
+  const paginatedFares = useMemo(() => {
+    const start = (safeFaresPage - 1) * FARES_PAGE_SIZE;
+    return fares.slice(start, start + FARES_PAGE_SIZE);
+  }, [fares, safeFaresPage]);
 
   const gatesInSection = useMemo(() => {
     if (!fareForm.entry_gate_id) return gates;
@@ -169,6 +197,27 @@ const TollGates = () => {
     }
   };
 
+  const handleSyncBpjtGates = async () => {
+    if (
+      !window.confirm(
+        'Impor matriks gerbang Jabodetabek dari BPJT? Ruas tol harus sudah diimpor dulu. Tarif gerbang ruas yang sama akan diganti.'
+      )
+    )
+      return;
+    setSyncing(true);
+    setError('');
+    setSyncInfo(null);
+    try {
+      const result = await apiFetch('/api/toll-gates/sync-bpjt-jabodetabek', { method: 'POST' });
+      setSyncInfo(result);
+      await fetchAll();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const handleDeleteGate = async (row) => {
     if (!window.confirm(`Hapus gerbang ${row.code}? Tarif terkait ikut terhapus.`)) return;
     try {
@@ -199,7 +248,42 @@ const TollGates = () => {
             memakai pasangan gerbang terdekat gudang → customer, total pulang-pergi × 2.
           </p>
         </div>
+        {canWrite && (
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={handleSyncBpjtGates}
+            disabled={syncing}
+            style={{ whiteSpace: 'nowrap' }}
+          >
+            <RefreshCw size={18} />
+            {syncing ? 'Mengimpor BPJT...' : 'Impor Matriks BPJT'}
+          </button>
+        )}
       </div>
+
+      {syncInfo && (
+        <div
+          style={{
+            marginBottom: '1rem',
+            padding: '0.75rem 1rem',
+            borderRadius: '8px',
+            background: '#ecfdf5',
+            color: '#065f46',
+            border: '1px solid #a7f3d0',
+            fontSize: '0.9rem',
+          }}
+        >
+          Matriks gerbang: {syncInfo.sections_imported} ruas, {syncInfo.fares_created} tarif pasangan (
+          {syncInfo.gates_created} gerbang baru).{' '}
+          {syncInfo.sections_skipped?.length > 0 && (
+            <>Ruas dilewati: {syncInfo.sections_skipped.join(', ')}. </>
+          )}
+          <a href={syncInfo.source_url} target="_blank" rel="noreferrer" style={{ color: '#047857' }}>
+            Sumber BPJT
+          </a>
+        </div>
+      )}
 
       {error && (
         <div style={{ marginBottom: '1rem', padding: '0.75rem 1rem', borderRadius: 8, background: '#fef2f2', color: '#991b1b' }}>
@@ -294,7 +378,14 @@ const TollGates = () => {
       )}
 
       <GlassCard title="Daftar Gerbang" style={{ marginTop: '1rem' }}>
-        <div className="table-container" style={{ padding: 0 }}>
+        <TablePager
+          page={safeGatesPage}
+          pageSize={GATES_PAGE_SIZE}
+          totalItems={gates.length}
+          onPageChange={setGatesPage}
+          label="Gerbang"
+        />
+        <div className="table-container" style={{ padding: 0, marginTop: '0.5rem' }}>
           <table className="glass-table">
             <thead>
               <tr>
@@ -315,7 +406,7 @@ const TollGates = () => {
                   </td>
                 </tr>
               ) : (
-                gates.map((g) => (
+                paginatedGates.map((g) => (
                   <tr key={g.id}>
                     <td>{g.section_name || '-'}</td>
                     <td style={{ fontWeight: 600 }}>{g.code}</td>
@@ -339,6 +430,17 @@ const TollGates = () => {
             </tbody>
           </table>
         </div>
+        {gates.length > GATES_PAGE_SIZE && (
+          <div style={{ marginTop: '0.5rem' }}>
+            <TablePager
+              page={safeGatesPage}
+              pageSize={GATES_PAGE_SIZE}
+              totalItems={gates.length}
+              onPageChange={setGatesPage}
+              label="Gerbang"
+            />
+          </div>
+        )}
       </GlassCard>
 
       {canWrite && (
@@ -421,7 +523,14 @@ const TollGates = () => {
       )}
 
       <GlassCard title="Daftar Tarif Gerbang" style={{ marginTop: '1rem' }}>
-        <div className="table-container" style={{ padding: 0 }}>
+        <TablePager
+          page={safeFaresPage}
+          pageSize={FARES_PAGE_SIZE}
+          totalItems={fares.length}
+          onPageChange={setFaresPage}
+          label="Tarif"
+        />
+        <div className="table-container" style={{ padding: 0, marginTop: '0.5rem' }}>
           <table className="glass-table">
             <thead>
               <tr>
@@ -442,7 +551,7 @@ const TollGates = () => {
                   </td>
                 </tr>
               ) : (
-                fares.map((f) => (
+                paginatedFares.map((f) => (
                   <tr key={f.id}>
                     <td>{f.section_name}</td>
                     <td>
@@ -467,6 +576,17 @@ const TollGates = () => {
             </tbody>
           </table>
         </div>
+        {fares.length > FARES_PAGE_SIZE && (
+          <div style={{ marginTop: '0.5rem' }}>
+            <TablePager
+              page={safeFaresPage}
+              pageSize={FARES_PAGE_SIZE}
+              totalItems={fares.length}
+              onPageChange={setFaresPage}
+              label="Tarif"
+            />
+          </div>
+        )}
         <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.75rem 0 0' }}>
           Ruas tol diatur di <Link to="/toll-sections">Master Ruas Tol</Link>, golongan di{' '}
           <Link to="/toll-golongan">Master Golongan Tol</Link>.

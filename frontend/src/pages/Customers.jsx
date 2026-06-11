@@ -4,12 +4,41 @@ import * as XLSX from 'xlsx';
 import { apiFetch } from '../api';
 import LocationPickerMap from '../components/LocationPickerMap';
 import TollEstimateTable from '../components/TollEstimateTable';
-import TollReferenceTable from '../components/TollReferenceTable';
+import RouteTollGateInfo from '../components/RouteTollGateInfo';
 import { useCrudWrite, CrudActionsHeader, CrudActionsCell } from '../components/CrudWriteAccess';
 import { parseCoordsFromShareText } from '../utils/locationParse';
 
 const formatIDR = (val) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
+
+const normTollName = (value) => (value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+
+const tollByVehicleFromSegments = (segments, vehicleTypes, distanceKm) => {
+  const pickRate = (rates, gol) => {
+    if (!rates) return 0;
+    if (rates[gol] != null) return rates[gol];
+    if (gol === 'III' && rates.II != null) return rates.II;
+    if (gol === 'V' && rates.IV != null) return rates.IV;
+    return rates.II ?? rates.III ?? rates.IV ?? 0;
+  };
+
+  return vehicleTypes
+    .map((vt) => {
+      const gol = vt.toll_golongan?.code || 'II';
+      const oneWay = (segments || []).reduce((sum, row) => sum + pickRate(row.rates_by_golongan, gol), 0);
+      const toll = Math.round(oneWay * 2);
+      const rounded = toll > 0 ? Math.ceil(toll / 1000) * 1000 : 0;
+      return {
+        vehicle_type_id: vt.id,
+        vehicle_type_name: vt.name,
+        golongan: gol,
+        gandar: '-',
+        toll_idr: rounded,
+        rate_per_km: distanceKm ? Math.round(rounded / distanceKm) : 0,
+      };
+    })
+    .sort((a, b) => a.vehicle_type_name.localeCompare(b.vehicle_type_name));
+};
 
 const parseAmount = (value) => {
   if (value === '' || value == null) return 0;
@@ -273,7 +302,8 @@ const Customers = () => {
   const [routeInfo, setRouteInfo] = useState(null);
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState('');
-  const [tollReference, setTollReference] = useState(null);
+  const [tollSections, setTollSections] = useState([]);
+  const [tollManualLoading, setTollManualLoading] = useState(false);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editId, setEditId] = useState(null);
@@ -308,6 +338,118 @@ const Customers = () => {
     }
   };
 
+  const fetchTollSections = async () => {
+    try {
+      const data = await apiFetch('/api/toll-sections');
+      setTollSections(Array.isArray(data) ? data.filter((row) => row.is_active !== false) : []);
+    } catch {
+      setTollSections([]);
+    }
+  };
+
+  const fetchManualSegment = async (sectionId) => {
+    const result = await apiFetch('/api/routing/toll-breakdown/manual', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ section_ids: [sectionId] }),
+    });
+    const segment = result.segments?.[0];
+    if (!segment) throw new Error('Ruas tol tidak ditemukan di master.');
+    return { ...segment, section_id: sectionId };
+  };
+
+  const replaceTollSegmentAt = async (idx, sectionId) => {
+    setTollManualLoading(true);
+    setRouteError('');
+    try {
+      const newSegment = await fetchManualSegment(sectionId);
+      setRouteInfo((prev) => {
+        if (!prev?.toll_breakdown?.length) return prev;
+        const breakdown = prev.toll_breakdown.map((row, i) => (i === idx ? newSegment : row));
+        const tollByVehicle = tollByVehicleFromSegments(
+          breakdown,
+          vehicleTypes,
+          prev.distance_km
+        );
+        const oneWay = breakdown.reduce((sum, row) => sum + (Number(row.one_way_idr) || 0), 0);
+        return {
+          ...prev,
+          toll_breakdown: breakdown,
+          toll_idr: tollByVehicle[0]?.toll_idr ?? Math.round(oneWay * 2),
+          toll_source: 'manual',
+          toll_is_estimate: false,
+          toll_note:
+            'Tarif ruas tol dipilih manual dari master BPJT. Total pulang-pergi dikali 2.',
+          toll_by_vehicle: tollByVehicle,
+        };
+      });
+    } catch (err) {
+      setRouteError(err.message);
+    } finally {
+      setTollManualLoading(false);
+    }
+  };
+
+  const addTollSegment = async (sectionId) => {
+    if (!sectionId) return;
+    if (routeInfo?.toll_breakdown?.some((row) => row.section_id === sectionId)) {
+      setRouteError('Ruas tol ini sudah ada di tabel.');
+      return;
+    }
+    setTollManualLoading(true);
+    setRouteError('');
+    try {
+      const newSegment = await fetchManualSegment(sectionId);
+      setRouteInfo((prev) => {
+        if (!prev) return prev;
+        const breakdown = [...(prev.toll_breakdown || []), newSegment];
+        const tollByVehicle = tollByVehicleFromSegments(
+          breakdown,
+          vehicleTypes,
+          prev.distance_km
+        );
+        const oneWay = breakdown.reduce((sum, row) => sum + (Number(row.one_way_idr) || 0), 0);
+        return {
+          ...prev,
+          toll_breakdown: breakdown,
+          toll_idr: tollByVehicle[0]?.toll_idr ?? Math.round(oneWay * 2),
+          toll_source: 'manual',
+          toll_is_estimate: false,
+          toll_note:
+            'Tarif ruas tol dipilih manual dari master BPJT. Total pulang-pergi dikali 2.',
+          toll_by_vehicle: tollByVehicle,
+        };
+      });
+    } catch (err) {
+      setRouteError(err.message);
+    } finally {
+      setTollManualLoading(false);
+    }
+  };
+
+  const removeTollSegmentAt = (idx) => {
+    setRouteInfo((prev) => {
+      if (!prev?.toll_breakdown || prev.toll_breakdown.length <= 1) return prev;
+      const breakdown = prev.toll_breakdown.filter((_, i) => i !== idx);
+      const tollByVehicle = tollByVehicleFromSegments(
+        breakdown,
+        vehicleTypes,
+        prev.distance_km
+      );
+      const oneWay = breakdown.reduce((sum, row) => sum + (Number(row.one_way_idr) || 0), 0);
+      return {
+        ...prev,
+        toll_breakdown: breakdown,
+        toll_idr: tollByVehicle[0]?.toll_idr ?? Math.round(oneWay * 2),
+        toll_source: 'manual',
+        toll_is_estimate: false,
+        toll_note:
+          'Tarif ruas tol dipilih manual dari master BPJT. Total pulang-pergi dikali 2.',
+        toll_by_vehicle: tollByVehicle,
+      };
+    });
+  };
+
   const fetchVehicleTypes = async () => {
     try {
       const data = await apiFetch('/api/vehicle-types');
@@ -323,13 +465,6 @@ const Customers = () => {
   }, []);
 
   useEffect(() => {
-    if (!isModalOpen) return;
-    apiFetch('/api/routing/toll-reference')
-      .then(setTollReference)
-      .catch(() => setTollReference(null));
-  }, [isModalOpen]);
-
-  useEffect(() => {
     const handlePopState = () => {
       if (isModalOpen) {
         setIsModalOpen(false);
@@ -341,8 +476,13 @@ const Customers = () => {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [isModalOpen]);
 
+  useEffect(() => {
+    if (isModalOpen) fetchTollSections();
+  }, [isModalOpen]);
+
   const openModal = async (customer = null) => {
     if (!canWrite) return;
+    fetchTollSections();
     if (customer) {
       setEditId(customer.id);
       try {
@@ -1274,8 +1414,6 @@ const Customers = () => {
                   </div>
 
                   <div className="glass-panel" style={{ position: 'sticky', top: 0 }}>
-                    <TollReferenceTable reference={tollReference} />
-
                     <h3 style={{ marginTop: 0, marginBottom: '1rem' }}>Peta Lokasi</h3>
 
                     {routeLoading && (
@@ -1302,6 +1440,29 @@ const Customers = () => {
 
                     {routeInfo && (
                       <>
+                        {routeInfo.route_selection === 'tol_termurah' && (
+                          <div
+                            style={{
+                              marginBottom: '0.75rem',
+                              padding: '0.65rem 0.85rem',
+                              borderRadius: '8px',
+                              border: '1px solid #bfdbfe',
+                              background: '#eff6ff',
+                              fontSize: '0.85rem',
+                              color: '#1d4ed8',
+                            }}
+                          >
+                            Rute tol termurah dipilih dari{' '}
+                            {routeInfo.alternatives_compared || 0} alternatif OSRM.
+                            {routeInfo.toll_savings_idr > 0 && (
+                              <>
+                                {' '}
+                                Hemat {formatIDR(routeInfo.toll_savings_idr)} vs rute tercepat.
+                              </>
+                            )}
+                          </div>
+                        )}
+
                         <div
                           style={{
                             display: 'grid',
@@ -1342,22 +1503,47 @@ const Customers = () => {
                           </div>
                         </div>
 
+                        <LocationPickerMap
+                          key={`${form.latitude}-${form.longitude}-${routeInfo?.geometry?.length || 0}`}
+                          latitude={form.latitude}
+                          longitude={form.longitude}
+                          onLocationChange={(lat, lng) => setForm({ ...form, latitude: String(lat), longitude: String(lng) })}
+                          origin={routeInfo?.origin || null}
+                          geometry={routeInfo?.geometry || []}
+                          tollRoads={routeInfo?.toll_roads || []}
+                          height="calc(100vh - 520px)"
+                        />
+
+                        <RouteTollGateInfo
+                          segments={routeInfo.toll_breakdown}
+                          tollSource={routeInfo.toll_source}
+                          tollNote={routeInfo.toll_note}
+                          editable
+                          tollSections={tollSections}
+                          tollLoading={tollManualLoading}
+                          onSegmentReplace={replaceTollSegmentAt}
+                          onSegmentAdd={addTollSegment}
+                          onSegmentRemove={removeTollSegmentAt}
+                          onFillFromMap={fetchRouteInfo}
+                        />
+
                         <TollEstimateTable
                           items={routeInfo.toll_by_vehicle}
                           isEstimate={routeInfo.toll_is_estimate}
+                          tollSource={routeInfo.toll_source}
                         />
                       </>
                     )}
 
+                    {!routeInfo && (
                       <LocationPickerMap
-                        key={`${form.latitude}-${form.longitude}-${routeInfo?.geometry?.length || 0}`}
+                        key={`${form.latitude}-${form.longitude}-empty`}
                         latitude={form.latitude}
                         longitude={form.longitude}
                         onLocationChange={(lat, lng) => setForm({ ...form, latitude: String(lat), longitude: String(lng) })}
-                        origin={routeInfo?.origin || null}
-                        geometry={routeInfo?.geometry || []}
                         height="calc(100vh - 520px)"
                       />
+                    )}
                   </div>
                 </div>
               </div>

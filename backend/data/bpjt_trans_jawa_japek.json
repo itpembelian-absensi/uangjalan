@@ -1,0 +1,207 @@
+{
+  "source_title": "Tarif Tol Trans Jawa - Jakarta-Cikampek",
+  "source_url": "https://bpjt.pu.go.id/wp-content/uploads/Tarif-Tol-TransJawa.pdf",
+  "pdf_url": "https://bpjt.pu.go.id/wp-content/uploads/Tarif-Tol-TransJawa.pdf",
+  "network": "Trans Jawa",
+  "kepmen": "250/KPTS/M/2024",
+  "note": "Baris ruas per pasangan Jakarta IC → gerbang keluar untuk pilihan manual. Matriks gerbang tetap diimpor ke ruas utama.",
+  "sections": [
+    {
+      "sort_order": 260,
+      "name": "Jakarta-Cikampek dan Jakarta-Cikampek II Elevated",
+      "origin_name": "Jakarta IC",
+      "destination_name": "Cikampek",
+      "length_km": 73.0,
+      "rates": { "I": 27000, "II": 40500, "III": 40500, "IV": 54000, "V": 54000 }
+    },
+    {
+      "sort_order": 261,
+      "name": "Jakarta-Cikampek · Jakarta IC → Pondok Gede Barat/Timur",
+      "origin_name": "Jakarta IC",
+      "destination_name": "Pondok Gede Barat/Timur",
+      "length_km": 73.0,
+      "rates": { "I": 5500, "II": 8000, "III": 8000, "IV": 11000, "V": 11000 }
+    },
+    {
+      "sort_order": 262,
+      "name": "Jakarta-Cikampek · Jakarta IC → Cikunir",
+      "origin_name": "Jakarta IC",
+      "destination_name": "Cikunir",
+      "length_km": 73.0,
+      "rates": { "I": 9500, "II": 14000, "III": 14000, "IV": 19000, "V": 19000 }
+    },
+    {
+      "sort_order": 263,
+      "name": "Jakarta-Cikampek · Jakarta IC → Bekasi Barat",
+      "origin_name": "Jakarta IC",
+      "destination_name": "Bekasi Barat",
+      "length_km": 73.0,
+      "rates": { "I": 9500, "II": 14000, "III": 14000, "IV": 19000, "V": 19000 }
+    },
+    {
+      "sort_order": 264,
+      "name": "Jakarta-Cikampek · Jakarta IC → Bekasi Timur",
+      "origin_name": "Jakarta IC",
+      "destination_name": "Bekasi Timur",
+      "length_km": 73.0,
+      "rates": { "I": 9500, "II": 14000, "III": 14000, "IV": 19000, "V": 19000 }
+    },
+    {
+      "sort_order": 265,
+      "name": "Jakarta-Cikampek · Jakarta IC → Tambun",
+      "origin_name": "Jakarta IC",
+      "destination_name": "Tambun",
+      "length_km": 73.0,
+      "rates": { "I": 9500, "II": 14000, "III": 14000, "IV": 19000, "V": 19000 }
+    },
+    {
+      "sort_order": 266,
+      "name": "Jakarta-Cikampek · Jakarta IC → Cibitung",
+      "origin_name": "Jakarta IC",
+      "destination_name": "Cibitung",
+      "length_km": 73.0,
+      "rates": { "I": 9500, "II": 14000, "III": 14000, "IV": 19000, "V": 19000 }
+    },
+    {
+      "sort_order": 267,
+      "name": "Jakarta-Cikampek · Jakarta IC → Cikarang Barat",
+      "origin_name": "Jakarta IC",
+      "destination_name": "Cikarang Barat",
+      "length_km": 73.0,
+      "rates": { "I": 9500, "II": 14000, "III": 14000, "IV": 19000, "V": 19000 }
+    },
+    {
+      "sort_order": 268,
+      "name": "Jakarta-Cikampek · Jakarta IC → Cibatu",
+      "origin_name": "Jakarta IC",
+      "destination_name": "Cibatu",
+      "length_km": 73.0,
+      "rates": { "I": 16500, "II": 24500, "III": 24500, "IV": 32500, "V": 32500 }
+    },
+    {
+      "sort_order": 269,
+      "name": "Jakarta-Cikampek · Jakarta IC → Cikarang Timur",
+      "origin_name": "Jakarta IC",
+      "destination_name": "Cikarang Timur",
+      "length_km": 73.0,
+      "rates": { "I": 16500, "II": 24500, "III": 24500, "IV": 32500, "V": 32500 }
+    },
+    {
+      "sort_order": 270,
+      "name": "Jakarta-Cikampek · Jakarta IC → Karawang Barat",
+      "origin_name": "Jakarta IC",
+      "destination_name": "Karawang Barat",
+      "length_km": 73.0,
+      "rates": { "I": 16500, "II": 24500, "III": 24500, "IV": 32500, "V": 32500 }
+    },
+    {
+      "sort_order": 271,
+      "name": "Jakarta-Cikampek · Jakarta IC → Karawang Timur",
+      "origin_name": "Jakarta IC",
+      "destination_name": "Karawang Timur",
+      "length_km": 73.0,
+      "rates": { "I": 27000, "II": 40500, "III": 40500, "IV": 54000, "V": 54000 }
+    },
+    {
+      "sort_order": 272,
+      "name": "Jakarta-Cikampek · Jakarta IC → Dawuan",
+      "origin_name": "Jakarta IC",
+      "destination_name": "Dawuan",
+      "length_km": 73.0,
+      "rates": { "I": 27000, "II": 40500, "III": 40500, "IV": 54000, "V": 54000 }
+    },
+    {
+      "sort_order": 273,
+      "name": "Jakarta-Cikampek · Jakarta IC → Kalihurip",
+      "origin_name": "Jakarta IC",
+      "destination_name": "Kalihurip",
+      "length_km": 73.0,
+      "rates": { "I": 27000, "II": 40500, "III": 40500, "IV": 54000, "V": 54000 }
+    },
+    {
+      "sort_order": 274,
+      "name": "Jakarta-Cikampek · Jakarta IC → Cikampek",
+      "origin_name": "Jakarta IC",
+      "destination_name": "Cikampek",
+      "length_km": 73.0,
+      "rates": { "I": 27000, "II": 40500, "III": 40500, "IV": 54000, "V": 54000 }
+    }
+  ],
+  "matrices": [
+    {
+      "section_name": "Jakarta-Cikampek dan Jakarta-Cikampek II Elevated",
+      "fares": [
+        {
+          "entry": "Jakarta IC",
+          "exit": "Pondok Gede Barat/Timur",
+          "rates": { "I": 5500, "II": 8000, "III": 8000, "IV": 11000, "V": 11000 }
+        },
+        {
+          "entry": "Jakarta IC",
+          "exit": "Cikunir",
+          "rates": { "I": 9500, "II": 14000, "III": 14000, "IV": 19000, "V": 19000 }
+        },
+        {
+          "entry": "Jakarta IC",
+          "exit": "Bekasi Barat",
+          "rates": { "I": 9500, "II": 14000, "III": 14000, "IV": 19000, "V": 19000 }
+        },
+        {
+          "entry": "Jakarta IC",
+          "exit": "Bekasi Timur",
+          "rates": { "I": 9500, "II": 14000, "III": 14000, "IV": 19000, "V": 19000 }
+        },
+        {
+          "entry": "Jakarta IC",
+          "exit": "Tambun",
+          "rates": { "I": 9500, "II": 14000, "III": 14000, "IV": 19000, "V": 19000 }
+        },
+        {
+          "entry": "Jakarta IC",
+          "exit": "Cibitung",
+          "rates": { "I": 9500, "II": 14000, "III": 14000, "IV": 19000, "V": 19000 }
+        },
+        {
+          "entry": "Jakarta IC",
+          "exit": "Cikarang Barat",
+          "rates": { "I": 9500, "II": 14000, "III": 14000, "IV": 19000, "V": 19000 }
+        },
+        {
+          "entry": "Jakarta IC",
+          "exit": "Cibatu",
+          "rates": { "I": 16500, "II": 24500, "III": 24500, "IV": 32500, "V": 32500 }
+        },
+        {
+          "entry": "Jakarta IC",
+          "exit": "Cikarang Timur",
+          "rates": { "I": 16500, "II": 24500, "III": 24500, "IV": 32500, "V": 32500 }
+        },
+        {
+          "entry": "Jakarta IC",
+          "exit": "Karawang Barat",
+          "rates": { "I": 16500, "II": 24500, "III": 24500, "IV": 32500, "V": 32500 }
+        },
+        {
+          "entry": "Jakarta IC",
+          "exit": "Karawang Timur",
+          "rates": { "I": 27000, "II": 40500, "III": 40500, "IV": 54000, "V": 54000 }
+        },
+        {
+          "entry": "Jakarta IC",
+          "exit": "Dawuan",
+          "rates": { "I": 27000, "II": 40500, "III": 40500, "IV": 54000, "V": 54000 }
+        },
+        {
+          "entry": "Jakarta IC",
+          "exit": "Kalihurip",
+          "rates": { "I": 27000, "II": 40500, "III": 40500, "IV": 54000, "V": 54000 }
+        },
+        {
+          "entry": "Jakarta IC",
+          "exit": "Cikampek",
+          "rates": { "I": 27000, "II": 40500, "III": 40500, "IV": 54000, "V": 54000 }
+        }
+      ]
+    }
+  ]
+}

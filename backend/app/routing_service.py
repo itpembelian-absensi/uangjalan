@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -9,9 +10,14 @@ import urllib.request
 from fastapi import HTTPException
 
 from app.core.config import settings
-from app.toll_gate_service import TOLL_NOTE_BPJT, estimate_toll_bpjt_gates
+from app.toll_gate_service import (
+    TOLL_NOTE_BPJT,
+    breakdown_from_route_sections_only,
+    estimate_toll_bpjt_breakdown,
+    estimate_toll_bpjt_gates,
+)
 
-USER_AGENT = "UangPengiriman/1.0"
+USER_AGENT = "UangPengiriman/1.0 (https://github.com/uangpengiriman)"
 OSRM_BASE = "https://router.project-osrm.org/route/v1/driving"
 NOMINATIM_BASE = "https://nominatim.openstreetmap.org/search"
 GOOGLE_GEOCODE_BASE = "https://maps.googleapis.com/maps/api/geocode/json"
@@ -94,6 +100,8 @@ def serialize_toll_sections(rows) -> list[dict]:
                 "key": f"section_{row.id}",
                 "id": row.id,
                 "name": row.name,
+                "origin_name": row.origin_name,
+                "destination_name": row.destination_name,
                 "length_km": float(row.length_km),
                 "gol23": gol23,
                 "gol45": gol45,
@@ -104,6 +112,31 @@ def serialize_toll_sections(rows) -> list[dict]:
             }
         )
     return result
+
+
+def _normalize_section_name(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", (name or "").lower())
+
+
+def collapse_sections_for_routing(sections: list[dict]) -> list[dict]:
+    """
+    Gabungkan baris ruas duplikat (nama sama, gerbang keluar berbeda) menjadi satu
+    baris acuan ruas penuh — dipakai untuk perhitungan rute, bukan tampilan master.
+    """
+    grouped: dict[str, list[dict]] = {}
+    for sec in sections:
+        key = _normalize_section_name(sec.get("name") or "")
+        grouped.setdefault(key, []).append(sec)
+
+    collapsed: list[dict] = []
+    for group in grouped.values():
+        if len(group) == 1:
+            collapsed.append(group[0])
+            continue
+        collapsed.append(max(group, key=lambda s: float(s.get("gol23") or 0)))
+
+    collapsed.sort(key=lambda s: (s.get("sort_order") or 0, s.get("name") or ""))
+    return collapsed
 
 
 def _section_rate_for_golongan(section: dict, golongan_code: str) -> float:
@@ -180,6 +213,47 @@ def estimate_jabodetabek_toll(
     return round(total, 0)
 
 
+def jabodetabek_toll_breakdown(
+    distance_km: float,
+    golongan_code: str = "II",
+    sections: list[dict] | None = None,
+) -> dict:
+    """Breakdown estimasi ruas tol Jabodetabek per bobot jarak."""
+    sections = sections or _default_sections_from_settings()
+    if distance_km <= 0 or not sections:
+        return {"one_way_idr": 0.0, "segments": []}
+
+    weights = _section_weights(distance_km, sections)
+    segments: list[dict] = []
+    total = 0.0
+
+    for sec in sections:
+        weight = weights.get(sec["key"], 0.0)
+        if weight <= 0.001:
+            continue
+        section_rate = _section_rate_for_golongan(sec, golongan_code)
+        rate_per_km = section_rate / sec["length_km"]
+        one_way = round(distance_km * weight * rate_per_km, 0)
+        total += one_way
+        segments.append(
+            {
+                "source": "section",
+                "section_name": sec["name"],
+                "entry_gate_code": None,
+                "entry_gate_name": sec.get("origin_name"),
+                "exit_gate_code": None,
+                "exit_gate_name": sec.get("destination_name"),
+                "detail": f"Bobot estimasi {round(weight * 100, 1):g}%",
+                "weight_pct": round(weight * 100, 1),
+                "one_way_idr": one_way,
+                "round_trip_idr": one_way * 2,
+                "rates_by_golongan": sec.get("rates_by_code") or {},
+            }
+        )
+
+    return {"one_way_idr": round(total, 0), "segments": segments}
+
+
 def _normalize_vehicle_key(name: str) -> str:
     return name.lower().replace(" ", "").replace("-", "")
 
@@ -242,18 +316,34 @@ def estimate_tolls_by_vehicle(
     return sorted(results, key=lambda item: item["vehicle_type_name"].lower())
 
 
-def _http_get_json(url: str, headers: dict | None = None) -> object:
-    req = urllib.request.Request(
-        url,
-        headers={"User-Agent": USER_AGENT, **(headers or {})},
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            return json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as e:
-        raise HTTPException(status_code=502, detail=f"Layanan peta gagal ({e.code})") from e
-    except urllib.error.URLError as e:
-        raise HTTPException(status_code=502, detail="Tidak dapat terhubung ke layanan peta/rute") from e
+def _http_get_json(url: str, headers: dict | None = None, _max_retries: int = 3) -> object:
+    req_headers = {"User-Agent": USER_AGENT, **(headers or {})}
+    last_exc: Exception | None = None
+    for attempt in range(_max_retries + 1):
+        req = urllib.request.Request(url, headers=req_headers)
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            if e.code in (403, 429, 503) and attempt < _max_retries:
+                delay = min(2 ** attempt, 8)  # 1s, 2s, 4s
+                time.sleep(delay)
+                last_exc = e
+                continue
+            if e.code == 403:
+                raise HTTPException(
+                    status_code=502,
+                    detail=(
+                        "Layanan peta gagal (403 Forbidden). "
+                        "Nominatim memblokir request. "
+                        "Solusi: isi GOOGLE_MAPS_API_KEY di file .env, "
+                        "atau coba lagi beberapa menit kemudian."
+                    ),
+                ) from e
+            raise HTTPException(status_code=502, detail=f"Layanan peta gagal ({e.code})") from e
+        except urllib.error.URLError as e:
+            raise HTTPException(status_code=502, detail="Tidak dapat terhubung ke layanan peta/rute") from e
+    raise HTTPException(status_code=502, detail=f"Layanan peta gagal setelah {_max_retries} percobaan") from last_exc
 
 
 def _normalize_text(value: str | None) -> str:
@@ -561,7 +651,17 @@ def _score_geocode_candidate(
     return score
 
 
+_nominatim_last_call: float = 0.0
+
+
 def _nominatim_search(query: str, limit: int = 8) -> list[dict]:
+    global _nominatim_last_call
+    # Nominatim requires max 1 request per second
+    elapsed = time.time() - _nominatim_last_call
+    if elapsed < 1.1:
+        time.sleep(1.1 - elapsed)
+    _nominatim_last_call = time.time()
+
     params = urllib.parse.urlencode(
         {
             "q": query,
@@ -571,7 +671,10 @@ def _nominatim_search(query: str, limit: int = 8) -> list[dict]:
             "addressdetails": 1,
         }
     )
-    data = _http_get_json(f"{NOMINATIM_BASE}?{params}")
+    data = _http_get_json(
+        f"{NOMINATIM_BASE}?{params}",
+        headers={"Referer": "https://github.com/uangpengiriman"},
+    )
     return data if isinstance(data, list) else []
 
 
@@ -799,55 +902,112 @@ def _google_toll_idr(origin_lat: float, origin_lng: float, dest_lat: float, dest
     return round(total, 0)
 
 
-def calculate_route(
+def _is_toll_step(step: dict) -> bool:
+    name = step.get("name", "").lower()
+    ref = step.get("ref", "").lower()
+    if "tol " in name or name.startswith("tol") or "toll" in name:
+        return True
+    if "tol " in ref or ref.startswith("tol") or "toll" in ref:
+        return True
+    for inter in step.get("intersections", []):
+        if "toll" in inter.get("classes", []):
+            return True
+    return False
+
+
+def _step_display_name(step: dict) -> str:
+    name = (step.get("name") or "").strip()
+    ref = (step.get("ref") or "").strip()
+    if name and name.lower() not in ("jalan tol", "toll road"):
+        return name
+    if ref:
+        return ref
+    return name or "Jalan Tol"
+
+
+def extract_toll_roads_from_route(route: dict) -> list[dict]:
+    """Ruas jalan tol yang benar-benar dilalui rute (dari langkah OSRM)."""
+    items: list[dict] = []
+    seen: set[str] = set()
+
+    for leg in route.get("legs", []):
+        for step in leg.get("steps", []):
+            if not _is_toll_step(step):
+                continue
+            label = _step_display_name(step)
+            norm = label.lower()
+            if norm in seen:
+                continue
+            seen.add(norm)
+
+            step_geom = step.get("geometry", {}).get("coordinates") or []
+            lat: float | None = None
+            lng: float | None = None
+            geometry: list[list[float]] = []
+            if step_geom:
+                geometry = [[pt[1], pt[0]] for pt in step_geom]
+                mid = step_geom[len(step_geom) // 2]
+                lng, lat = float(mid[0]), float(mid[1])
+            else:
+                loc = step.get("maneuver", {}).get("location")
+                if loc:
+                    lng, lat = float(loc[0]), float(loc[1])
+                    geometry = [[lat, lng]]
+
+            if lat is None or lng is None:
+                continue
+
+            items.append(
+                {
+                    "name": label,
+                    "latitude": lat,
+                    "longitude": lng,
+                    "geometry": geometry,
+                }
+            )
+
+    return items
+
+
+def _route_uses_toll(route: dict) -> bool:
+    for leg in route.get("legs", []):
+        for step in leg.get("steps", []):
+            if _is_toll_step(step):
+                return True
+    return False
+
+
+def _osrm_route_geometry(osrm_route: dict) -> list[list[float]]:
+    coords = osrm_route["geometry"]["coordinates"]
+    return [[lat, lng] for lng, lat in coords]
+
+
+def _estimate_toll_for_osrm_route(
+    osrm_route: dict,
     origin_lat: float,
     origin_lng: float,
     dest_lat: float,
     dest_lng: float,
-    sections: list[dict] | None = None,
-    force_toll: bool = False,
-    gate_context: dict | None = None,
+    sections: list[dict],
+    gate_context: dict | None,
+    *,
+    force_toll: bool,
 ) -> dict:
-    url = f"{OSRM_BASE}/{origin_lng},{origin_lat};{dest_lng},{dest_lat}?overview=full&geometries=geojson&steps=true&alternatives=3"
-    data = _http_get_json(url)
-    if data.get("code") != "Ok" or not data.get("routes"):
-        raise HTTPException(status_code=400, detail="Rute tidak ditemukan antara gudang dan customer")
+    distance_km = round(float(osrm_route["distance"]) / 1000, 2)
+    duration_min = round(float(osrm_route["duration"]) / 60, 1)
+    toll_roads = extract_toll_roads_from_route(osrm_route)
+    route_toll_names = [r["name"] for r in toll_roads if r.get("name")]
+    route_toll_items = toll_roads
+    uses_toll = _route_uses_toll(osrm_route)
 
-    def check_uses_toll(r: dict) -> bool:
-        for leg in r.get("legs", []):
-            for step in leg.get("steps", []):
-                name = step.get("name", "").lower()
-                ref = step.get("ref", "").lower()
-                if "tol " in name or name.startswith("tol") or "toll" in name:
-                    return True
-                if "tol " in ref or ref.startswith("tol") or "toll" in ref:
-                    return True
-                for inter in step.get("intersections", []):
-                    if "toll" in inter.get("classes", []):
-                        return True
-        return False
-
-    selected_route = data["routes"][0]
-    uses_toll = check_uses_toll(selected_route)
-
-    if force_toll and not uses_toll:
-        for r in data["routes"][1:]:
-            if check_uses_toll(r):
-                selected_route = r
-                uses_toll = True
-                break
-
-    distance_km = round(float(selected_route["distance"]) / 1000, 2)
-    duration_min = round(float(selected_route["duration"]) / 60, 1)
-    coords = selected_route["geometry"]["coordinates"]
-    geometry = [[lat, lng] for lng, lat in coords]
-
-    sections = sections or _default_sections_from_settings()
     google_toll = _google_toll_idr(origin_lat, origin_lng, dest_lat, dest_lng)
 
-    bpjt_one_way: tuple[float, str] | None = None
+    toll_breakdown: list[dict] = []
+    toll_source = "none"
+
+    bpjt_result: dict | None = None
     if (uses_toll or force_toll) and gate_context:
-        bpjt_one_way = estimate_toll_bpjt_gates(
+        bpjt_result = estimate_toll_bpjt_breakdown(
             origin_lat,
             origin_lng,
             dest_lat,
@@ -855,30 +1015,103 @@ def calculate_route(
             gate_context.get("gates") or [],
             gate_context.get("fares") or [],
             golongan_code="II",
+            distance_km=distance_km,
+            route_toll_roads=route_toll_items,
+            sections=sections,
         )
 
-    if bpjt_one_way:
-        one_way, gate_desc = bpjt_one_way
+    if bpjt_result:
+        one_way = bpjt_result["one_way_idr"]
+        gate_desc = bpjt_result["description"]
         toll_idr = one_way * 2
         toll_is_estimate = False
+        toll_breakdown = bpjt_result["segments"]
+        toll_source = (
+            "route"
+            if toll_breakdown and all(s.get("source") == "route" for s in toll_breakdown)
+            else "bpjt"
+        )
         toll_note = f"{TOLL_NOTE_BPJT} {gate_desc}."
     elif google_toll and google_toll > 0:
         toll_idr = google_toll * 2
         toll_is_estimate = False
+        toll_source = "google"
         toll_note = "Tarif tol Pulang-Pergi dari Google Maps (Golongan II/III). Kendaraan Gol IV/V disesuaikan proporsional."
+        toll_breakdown = [
+            {
+                "source": "google",
+                "section_name": "Google Maps",
+                "entry_gate_code": None,
+                "entry_gate_name": None,
+                "exit_gate_code": None,
+                "exit_gate_name": None,
+                "detail": "Estimasi tarif tol dari Google Maps",
+                "weight_pct": None,
+                "one_way_idr": google_toll,
+                "round_trip_idr": google_toll * 2,
+            }
+        ]
     elif google_toll is not None and not force_toll:
         toll_idr = 0.0
         toll_is_estimate = True
+        toll_source = "none"
         toll_note = "Rute dari Google Maps tidak melewati jalan tol."
     else:
         if uses_toll or force_toll:
-            toll_idr = estimate_jabodetabek_toll(distance_km, "II", sections) * 2
-            toll_is_estimate = True
-            note_suffix = " (Asumsi lewat tol manual, dikali 2 untuk Pulang-Pergi)." if force_toll else " (Dikali 2 untuk Pulang-Pergi)."
-            toll_note = TOLL_NOTE_JABODETABEK + note_suffix
+            if route_toll_items:
+                route_only = breakdown_from_route_sections_only(
+                    route_toll_items, sections, "II"
+                )
+                if route_only:
+                    toll_idr = route_only["one_way_idr"] * 2
+                    toll_is_estimate = True
+                    toll_source = "route"
+                    toll_breakdown = route_only["segments"]
+                    toll_note = (
+                        "Tarif acuan ruas BPJT untuk ruas tol yang dilalui di peta. "
+                        "(Dikali 2 untuk Pulang-Pergi.)"
+                    )
+                else:
+                    toll_idr = 0.0
+                    toll_is_estimate = True
+                    toll_source = "route"
+                    toll_breakdown = [
+                        {
+                            "source": "route",
+                            "section_name": name,
+                            "entry_gate_code": None,
+                            "entry_gate_name": None,
+                            "exit_gate_code": None,
+                            "exit_gate_name": None,
+                            "detail": "Belum terpetakan ke master BPJT",
+                            "weight_pct": None,
+                            "one_way_idr": 0.0,
+                            "round_trip_idr": 0.0,
+                            "rates_by_golongan": {},
+                        }
+                        for name in route_toll_names
+                    ]
+                    toll_note = (
+                        "Ruas tol di peta belum terpetakan ke master BPJT: "
+                        + ", ".join(route_toll_names)
+                        + ". Isi matriks gerbang di menu Gerbang Tol."
+                    )
+            else:
+                section_result = jabodetabek_toll_breakdown(distance_km, "II", sections)
+                toll_idr = section_result["one_way_idr"] * 2
+                toll_is_estimate = True
+                toll_source = "section"
+                toll_breakdown = section_result["segments"]
+                note_suffix = (
+                    " (Asumsi lewat tol manual, dikali 2 untuk Pulang-Pergi)."
+                    if force_toll
+                    else " (Dikali 2 untuk Pulang-Pergi)."
+                )
+                toll_note = TOLL_NOTE_JABODETABEK + note_suffix
         else:
             toll_idr = 0.0
             toll_is_estimate = True
+            toll_source = "none"
             toll_note = "Rute tidak melewati jalan tol."
 
     return {
@@ -887,5 +1120,107 @@ def calculate_route(
         "toll_idr": toll_idr,
         "toll_is_estimate": toll_is_estimate,
         "toll_note": toll_note,
-        "geometry": geometry,
+        "toll_source": toll_source,
+        "toll_breakdown": toll_breakdown,
+        "toll_roads": toll_roads,
+        "uses_toll": uses_toll,
     }
+
+
+def _pick_cheapest_toll_route_index(
+    estimates: list[dict],
+    *,
+    force_toll: bool,
+    prefer_cheapest_toll: bool,
+) -> int:
+    toll_indices = [idx for idx, est in enumerate(estimates) if est["uses_toll"]]
+
+    if prefer_cheapest_toll and toll_indices:
+        return min(
+            toll_indices,
+            key=lambda idx: (
+                estimates[idx]["toll_idr"],
+                estimates[idx]["distance_km"],
+                estimates[idx]["duration_min"],
+            ),
+        )
+
+    if force_toll and toll_indices:
+        return min(
+            toll_indices,
+            key=lambda idx: (
+                estimates[idx]["toll_idr"],
+                estimates[idx]["distance_km"],
+                estimates[idx]["duration_min"],
+            ),
+        )
+
+    return 0
+
+
+def calculate_route(
+    origin_lat: float,
+    origin_lng: float,
+    dest_lat: float,
+    dest_lng: float,
+    sections: list[dict] | None = None,
+    force_toll: bool = False,
+    gate_context: dict | None = None,
+    prefer_cheapest_toll: bool = False,
+) -> dict:
+    url = f"{OSRM_BASE}/{origin_lng},{origin_lat};{dest_lng},{dest_lat}?overview=full&geometries=geojson&steps=true&alternatives=3"
+    data = _http_get_json(url)
+    if data.get("code") != "Ok" or not data.get("routes"):
+        raise HTTPException(status_code=400, detail="Rute tidak ditemukan antara gudang dan customer")
+
+    sections = sections or _default_sections_from_settings()
+    routes = data["routes"]
+    estimates = [
+        _estimate_toll_for_osrm_route(
+            route,
+            origin_lat,
+            origin_lng,
+            dest_lat,
+            dest_lng,
+            sections,
+            gate_context,
+            force_toll=force_toll,
+        )
+        for route in routes
+    ]
+
+    selected_idx = _pick_cheapest_toll_route_index(
+        estimates,
+        force_toll=force_toll,
+        prefer_cheapest_toll=prefer_cheapest_toll,
+    )
+    selected_route = routes[selected_idx]
+    result = dict(estimates[selected_idx])
+    result.pop("uses_toll", None)
+    result["geometry"] = _osrm_route_geometry(selected_route)
+
+    toll_indices = [idx for idx, est in enumerate(estimates) if est["uses_toll"]]
+    result["alternatives_compared"] = len(routes)
+    result["route_selection"] = None
+    result["toll_savings_idr"] = None
+
+    if len(toll_indices) > 1:
+        default_toll = estimates[0]["toll_idr"] if estimates[0]["uses_toll"] else None
+        selected_toll = estimates[selected_idx]["toll_idr"]
+        result["route_selection"] = "tol_termurah"
+        if default_toll is not None and selected_toll < default_toll:
+            result["toll_savings_idr"] = round(default_toll - selected_toll, 0)
+
+    if result.get("route_selection") == "tol_termurah":
+        savings = result.get("toll_savings_idr")
+        savings_text = (
+            f" Hemat {int(savings):,} dibanding rute tercepat.".replace(",", ".")
+            if savings and savings > 0
+            else ""
+        )
+        result["toll_note"] = (
+            f"Dipilih rute tol termurah dari {len(routes)} alternatif OSRM.{savings_text} "
+            + (result.get("toll_note") or "")
+        )
+
+    return result

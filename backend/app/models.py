@@ -108,7 +108,10 @@ class TollSection(Base):
     __tablename__ = "toll_sections"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    network: Mapped[str | None] = mapped_column(String, nullable=True)
     name: Mapped[str] = mapped_column(String, nullable=False)
+    origin_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    destination_name: Mapped[str | None] = mapped_column(String, nullable=True)
     length_km: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False, server_default="1")
     gol23: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, server_default="0")
     gol45: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, server_default="0")

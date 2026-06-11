@@ -2,6 +2,7 @@ import React from 'react';
 import { X, MapPin } from 'lucide-react';
 import RouteMap from './RouteMap';
 import TollEstimateTable from './TollEstimateTable';
+import RouteTollGateInfo from './RouteTollGateInfo';
 
 const RouteResultModal = ({ result, onClose, onApplyToll }) => {
   if (!result) return null;
@@ -51,13 +52,18 @@ const RouteResultModal = ({ result, onClose, onApplyToll }) => {
           </div>
 
           <div style={{ marginTop: '1rem' }}>
+            <RouteTollGateInfo
+              segments={result.toll_breakdown}
+              tollSource={result.toll_source}
+              tollNote={result.toll_note}
+            />
             <TollEstimateTable
               items={result.toll_by_vehicle}
               isEstimate={result.toll_is_estimate}
             />
           </div>
 
-          {result.toll_note && (
+          {result.toll_note && !result.toll_breakdown?.length && (
             <p style={{ marginTop: '0.75rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
               {result.toll_note}
             </p>

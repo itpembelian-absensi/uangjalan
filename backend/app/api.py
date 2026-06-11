@@ -39,11 +39,17 @@ from app.models import (
     WarehouseSetting,
     AppSetting,
 )
-from app.toll_gate_service import TOLL_NOTE_BPJT, estimate_toll_bpjt_gates, serialize_gate_fare_context
+from app.toll_gate_service import (
+    TOLL_NOTE_BPJT,
+    build_manual_toll_breakdown,
+    estimate_toll_bpjt_gates,
+    serialize_gate_fare_context,
+)
+from app.bpjt_import_service import import_jabodetabek_all, import_jabodetabek_gate_matrices
 from app.delivery_route_service import (
     format_stop_items_summary,
     replace_route_stops,
-    resync_sales_for_customer,
+    refresh_customer_tariff_in_sales,
     sync_sale_from_route,
     sync_sales_for_period,
     customers_missing_tariff,
@@ -58,6 +64,7 @@ from app.routing_service import (
     VEHICLE_TOLL_CLASS,
     _match_toll_vehicle_key,
     calculate_route,
+    collapse_sections_for_routing,
     estimate_tolls_by_vehicle,
     geocode_address,
     parse_coords_from_share,
@@ -100,6 +107,8 @@ from app.schemas import (
     WarehouseUpdate,
     RouteProcessRequest,
     RouteProcessOut,
+    ManualTollBreakdownRequest,
+    ManualTollBreakdownOut,
     RoutePoint,
     VehicleTollEstimate,
     GeocodeRequest,
@@ -107,6 +116,9 @@ from app.schemas import (
     GeocodeOut,
     TollSectionCreate,
     TollSectionUpdate,
+    BpjtImportResultOut,
+    BpjtGateImportResultOut,
+    BpjtFullImportResultOut,
     TollSectionOut,
     TollSectionRateOut,
     TollGolonganCreate,
@@ -137,7 +149,7 @@ def _load_active_toll_sections(db: Session) -> list[dict]:
     ).all()
     if not rows:
         return _default_sections_from_settings()
-    return serialize_toll_sections(rows)
+    return collapse_sections_for_routing(serialize_toll_sections(rows))
 
 
 def _load_toll_sections_query():
@@ -175,7 +187,10 @@ def _toll_section_out(obj: TollSection) -> TollSectionOut:
     ]
     return TollSectionOut(
         id=obj.id,
+        network=obj.network,
         name=obj.name,
+        origin_name=obj.origin_name,
+        destination_name=obj.destination_name,
         length_km=float(obj.length_km),
         sort_order=obj.sort_order,
         is_active=obj.is_active,
@@ -599,7 +614,7 @@ def update_customer(customer_id: int, payload: CustomerCreate, db: Session = Dep
 
     try:
         _replace_customer_tariffs(db, obj.id, payload.tariffs)
-        resync_sales_for_customer(db, obj.id)
+        refresh_customer_tariff_in_sales(db, obj.id)
         db.commit()
     except Exception as e:
         db.rollback()
@@ -1760,6 +1775,7 @@ def process_route(payload: RouteProcessRequest, db: Session = Depends(get_db)):
         sections=sections,
         force_toll=payload.force_toll,
         gate_context=gate_context,
+        prefer_cheapest_toll=payload.prefer_cheapest_toll is not False,
     )
 
     if customer is not None:
@@ -1789,6 +1805,9 @@ def process_route(payload: RouteProcessRequest, db: Session = Depends(get_db)):
                 gate_context["gates"],
                 gate_context["fares"],
                 gol_code,
+                distance_km=route["distance_km"],
+                route_toll_roads=route.get("toll_roads") or [],
+                sections=sections,
             )
             toll = round(bpjt[0] * 2, 0) if bpjt else route["toll_idr"]
             if toll > 0:
@@ -1842,6 +1861,20 @@ def process_route(payload: RouteProcessRequest, db: Session = Depends(get_db)):
         toll_by_vehicle=[VehicleTollEstimate(**item) for item in toll_by_vehicle_raw],
         **route,
     )
+
+
+@router.post("/routing/toll-breakdown/manual", response_model=ManualTollBreakdownOut)
+def manual_toll_breakdown(payload: ManualTollBreakdownRequest, db: Session = Depends(get_db)):
+    sections = _load_active_toll_sections(db)
+    gate_context = _load_toll_gate_fare_context(db)
+    result = build_manual_toll_breakdown(
+        payload.section_ids,
+        sections,
+        gate_context.get("gates") or [],
+        gate_context.get("fares") or [],
+        golongan_code="II",
+    )
+    return ManualTollBreakdownOut(**result)
 
 
 @router.get("/toll-golongan", response_model=list[TollGolonganOut])
@@ -1926,10 +1959,21 @@ def list_toll_sections(db: Session = Depends(get_db)):
     return [_toll_section_out(row) for row in rows]
 
 
+@router.get("/toll-sections/{section_id}", response_model=TollSectionOut)
+def get_toll_section(section_id: int, db: Session = Depends(get_db)):
+    row = db.scalars(_load_toll_sections_query().filter(TollSection.id == section_id)).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Ruas tol tidak ditemukan.")
+    return _toll_section_out(row)
+
+
 @router.post("/toll-sections", response_model=TollSectionOut, status_code=201)
 def create_toll_section(payload: TollSectionCreate, db: Session = Depends(get_db)):
     obj = TollSection(
+        network=payload.network.strip() if payload.network else None,
         name=payload.name.strip(),
+        origin_name=payload.origin_name.strip() if payload.origin_name else None,
+        destination_name=payload.destination_name.strip() if payload.destination_name else None,
         length_km=payload.length_km,
         gol23=0,
         gol45=0,
@@ -1960,6 +2004,12 @@ def update_toll_section(
     rates = data.pop("rates", None)
     if "name" in data and data["name"] is not None:
         data["name"] = data["name"].strip()
+    if "network" in data:
+        data["network"] = data["network"].strip() if data["network"] else None
+    if "origin_name" in data:
+        data["origin_name"] = data["origin_name"].strip() if data["origin_name"] else None
+    if "destination_name" in data:
+        data["destination_name"] = data["destination_name"].strip() if data["destination_name"] else None
     for key, value in data.items():
         setattr(obj, key, value)
     if rates is not None:
@@ -1979,6 +2029,33 @@ def delete_toll_section(section_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Ruas tol tidak ditemukan")
     db.delete(obj)
     db.commit()
+
+
+@router.post("/toll-sections/sync-bpjt-jabodetabek", response_model=BpjtFullImportResultOut)
+def sync_bpjt_jabodetabek_tolls(db: Session = Depends(get_db)):
+    """Impor ruas tol + matriks gerbang Jabodetabek dari dataset resmi BPJT."""
+    try:
+        result = import_jabodetabek_all(db)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Gagal impor BPJT: {exc}") from exc
+    return BpjtFullImportResultOut(
+        sections=BpjtImportResultOut(**result["sections"]),
+        gates=BpjtGateImportResultOut(**result["gates"]),
+    )
+
+
+@router.post("/toll-gates/sync-bpjt-jabodetabek", response_model=BpjtGateImportResultOut)
+def sync_bpjt_jabodetabek_gates(db: Session = Depends(get_db)):
+    """Impor matriks gerbang Jabodetabek saja (ruas harus sudah diimpor)."""
+    try:
+        result = import_jabodetabek_gate_matrices(db)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Gagal impor gerbang BPJT: {exc}") from exc
+    return BpjtGateImportResultOut(**result)
 
 
 @router.get("/toll-gates", response_model=list[TollGateOut])

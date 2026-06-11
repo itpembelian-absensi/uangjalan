@@ -1,0 +1,1254 @@
+{
+  "source": "BPJT Tarif Tol Jabodetabek",
+  "source_url": "https://bpjt.pu.go.id/info-tarif-dan-golongan/",
+  "matrices": [
+    {
+      "section_name": "Jakarta-Bogor-Ciawi",
+      "fares": [
+        {
+          "entry": "Jakarta",
+          "exit": "Ciawi",
+          "rates": {
+            "I": 7500,
+            "II": 12000,
+            "III": 12000,
+            "IV": 17000,
+            "V": 17000
+          }
+        }
+      ]
+    },
+    {
+      "section_name": "Cawang-Tomang-Pluit (CTC)",
+      "fares": [
+        {
+          "entry": "Cawang",
+          "exit": "Pluit",
+          "rates": {
+            "I": 11000,
+            "II": 16500,
+            "III": 16500,
+            "IV": 19000,
+            "V": 19000
+          }
+        }
+      ]
+    },
+    {
+      "section_name": "Cawang-Tj. Priok-Ancol Timur-Jembatan Tiga/Pluit",
+      "fares": [
+        {
+          "entry": "Cawang",
+          "exit": "Jembatan Tiga/Pluit",
+          "rates": {
+            "I": 11000,
+            "II": 16500,
+            "III": 16500,
+            "IV": 19000,
+            "V": 19000
+          }
+        }
+      ]
+    },
+    {
+      "section_name": "JORR S",
+      "fares": [
+        {
+          "entry": "Pondok Pinang",
+          "exit": "Taman Mini",
+          "rates": {
+            "I": 17000,
+            "II": 25000,
+            "III": 25000,
+            "IV": 33500,
+            "V": 33500
+          }
+        }
+      ]
+    },
+    {
+      "section_name": "JORR NON S",
+      "fares": [
+        {
+          "entry": "Rorotan",
+          "exit": "Kebon Bawang",
+          "rates": {
+            "I": 17000,
+            "II": 25000,
+            "III": 25000,
+            "IV": 33500,
+            "V": 33500
+          }
+        }
+      ]
+    },
+    {
+      "section_name": "JORR W1 (Kebon Jeruk-Penjaringan)",
+      "fares": [
+        {
+          "entry": "Kebon Jeruk",
+          "exit": "Penjaringan",
+          "rates": {
+            "I": 17000,
+            "II": 25000,
+            "III": 25000,
+            "IV": 33500,
+            "V": 33500
+          }
+        }
+      ]
+    },
+    {
+      "section_name": "JORR W2 Utara (Kebon Jeruk-Ulujami)",
+      "fares": [
+        {
+          "entry": "Kebon Jeruk",
+          "exit": "Ulujami",
+          "rates": {
+            "I": 17000,
+            "II": 25000,
+            "III": 25000,
+            "IV": 33500,
+            "V": 33500
+          }
+        }
+      ]
+    },
+    {
+      "section_name": "Akses Tanjung Priuk",
+      "fares": [
+        {
+          "entry": "Akses Tanjung Priuk",
+          "exit": "Seksi E1,E2,E2A",
+          "rates": {
+            "I": 17000,
+            "II": 25000,
+            "III": 25000,
+            "IV": 33500,
+            "V": 33500
+          }
+        }
+      ]
+    },
+    {
+      "section_name": "Bogor Ring Road Seksi I-IIIA (Sentul Selatan-Simpang Semplak)",
+      "fares": [
+        {
+          "entry": "Sentul Selatan",
+          "exit": "Simpang Semplak",
+          "rates": {
+            "I": 15000,
+            "II": 22500,
+            "III": 22500,
+            "IV": 30000,
+            "V": 30000
+          }
+        }
+      ]
+    },
+    {
+      "section_name": "Cinere-Jagorawi",
+      "fares": [
+        {
+          "entry": "SS Cimanggis",
+          "exit": "Cinere",
+          "rates": {
+            "I": 15000,
+            "II": 23000,
+            "III": 23000,
+            "IV": 30500,
+            "V": 30500
+          }
+        }
+      ]
+    },
+    {
+      "section_name": "Pondok Aren-Bintaro Viaduct-Ulujami",
+      "fares": [
+        {
+          "entry": "Pondok Aren",
+          "exit": "Ulujami",
+          "rates": {
+            "I": 17000,
+            "II": 25000,
+            "III": 25000,
+            "IV": 33500,
+            "V": 33500
+          }
+        }
+      ]
+    },
+    {
+      "section_name": "Pondok Aren-Serpong",
+      "fares": [
+        {
+          "entry": "Pondok Aren",
+          "exit": "Serpong",
+          "rates": {
+            "I": 9500,
+            "II": 14000,
+            "III": 14000,
+            "IV": 18500,
+            "V": 18500
+          }
+        }
+      ]
+    },
+    {
+      "section_name": "Bekasi-Cawang-Kampung Melayu",
+      "fares": [
+        {
+          "entry": "Casablanca",
+          "exit": "GT Jatiwaringin 1 dan 2",
+          "rates": {
+            "I": 10500,
+            "II": 15500,
+            "III": 15500,
+            "IV": 20500,
+            "V": 20500
+          }
+        },
+        {
+          "entry": "Casablanca",
+          "exit": "GT Pondok Kelapa 1 dan 2",
+          "rates": {
+            "I": 16000,
+            "II": 23500,
+            "III": 23500,
+            "IV": 31500,
+            "V": 31500
+          }
+        },
+        {
+          "entry": "Casablanca",
+          "exit": "GT Bintara Jaya dan Jakasampurna",
+          "rates": {
+            "I": 22500,
+            "II": 33500,
+            "III": 33500,
+            "IV": 44500,
+            "V": 44500
+          }
+        },
+        {
+          "entry": "Casablanca",
+          "exit": "GT Marga Jaya 1 dan 2",
+          "rates": {
+            "I": 28500,
+            "II": 43000,
+            "III": 43000,
+            "IV": 57000,
+            "V": 57000
+          }
+        }
+      ]
+    },
+    {
+      "section_name": "Kunciran-Serpong",
+      "fares": [
+        {
+          "entry": "JC Kunciran",
+          "exit": "SS Parigi",
+          "rates": {
+            "I": 12500,
+            "II": 19000,
+            "III": 19000,
+            "IV": 25000,
+            "V": 25000
+          }
+        },
+        {
+          "entry": "JC Kunciran",
+          "exit": "JC Serpong",
+          "rates": {
+            "I": 21000,
+            "II": 31500,
+            "III": 31500,
+            "IV": 41500,
+            "V": 41500
+          }
+        },
+        {
+          "entry": "SS Parigi",
+          "exit": "JC Kunciran",
+          "rates": {
+            "I": 12500,
+            "II": 19000,
+            "III": 19000,
+            "IV": 25000,
+            "V": 25000
+          }
+        },
+        {
+          "entry": "SS Parigi",
+          "exit": "JC Serpong",
+          "rates": {
+            "I": 21000,
+            "II": 31500,
+            "III": 31500,
+            "IV": 41500,
+            "V": 41500
+          }
+        },
+        {
+          "entry": "JC Serpong",
+          "exit": "JC Kunciran",
+          "rates": {
+            "I": 8500,
+            "II": 12500,
+            "III": 12500,
+            "IV": 16500,
+            "V": 16500
+          }
+        },
+        {
+          "entry": "JC Serpong",
+          "exit": "SS Parigi",
+          "rates": {
+            "I": 8500,
+            "II": 12500,
+            "III": 12500,
+            "IV": 16500,
+            "V": 16500
+          }
+        }
+      ]
+    },
+    {
+      "section_name": "Cimanggis-Cibitung Seksi 1-2A",
+      "fares": [
+        {
+          "entry": "Junction Cimanggis",
+          "exit": "On/Off Ramp Jatikarya",
+          "rates": {
+            "I": 5500,
+            "II": 8500,
+            "III": 8500,
+            "IV": 11500,
+            "V": 11500
+          }
+        },
+        {
+          "entry": "Junction Cimanggis",
+          "exit": "Simpang Susun Cikeas",
+          "rates": {
+            "I": 13500,
+            "II": 20000,
+            "III": 20000,
+            "IV": 27000,
+            "V": 27000
+          }
+        },
+        {
+          "entry": "On/Off Ramp Jatikarya",
+          "exit": "Junction Cimanggis",
+          "rates": {
+            "I": 5500,
+            "II": 8500,
+            "III": 8500,
+            "IV": 11500,
+            "V": 11500
+          }
+        },
+        {
+          "entry": "Simpang Susun Cikeas",
+          "exit": "Junction Cimanggis",
+          "rates": {
+            "I": 13500,
+            "II": 20000,
+            "III": 20000,
+            "IV": 27000,
+            "V": 27000
+          }
+        }
+      ]
+    },
+    {
+      "section_name": "Cimanggis-Cibitung Seksi 2B",
+      "fares": [
+        {
+          "entry": "Jatikarya",
+          "exit": "SS Cikeas",
+          "rates": {
+            "I": 8000,
+            "II": 11500,
+            "III": 11500,
+            "IV": 15500,
+            "V": 15500
+          }
+        },
+        {
+          "entry": "Jatikarya",
+          "exit": "SS Narogong",
+          "rates": {
+            "I": 14000,
+            "II": 21000,
+            "III": 21000,
+            "IV": 28500,
+            "V": 28500
+          }
+        },
+        {
+          "entry": "Jatikarya",
+          "exit": "SS Setu Selatan",
+          "rates": {
+            "I": 27500,
+            "II": 41000,
+            "III": 41000,
+            "IV": 54500,
+            "V": 54500
+          }
+        },
+        {
+          "entry": "Jatikarya",
+          "exit": "SS Setu Utara",
+          "rates": {
+            "I": 43500,
+            "II": 65500,
+            "III": 65500,
+            "IV": 87000,
+            "V": 87000
+          }
+        },
+        {
+          "entry": "Jatikarya",
+          "exit": "JC Cibitung",
+          "rates": {
+            "I": 48500,
+            "II": 72500,
+            "III": 72500,
+            "IV": 97000,
+            "V": 97000
+          }
+        },
+        {
+          "entry": "SS Cikeas",
+          "exit": "SS Narogong",
+          "rates": {
+            "I": 6500,
+            "II": 9500,
+            "III": 9500,
+            "IV": 12500,
+            "V": 12500
+          }
+        },
+        {
+          "entry": "SS Cikeas",
+          "exit": "SS Setu Selatan",
+          "rates": {
+            "I": 19500,
+            "II": 29000,
+            "III": 29000,
+            "IV": 39000,
+            "V": 39000
+          }
+        },
+        {
+          "entry": "SS Cikeas",
+          "exit": "SS Setu Utara",
+          "rates": {
+            "I": 35500,
+            "II": 53500,
+            "III": 53500,
+            "IV": 71500,
+            "V": 71500
+          }
+        },
+        {
+          "entry": "SS Cikeas",
+          "exit": "JC Cibitung",
+          "rates": {
+            "I": 40500,
+            "II": 61000,
+            "III": 61000,
+            "IV": 81000,
+            "V": 81000
+          }
+        },
+        {
+          "entry": "SS Cikeas",
+          "exit": "Jatikarya",
+          "rates": {
+            "I": 8000,
+            "II": 11500,
+            "III": 11500,
+            "IV": 15500,
+            "V": 15500
+          }
+        },
+        {
+          "entry": "SS Narogong",
+          "exit": "SS Setu Selatan",
+          "rates": {
+            "I": 13000,
+            "II": 19500,
+            "III": 19500,
+            "IV": 26500,
+            "V": 26500
+          }
+        },
+        {
+          "entry": "SS Narogong",
+          "exit": "SS Setu Utara",
+          "rates": {
+            "I": 29500,
+            "II": 44000,
+            "III": 44000,
+            "IV": 58500,
+            "V": 58500
+          }
+        },
+        {
+          "entry": "SS Narogong",
+          "exit": "JC Cibitung",
+          "rates": {
+            "I": 34000,
+            "II": 51500,
+            "III": 51500,
+            "IV": 68500,
+            "V": 68500
+          }
+        },
+        {
+          "entry": "SS Narogong",
+          "exit": "Jatikarya",
+          "rates": {
+            "I": 14000,
+            "II": 21000,
+            "III": 21000,
+            "IV": 28500,
+            "V": 28500
+          }
+        },
+        {
+          "entry": "SS Narogong",
+          "exit": "SS Cikeas",
+          "rates": {
+            "I": 6500,
+            "II": 9500,
+            "III": 9500,
+            "IV": 12500,
+            "V": 12500
+          }
+        },
+        {
+          "entry": "SS Setu Selatan",
+          "exit": "SS Setu Utara",
+          "rates": {
+            "I": 16000,
+            "II": 24500,
+            "III": 24500,
+            "IV": 32500,
+            "V": 32500
+          }
+        },
+        {
+          "entry": "SS Setu Selatan",
+          "exit": "JC Cibitung",
+          "rates": {
+            "I": 21000,
+            "II": 31500,
+            "III": 31500,
+            "IV": 42000,
+            "V": 42000
+          }
+        },
+        {
+          "entry": "SS Setu Selatan",
+          "exit": "Jatikarya",
+          "rates": {
+            "I": 27500,
+            "II": 41000,
+            "III": 41000,
+            "IV": 54500,
+            "V": 54500
+          }
+        },
+        {
+          "entry": "SS Setu Selatan",
+          "exit": "SS Cikeas",
+          "rates": {
+            "I": 19500,
+            "II": 29000,
+            "III": 29000,
+            "IV": 39000,
+            "V": 39000
+          }
+        },
+        {
+          "entry": "SS Setu Selatan",
+          "exit": "SS Narogong",
+          "rates": {
+            "I": 13000,
+            "II": 19500,
+            "III": 19500,
+            "IV": 26500,
+            "V": 26500
+          }
+        },
+        {
+          "entry": "SS Setu Utara",
+          "exit": "JC Cibitung",
+          "rates": {
+            "I": 5000,
+            "II": 7500,
+            "III": 7500,
+            "IV": 10000,
+            "V": 10000
+          }
+        },
+        {
+          "entry": "SS Setu Utara",
+          "exit": "Jatikarya",
+          "rates": {
+            "I": 43500,
+            "II": 65500,
+            "III": 65500,
+            "IV": 87000,
+            "V": 87000
+          }
+        },
+        {
+          "entry": "SS Setu Utara",
+          "exit": "SS Cikeas",
+          "rates": {
+            "I": 35500,
+            "II": 53500,
+            "III": 53500,
+            "IV": 71500,
+            "V": 71500
+          }
+        },
+        {
+          "entry": "SS Setu Utara",
+          "exit": "SS Narogong",
+          "rates": {
+            "I": 29500,
+            "II": 44000,
+            "III": 44000,
+            "IV": 58500,
+            "V": 58500
+          }
+        },
+        {
+          "entry": "SS Setu Utara",
+          "exit": "SS Setu Selatan",
+          "rates": {
+            "I": 16000,
+            "II": 24500,
+            "III": 24500,
+            "IV": 32500,
+            "V": 32500
+          }
+        },
+        {
+          "entry": "JC Cibitung",
+          "exit": "Jatikarya",
+          "rates": {
+            "I": 48500,
+            "II": 72500,
+            "III": 72500,
+            "IV": 97000,
+            "V": 97000
+          }
+        },
+        {
+          "entry": "JC Cibitung",
+          "exit": "SS Cikeas",
+          "rates": {
+            "I": 40500,
+            "II": 61000,
+            "III": 61000,
+            "IV": 81000,
+            "V": 81000
+          }
+        },
+        {
+          "entry": "JC Cibitung",
+          "exit": "SS Narogong",
+          "rates": {
+            "I": 34000,
+            "II": 51500,
+            "III": 51500,
+            "IV": 68500,
+            "V": 68500
+          }
+        },
+        {
+          "entry": "JC Cibitung",
+          "exit": "SS Setu Selatan",
+          "rates": {
+            "I": 21000,
+            "II": 31500,
+            "III": 31500,
+            "IV": 42000,
+            "V": 42000
+          }
+        },
+        {
+          "entry": "JC Cibitung",
+          "exit": "SS Setu Utara",
+          "rates": {
+            "I": 5000,
+            "II": 7500,
+            "III": 7500,
+            "IV": 10000,
+            "V": 10000
+          }
+        }
+      ]
+    },
+    {
+      "section_name": "Serpong-Cinere",
+      "fares": [
+        {
+          "entry": "Junction Serpong",
+          "exit": "Pamulang",
+          "rates": {
+            "I": 12000,
+            "II": 18000,
+            "III": 18000,
+            "IV": 24000,
+            "V": 24000
+          }
+        },
+        {
+          "entry": "Junction Serpong",
+          "exit": "Cinere",
+          "rates": {
+            "I": 18500,
+            "II": 28000,
+            "III": 28000,
+            "IV": 37000,
+            "V": 37000
+          }
+        },
+        {
+          "entry": "Pamulang",
+          "exit": "Junction Serpong",
+          "rates": {
+            "I": 12000,
+            "II": 18000,
+            "III": 18000,
+            "IV": 24000,
+            "V": 24000
+          }
+        },
+        {
+          "entry": "Pamulang",
+          "exit": "Cinere",
+          "rates": {
+            "I": 6500,
+            "II": 10000,
+            "III": 10000,
+            "IV": 13500,
+            "V": 13500
+          }
+        },
+        {
+          "entry": "Cinere",
+          "exit": "Pamulang",
+          "rates": {
+            "I": 6500,
+            "II": 10000,
+            "III": 10000,
+            "IV": 13500,
+            "V": 13500
+          }
+        },
+        {
+          "entry": "Cinere",
+          "exit": "Junction Serpong",
+          "rates": {
+            "I": 18500,
+            "II": 28000,
+            "III": 28000,
+            "IV": 37000,
+            "V": 37000
+          }
+        }
+      ]
+    },
+    {
+      "section_name": "Cengkareng-Batu Ceper-Kunciran",
+      "fares": [
+        {
+          "entry": "JC Benda",
+          "exit": "Tanah Tinggi",
+          "rates": {
+            "I": 15500,
+            "II": 23000,
+            "III": 23000,
+            "IV": 30500,
+            "V": 30500
+          }
+        },
+        {
+          "entry": "JC Benda",
+          "exit": "Pinang",
+          "rates": {
+            "I": 23500,
+            "II": 35500,
+            "III": 35500,
+            "IV": 47000,
+            "V": 47000
+          }
+        },
+        {
+          "entry": "JC Benda",
+          "exit": "JC Kunciran",
+          "rates": {
+            "I": 27000,
+            "II": 41000,
+            "III": 41000,
+            "IV": 54500,
+            "V": 54500
+          }
+        },
+        {
+          "entry": "Benda Utama",
+          "exit": "Tanah Tinggi",
+          "rates": {
+            "I": 10500,
+            "II": 16000,
+            "III": 16000,
+            "IV": 21000,
+            "V": 21000
+          }
+        },
+        {
+          "entry": "Benda Utama",
+          "exit": "Pinang",
+          "rates": {
+            "I": 19000,
+            "II": 28000,
+            "III": 28000,
+            "IV": 37500,
+            "V": 37500
+          }
+        },
+        {
+          "entry": "Benda Utama",
+          "exit": "JC Kunciran",
+          "rates": {
+            "I": 22500,
+            "II": 33500,
+            "III": 33500,
+            "IV": 45000,
+            "V": 45000
+          }
+        },
+        {
+          "entry": "Tanah Tinggi",
+          "exit": "JC Benda",
+          "rates": {
+            "I": 15500,
+            "II": 23000,
+            "III": 23000,
+            "IV": 30500,
+            "V": 30500
+          }
+        },
+        {
+          "entry": "Tanah Tinggi",
+          "exit": "Benda Utama",
+          "rates": {
+            "I": 10500,
+            "II": 16000,
+            "III": 16000,
+            "IV": 21000,
+            "V": 21000
+          }
+        },
+        {
+          "entry": "Buaran Indah",
+          "exit": "Pinang",
+          "rates": {
+            "I": 5000,
+            "II": 8000,
+            "III": 8000,
+            "IV": 10500,
+            "V": 10500
+          }
+        },
+        {
+          "entry": "Buaran Indah",
+          "exit": "JC Kunciran",
+          "rates": {
+            "I": 9000,
+            "II": 13000,
+            "III": 13000,
+            "IV": 17500,
+            "V": 17500
+          }
+        },
+        {
+          "entry": "Pinang",
+          "exit": "JC Kunciran",
+          "rates": {
+            "I": 3000,
+            "II": 4500,
+            "III": 4500,
+            "IV": 5500,
+            "V": 5500
+          }
+        },
+        {
+          "entry": "Pinang",
+          "exit": "JC Benda",
+          "rates": {
+            "I": 23500,
+            "II": 35500,
+            "III": 35500,
+            "IV": 47000,
+            "V": 47000
+          }
+        },
+        {
+          "entry": "Pinang",
+          "exit": "Benda Utama",
+          "rates": {
+            "I": 19000,
+            "II": 28000,
+            "III": 28000,
+            "IV": 37500,
+            "V": 37500
+          }
+        },
+        {
+          "entry": "Pinang",
+          "exit": "Buaran Indah",
+          "rates": {
+            "I": 5000,
+            "II": 8000,
+            "III": 8000,
+            "IV": 10500,
+            "V": 10500
+          }
+        },
+        {
+          "entry": "JC Kunciran",
+          "exit": "JC Benda",
+          "rates": {
+            "I": 27000,
+            "II": 41000,
+            "III": 41000,
+            "IV": 54500,
+            "V": 54500
+          }
+        },
+        {
+          "entry": "JC Kunciran",
+          "exit": "Benda Utama",
+          "rates": {
+            "I": 22500,
+            "II": 33500,
+            "III": 33500,
+            "IV": 45000,
+            "V": 45000
+          }
+        },
+        {
+          "entry": "JC Kunciran",
+          "exit": "Buaran Indah",
+          "rates": {
+            "I": 9000,
+            "II": 13000,
+            "III": 13000,
+            "IV": 17500,
+            "V": 17500
+          }
+        },
+        {
+          "entry": "JC Kunciran",
+          "exit": "Pinang",
+          "rates": {
+            "I": 3000,
+            "II": 4500,
+            "III": 4500,
+            "IV": 5500,
+            "V": 5500
+          }
+        }
+      ]
+    },
+    {
+      "section_name": "Cibitung-Cilincing Seksi 1",
+      "fares": [
+        {
+          "entry": "Jc Cibitung",
+          "exit": "Telaga Asih",
+          "rates": {
+            "I": 6500,
+            "II": 9500,
+            "III": 9500,
+            "IV": 13000,
+            "V": 13000
+          }
+        },
+        {
+          "entry": "Telaga Asih",
+          "exit": "Jc Cibitung",
+          "rates": {
+            "I": 6500,
+            "II": 9500,
+            "III": 9500,
+            "IV": 13000,
+            "V": 13000
+          }
+        }
+      ]
+    },
+    {
+      "section_name": "Cibitung-Cilincing Seksi 2 & 3",
+      "fares": [
+        {
+          "entry": "Cibitung",
+          "exit": "Gabus",
+          "rates": {
+            "I": 25500,
+            "II": 38000,
+            "III": 38000,
+            "IV": 50500,
+            "V": 50500
+          }
+        },
+        {
+          "entry": "Cibitung",
+          "exit": "Tarumajaya",
+          "rates": {
+            "I": 54000,
+            "II": 81000,
+            "III": 81000,
+            "IV": 107500,
+            "V": 107500
+          }
+        },
+        {
+          "entry": "Telaga Asih",
+          "exit": "Gabus",
+          "rates": {
+            "I": 20000,
+            "II": 30000,
+            "III": 30000,
+            "IV": 40000,
+            "V": 40000
+          }
+        },
+        {
+          "entry": "Telaga Asih",
+          "exit": "Tarumajaya",
+          "rates": {
+            "I": 48500,
+            "II": 73000,
+            "III": 73000,
+            "IV": 97000,
+            "V": 97000
+          }
+        },
+        {
+          "entry": "Gabus",
+          "exit": "Telaga Asih",
+          "rates": {
+            "I": 20000,
+            "II": 30000,
+            "III": 30000,
+            "IV": 40000,
+            "V": 40000
+          }
+        },
+        {
+          "entry": "Gabus",
+          "exit": "Cibitung",
+          "rates": {
+            "I": 25500,
+            "II": 38000,
+            "III": 38000,
+            "IV": 50500,
+            "V": 50500
+          }
+        },
+        {
+          "entry": "Gabus",
+          "exit": "Tarumajaya",
+          "rates": {
+            "I": 28500,
+            "II": 43000,
+            "III": 43000,
+            "IV": 57000,
+            "V": 57000
+          }
+        },
+        {
+          "entry": "Tarumajaya",
+          "exit": "Gabus",
+          "rates": {
+            "I": 28500,
+            "II": 43000,
+            "III": 43000,
+            "IV": 57000,
+            "V": 57000
+          }
+        },
+        {
+          "entry": "Tarumajaya",
+          "exit": "Telaga Asih",
+          "rates": {
+            "I": 48500,
+            "II": 73000,
+            "III": 73000,
+            "IV": 97000,
+            "V": 97000
+          }
+        },
+        {
+          "entry": "Tarumajaya",
+          "exit": "Cibitung",
+          "rates": {
+            "I": 54000,
+            "II": 81000,
+            "III": 81000,
+            "IV": 107500,
+            "V": 107500
+          }
+        }
+      ]
+    },
+    {
+      "section_name": "Cibitung-Cilincing Seksi 4",
+      "fares": [
+        {
+          "entry": "Cibitung",
+          "exit": "Cilincing",
+          "rates": {
+            "I": 68500,
+            "II": 102500,
+            "III": 102500,
+            "IV": 136500,
+            "V": 136500
+          }
+        },
+        {
+          "entry": "Telaga Asih",
+          "exit": "Cilincing",
+          "rates": {
+            "I": 63000,
+            "II": 94500,
+            "III": 94500,
+            "IV": 126000,
+            "V": 126000
+          }
+        },
+        {
+          "entry": "Gabus",
+          "exit": "Cilincing",
+          "rates": {
+            "I": 43000,
+            "II": 64500,
+            "III": 64500,
+            "IV": 86000,
+            "V": 86000
+          }
+        },
+        {
+          "entry": "Tarumajaya",
+          "exit": "Cilincing",
+          "rates": {
+            "I": 14500,
+            "II": 21500,
+            "III": 21500,
+            "IV": 29000,
+            "V": 29000
+          }
+        },
+        {
+          "entry": "Cilincing",
+          "exit": "Tarumajaya",
+          "rates": {
+            "I": 14500,
+            "II": 21500,
+            "III": 21500,
+            "IV": 29000,
+            "V": 29000
+          }
+        },
+        {
+          "entry": "Cilincing",
+          "exit": "Gabus",
+          "rates": {
+            "I": 43000,
+            "II": 64500,
+            "III": 64500,
+            "IV": 86000,
+            "V": 86000
+          }
+        },
+        {
+          "entry": "Cilincing",
+          "exit": "Telaga Asih",
+          "rates": {
+            "I": 63000,
+            "II": 94500,
+            "III": 94500,
+            "IV": 126000,
+            "V": 126000
+          }
+        },
+        {
+          "entry": "Cilincing",
+          "exit": "Cibitung",
+          "rates": {
+            "I": 68500,
+            "II": 102500,
+            "III": 102500,
+            "IV": 136500,
+            "V": 136500
+          }
+        }
+      ]
+    },
+    {
+      "section_name": "6 (Enam) Ruas Dalam Kota Jakarta Seksi A (Kelapa Gading-Pulo Gebang)",
+      "fares": [
+        {
+          "entry": "Kelapa Gading",
+          "exit": "Pulogebang",
+          "rates": {
+            "I": 22000,
+            "II": 33000,
+            "III": 33000,
+            "IV": 44000,
+            "V": 44000
+          }
+        }
+      ]
+    },
+    {
+      "section_name": "Serpong-Balaraja Seksi 1 (Serpong-SS Legok)",
+      "fares": [
+        {
+          "entry": "Serpong",
+          "exit": "SS CBD",
+          "rates": {
+            "I": 6000,
+            "II": 9000,
+            "III": 9000,
+            "IV": 12500,
+            "V": 12500
+          }
+        },
+        {
+          "entry": "SS CBD",
+          "exit": "SS Legok",
+          "rates": {
+            "I": 7000,
+            "II": 11000,
+            "III": 11000,
+            "IV": 14500,
+            "V": 14500
+          }
+        }
+      ]
+    }
+  ]
+}
