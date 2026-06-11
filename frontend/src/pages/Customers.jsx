@@ -6,6 +6,7 @@ import LocationPickerMap from '../components/LocationPickerMap';
 import TollEstimateTable from '../components/TollEstimateTable';
 import RouteTollGateInfo from '../components/RouteTollGateInfo';
 import { useCrudWrite, CrudActionsHeader, CrudActionsCell } from '../components/CrudWriteAccess';
+import TablePager from '../components/TablePager';
 import { parseCoordsFromShareText } from '../utils/locationParse';
 
 const formatIDR = (val) =>
@@ -295,6 +296,7 @@ const Customers = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortKey, setSortKey] = useState('code');
   const [sortDir, setSortDir] = useState('asc');
+  const [page, setPage] = useState(1);
   const [error, setError] = useState('');
   const [geocoding, setGeocoding] = useState(false);
   const [parsingShare, setParsingShare] = useState(false);
@@ -888,6 +890,14 @@ const Customers = () => {
     return [...filtered].sort((a, b) => compareCustomers(a, b, sortKey, sortDir));
   }, [customers, searchTerm, sortKey, sortDir]);
 
+  const PAGE_SIZE = 15;
+  const totalPages = Math.max(1, Math.ceil(displayCustomers.length / PAGE_SIZE));
+  const safePage = Math.max(1, Math.min(page, totalPages));
+  const paginatedCustomers = displayCustomers.slice(
+    (safePage - 1) * PAGE_SIZE,
+    safePage * PAGE_SIZE
+  );
+
   return (
     <div>
       <div className="page-header" style={{ marginBottom: '1.5rem' }}>
@@ -970,24 +980,36 @@ const Customers = () => {
           : `Menampilkan ${displayCustomers.length} dari ${customers.length} customer`}
       </div>
 
-      <div style={{ marginBottom: '1.5rem', maxWidth: '400px', position: 'relative' }}>
-        <Search
-          size={18}
-          style={{
-            position: 'absolute',
-            left: '1rem',
-            top: '50%',
-            transform: 'translateY(-50%)',
-            color: 'var(--text-secondary)',
-          }}
-        />
-        <input
-          type="text"
-          className="form-input"
-          placeholder="Cari kode atau nama customer..."
-          style={{ paddingLeft: '2.8rem', background: 'rgba(255,255,255,0.05)' }}
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+        <div style={{ position: 'relative', width: '100%', maxWidth: '400px' }}>
+          <Search
+            size={18}
+            style={{
+              position: 'absolute',
+              left: '1rem',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: 'var(--text-secondary)',
+            }}
+          />
+          <input
+            type="text"
+            className="form-input"
+            placeholder="Cari kode atau nama customer..."
+            style={{ paddingLeft: '2.8rem', background: 'rgba(255,255,255,0.05)', width: '100%' }}
+            value={searchTerm}
+            onChange={(e) => {
+              setSearchTerm(e.target.value);
+              setPage(1);
+            }}
+          />
+        </div>
+        <TablePager 
+          page={safePage} 
+          pageSize={PAGE_SIZE} 
+          onPageChange={setPage} 
+          totalItems={displayCustomers.length}
+          label="customer"
         />
       </div>
 
@@ -1012,7 +1034,7 @@ const Customers = () => {
                 </td>
               </tr>
             ) : (
-              displayCustomers.map((c) => {
+              paginatedCustomers.map((c) => {
               const coords = formatCustomerCoords(c.latitude, c.longitude);
               return (
               <tr key={c.id}>
