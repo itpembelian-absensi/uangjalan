@@ -758,7 +758,25 @@ const Sales = () => {
                           )}
                         </div>
                       </td>
-                      <td>{s.details.length} Customer</td>
+                      <td>
+                        <div style={{ fontWeight: 500 }}>{s.details.length} Customer</div>
+                        {s.details.length > 0 && (
+                          <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px', lineHeight: '1.3' }}>
+                            {s.details.map((d, idx) => (
+                              <React.Fragment key={idx}>
+                                {idx > 0 && ', '}
+                                {d.customer_name ? (
+                                  <Link to={`/customers?editId=${d.customer_id}`} style={{ textDecoration: 'none', color: '#4f46e5' }} title="Buka master customer" onClick={(e) => e.stopPropagation()}>
+                                    {d.customer_name}
+                                  </Link>
+                                ) : (
+                                  'Tanpa Nama'
+                                )}
+                              </React.Fragment>
+                            ))}
+                          </div>
+                        )}
+                      </td>
                       <td style={{ textAlign: 'right', color: 'var(--success-color)', fontWeight: 600, whiteSpace: 'nowrap' }}>
                         {formatIDR(totalUJ)}
                       </td>

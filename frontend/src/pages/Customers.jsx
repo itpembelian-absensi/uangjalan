@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import { Plus, Trash2, Edit2, Search, MapPin, X, FileSpreadsheet, Download, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
+import { Plus, Trash2, Edit2, Search, MapPin, X, FileSpreadsheet, Download, ArrowUp, ArrowDown, ArrowUpDown, Lock, Clock } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { apiFetch } from '../api';
 import LocationPickerMap from '../components/LocationPickerMap';
@@ -102,6 +103,10 @@ const compareCustomers = (a, b, key, dir) => {
     case 'is_active': {
       if (a.is_active === b.is_active) return 0;
       return sign * (a.is_active ? -1 : 1);
+    }
+    case 'is_locked': {
+      if (!!a.is_locked === !!b.is_locked) return 0;
+      return sign * (a.is_locked ? -1 : 1);
     }
     default:
       return 0;
@@ -288,8 +293,12 @@ const TariffReadonlyAmount = ({ value }) => (
   </div>
 );
 
+import { useAuth } from '../auth/AuthContext';
+
 const Customers = () => {
+  const { user } = useAuth();
   const canWrite = useCrudWrite();
+  const location = useLocation();
   const [customers, setCustomers] = useState([]);
   const [loadingCustomers, setLoadingCustomers] = useState(true);
   const [vehicleTypes, setVehicleTypes] = useState([]);
@@ -324,6 +333,7 @@ const Customers = () => {
     latitude: '',
     longitude: '',
     is_active: true,
+    is_locked: false,
     tariffs: [],
   });
 
@@ -502,6 +512,7 @@ const Customers = () => {
           latitude: full.latitude != null ? String(full.latitude) : '',
           longitude: full.longitude != null ? String(full.longitude) : '',
           is_active: full.is_active,
+          is_locked: full.is_locked || false,
           tariffs: buildTariffRows(vehicleTypes, full.tariffs || []),
         });
       } catch (err) {
@@ -523,6 +534,7 @@ const Customers = () => {
         latitude: '',
         longitude: '',
         is_active: true,
+        is_locked: false,
         tariffs: buildTariffRows(vehicleTypes),
       });
     }
@@ -532,6 +544,19 @@ const Customers = () => {
     }
     setIsModalOpen(true);
   };
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const qEditId = params.get('editId');
+    if (qEditId && !isModalOpen && canWrite && customers.length > 0) {
+      const targetCustomer = customers.find((c) => String(c.id) === qEditId);
+      if (targetCustomer) {
+        openModal(targetCustomer);
+        window.history.replaceState(null, '', window.location.pathname);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search, customers, canWrite, isModalOpen]);
 
   useEffect(() => {
     if (!isModalOpen || editId) return;
@@ -690,9 +715,11 @@ const Customers = () => {
             phone: form.phone || null,
             email: form.email || null,
             is_active: form.is_active,
+            is_locked: form.is_locked,
             latitude: form.latitude ? parseFloat(form.latitude) : null,
             longitude: form.longitude ? parseFloat(form.longitude) : null,
             tariffs: tariffPayloadRows(form.tariffs),
+            custom_toll_breakdown: routeInfo?.toll_breakdown || null,
           }),
         });
         data = await apiFetch(`/api/customers/${editId}/geocode`, { method: 'POST' });
@@ -764,10 +791,12 @@ const Customers = () => {
       phone: form.phone || null,
       email: form.email || null,
       is_active: form.is_active,
+      is_locked: form.is_locked,
       force_toll: forceToll,
       latitude: form.latitude ? parseFloat(form.latitude) : null,
       longitude: form.longitude ? parseFloat(form.longitude) : null,
       tariffs: tariffPayloadRows(form.tariffs),
+      custom_toll_breakdown: routeInfo?.toll_breakdown || null,
     };
 
     setError('');
@@ -1019,6 +1048,7 @@ const Customers = () => {
             <tr>
               <SortableTh label="KODE" column="code" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
               <SortableTh label="NAMA" column="name" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+              <SortableTh label="LOCK" column="is_locked" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
               <SortableTh label="KOORDINAT" column="coords" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
               <SortableTh label="TELEPON" column="phone" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
               <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 600, fontSize: '0.75rem', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>TOL</th>
@@ -1029,7 +1059,7 @@ const Customers = () => {
           <tbody>
             {loadingCustomers ? (
               <tr>
-                <td colSpan={canWrite ? 7 : 6} style={{ textAlign: 'center', opacity: 0.5, padding: '2rem' }}>
+                <td colSpan={canWrite ? 8 : 7} style={{ textAlign: 'center', opacity: 0.5, padding: '2rem' }}>
                   Memuat data customer...
                 </td>
               </tr>
@@ -1039,7 +1069,22 @@ const Customers = () => {
               return (
               <tr key={c.id}>
                 <td style={{ fontWeight: 600 }}>{c.code || '-'}</td>
-                <td style={{ fontWeight: 500 }}>{c.name}</td>
+                <td>
+                  <div style={{ fontWeight: 500 }}>{c.name}</div>
+                  {c.updated_at && c.updated_by_name && (
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
+                      <Clock size={10} />
+                      Diperbarui {new Date(c.updated_at).toLocaleString('id-ID')} oleh {c.updated_by_name}
+                    </div>
+                  )}
+                </td>
+                <td>
+                  {c.is_locked ? (
+                    <span className="badge" style={{ background: 'rgba(220, 38, 38, 0.1)', color: '#dc2626', border: '1px solid rgba(220, 38, 38, 0.2)' }}>Terkunci</span>
+                  ) : (
+                    <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.2)' }}>Open</span>
+                  )}
+                </td>
                 <td style={{ fontSize: '0.85rem', lineHeight: 1.4, whiteSpace: 'nowrap' }}>
                   {coords ? (
                     <>
@@ -1087,7 +1132,7 @@ const Customers = () => {
             )}
             {!loadingCustomers && displayCustomers.length === 0 && (
               <tr>
-                <td colSpan={canWrite ? 7 : 6} style={{ textAlign: 'center', opacity: 0.5, padding: '2rem' }}>
+                <td colSpan={canWrite ? 8 : 7} style={{ textAlign: 'center', opacity: 0.5, padding: '2rem' }}>
                   Tidak ada data customer
                 </td>
               </tr>
@@ -1107,6 +1152,7 @@ const Customers = () => {
                 </button>
               </div>
               <div className="modal-body">
+                <fieldset disabled={form.is_locked && user?.role !== 'admin'} style={{ border: 'none', padding: 0, margin: 0 }}>
                 {error && (
                   <div
                     style={{
@@ -1568,19 +1614,40 @@ const Customers = () => {
                     )}
                   </div>
                 </div>
+                </fieldset>
               </div>
-              <div className="modal-footer">
+              <div className="modal-footer" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                {(form.is_locked && user?.role !== 'admin') ? (
+                  <div style={{ flex: 1, color: '#dc2626', fontSize: '0.9rem', fontWeight: 500 }}>
+                    <Lock size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: '4px' }} />
+                    Terkunci (Hanya Admin yang dapat mengubah)
+                  </div>
+                ) : (
+                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <input 
+                      type="checkbox" 
+                      id="is_locked" 
+                      checked={form.is_locked} 
+                      onChange={(e) => setForm({ ...form, is_locked: e.target.checked })} 
+                    />
+                    <label htmlFor="is_locked" style={{ cursor: 'pointer', fontSize: '0.9rem', fontWeight: 500, color: form.is_locked ? '#dc2626' : 'var(--text-secondary)' }}>
+                      Kunci Customer (Final)
+                    </label>
+                  </div>
+                )}
                 <button type="button" className="btn btn-secondary" onClick={closeModal}>
-                  Batal
+                  {(form.is_locked && user?.role !== 'admin') ? 'Tutup' : 'Batal'}
                 </button>
-                <button 
-                  type="submit" 
-                  className="btn btn-primary" 
-                  style={{ background: '#4f46e5' }}
-                  disabled={geocoding || routeLoading || isSubmitting}
-                >
-                  {isSubmitting ? 'Menyimpan...' : (editId ? 'Simpan' : 'Tambah')}
-                </button>
+                {(!form.is_locked || user?.role === 'admin') && (
+                  <button 
+                    type="submit" 
+                    className="btn btn-primary" 
+                    style={{ background: '#4f46e5' }}
+                    disabled={geocoding || routeLoading || isSubmitting}
+                  >
+                    {isSubmitting ? 'Menyimpan...' : (editId ? 'Simpan' : 'Tambah')}
+                  </button>
+                )}
               </div>
             </form>
           </div>

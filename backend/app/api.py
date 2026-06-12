@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -477,6 +478,10 @@ def _serialize_customer(db: Session, customer: Customer) -> CustomerOut:
         email=customer.email,
         is_active=customer.is_active,
         force_toll=customer.force_toll,
+        is_locked=customer.is_locked,
+        updated_at=customer.updated_at,
+        updated_by_name=customer.updated_by_user.full_name if customer.updated_by_user else None,
+        custom_toll_breakdown=json.loads(customer.custom_toll_breakdown) if customer.custom_toll_breakdown else None,
         latitude=float(customer.latitude) if customer.latitude is not None else None,
         longitude=float(customer.longitude) if customer.longitude is not None else None,
         tariffs=tariffs,
@@ -497,13 +502,18 @@ def _serialize_customer_list(customer: Customer) -> CustomerListOut:
         latitude=float(customer.latitude) if customer.latitude is not None else None,
         longitude=float(customer.longitude) if customer.longitude is not None else None,
         force_toll=customer.force_toll,
+        is_locked=customer.is_locked,
+        updated_at=customer.updated_at,
+        updated_by_name=customer.updated_by_user.full_name if customer.updated_by_user else None,
     )
 
 
 @router.get("/customers", response_model=list[CustomerListOut])
 def list_customers(db: Session = Depends(get_db)):
     customers = db.scalars(
-        select(Customer).order_by(nulls_last(Customer.code.asc()), Customer.name.asc())
+        select(Customer)
+        .options(selectinload(Customer.updated_by_user))
+        .order_by(nulls_last(Customer.code.asc()), Customer.name.asc())
     ).all()
     return [_serialize_customer_list(c) for c in customers]
 
@@ -559,7 +569,7 @@ def bulk_create_customers(payload: CustomerBulkImport, db: Session = Depends(get
 
 
 @router.post("/customers", response_model=CustomerOut, status_code=201)
-def create_customer(payload: CustomerCreate, db: Session = Depends(get_db)):
+def create_customer(payload: CustomerCreate, db: Session = Depends(get_db), current_user: User = Depends(require_api_access)):
     _validate_tariffs(db, payload.tariffs)
     code = _normalize_customer_code(payload.code)
     _ensure_customer_code_unique(db, code)
@@ -574,8 +584,12 @@ def create_customer(payload: CustomerCreate, db: Session = Depends(get_db)):
         email=payload.email.strip() if payload.email else None,
         is_active=payload.is_active,
         force_toll=payload.force_toll,
+        is_locked=payload.is_locked,
+        updated_at=func.now(),
+        updated_by_id=current_user.id,
         latitude=payload.latitude,
         longitude=payload.longitude,
+        custom_toll_breakdown=json.dumps(payload.custom_toll_breakdown) if payload.custom_toll_breakdown else None,
     )
     db.add(obj)
     try:
@@ -590,12 +604,15 @@ def create_customer(payload: CustomerCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/customers/{customer_id}", response_model=CustomerOut)
-def update_customer(customer_id: int, payload: CustomerCreate, db: Session = Depends(get_db)):
+def update_customer(customer_id: int, payload: CustomerCreate, db: Session = Depends(get_db), current_user: User = Depends(require_api_access)):
     # Use with_for_update() to lock the customer row and prevent DELETE/INSERT race conditions
     # on tariffs if there are concurrent update requests.
     obj = db.execute(select(Customer).where(Customer.id == customer_id).with_for_update()).scalar_one_or_none()
     if not obj:
         raise HTTPException(status_code=404, detail="Customer not found")
+
+    if obj.is_locked and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Customer telah dikunci dan hanya dapat diubah oleh Admin")
 
     _validate_tariffs(db, payload.tariffs)
     code = _normalize_customer_code(payload.code)
@@ -610,8 +627,12 @@ def update_customer(customer_id: int, payload: CustomerCreate, db: Session = Dep
     obj.email = payload.email.strip() if payload.email else None
     obj.is_active = payload.is_active
     obj.force_toll = payload.force_toll
+    obj.is_locked = payload.is_locked
+    obj.updated_at = func.now()
+    obj.updated_by_id = current_user.id
     obj.latitude = payload.latitude
     obj.longitude = payload.longitude
+    obj.custom_toll_breakdown = json.dumps(payload.custom_toll_breakdown) if payload.custom_toll_breakdown else None
 
     try:
         _replace_customer_tariffs(db, obj.id, payload.tariffs)
@@ -1702,6 +1723,7 @@ def geocode_customer(customer_id: int, db: Session = Depends(get_db)):
     lat, lng = geocode_address(obj.address, obj.kelurahan, obj.kecamatan, obj.city, obj.name)
     obj.latitude = lat
     obj.longitude = lng
+    obj.custom_toll_breakdown = None
     db.commit()
     db.refresh(obj)
     return _serialize_customer(db, obj)
@@ -1773,6 +1795,18 @@ def process_route(payload: RouteProcessRequest, db: Session = Depends(get_db)):
         prefer_cheapest_toll=payload.prefer_cheapest_toll is not False,
     )
 
+    is_custom_breakdown = False
+    if customer is not None and customer.custom_toll_breakdown:
+        if (customer.latitude and dest_lat == float(customer.latitude) and
+            customer.longitude and dest_lng == float(customer.longitude) and
+            payload.force_toll == customer.force_toll):
+            custom_segments = json.loads(customer.custom_toll_breakdown)
+            if custom_segments:
+                route["toll_breakdown"] = custom_segments
+                route["toll_source"] = "manual"
+                route["toll_is_estimate"] = False
+                is_custom_breakdown = True
+
     if customer is not None:
         customer_name = customer.name
         customer_id = customer.id
@@ -1785,7 +1819,37 @@ def process_route(payload: RouteProcessRequest, db: Session = Depends(get_db)):
     origin_address = ", ".join(p for p in [warehouse.address, warehouse.city] if p)
 
     vehicle_types = db.scalars(_load_vehicle_types_query()).all()
-    if gate_context.get("fares") and not route["toll_is_estimate"]:
+    
+    if is_custom_breakdown:
+        custom_segments = route["toll_breakdown"]
+        toll_by_vehicle_raw = []
+        for vt in vehicle_types:
+            gol_code = vt.toll_golongan.code if vt.toll_golongan else "II"
+            meta = VEHICLE_TOLL_CLASS.get(_match_toll_vehicle_key(vt.name) or "", {})
+            total_one_way = 0.0
+            for seg in custom_segments:
+                rates = seg.get("rates_by_golongan") or {}
+                val = rates.get(gol_code)
+                if val is None:
+                    if gol_code == "III": val = rates.get("II")
+                    elif gol_code == "V": val = rates.get("IV")
+                    if val is None:
+                        val = rates.get("II", rates.get("III", rates.get("IV", 0)))
+                total_one_way += float(val or 0)
+            toll = round(total_one_way * 2, 0)
+            if toll > 0:
+                toll = float(((int(toll) + 999) // 1000) * 1000)
+            rate_per_km = round(toll / route["distance_km"], 0) if route.get("distance_km") else 0.0
+            toll_by_vehicle_raw.append({
+                "vehicle_type_id": vt.id,
+                "vehicle_type_name": vt.name,
+                "golongan": gol_code,
+                "gandar": meta.get("gandar", "-") if isinstance(meta, dict) else "-",
+                "toll_idr": toll,
+                "rate_per_km": rate_per_km,
+            })
+        toll_by_vehicle_raw.sort(key=lambda item: item["vehicle_type_name"].lower())
+    elif gate_context.get("fares") and not route["toll_is_estimate"]:
         toll_by_vehicle_raw = []
         for vt in vehicle_types:
             gol_code = vt.toll_golongan.code if vt.toll_golongan else "II"

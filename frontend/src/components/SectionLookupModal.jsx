@@ -15,17 +15,26 @@ const SEARCH_FIELDS = [
 
 const filterByField = (section, field, term) => {
   if (!term) return true;
-  const q = term.trim().toLowerCase();
   
   if (field === 'all') {
-    return (
-      String(section.name || '').toLowerCase().includes(q) ||
-      String(section.origin_name || '').toLowerCase().includes(q) ||
-      String(section.destination_name || '').toLowerCase().includes(q) ||
-      String(section.network || '').toLowerCase().includes(q)
-    );
+    // Gabungkan semua field menjadi satu string untuk pencarian lintas-kolom
+    const combinedStr = [
+      section.name || '',
+      section.origin_name || '',
+      section.destination_name || '',
+      section.network || ''
+    ].join(' ').toLowerCase();
+
+    // Pisahkan term berdasarkan spasi atau tanda hubung/panah
+    const rawWords = term.trim().toLowerCase().split(/[\s\->,]+/);
+    const stopWords = ['ke', 'dari', 'dan', 'to', 'from'];
+    const words = rawWords.filter(w => w && !stopWords.includes(w));
+    
+    if (words.length === 0) return true;
+    return words.every(w => combinedStr.includes(w));
   }
 
+  const q = term.trim().toLowerCase();
   const raw = section[field];
   if (raw == null || raw === '') return false;
   return String(raw).toLowerCase().includes(q);
@@ -125,11 +134,15 @@ const SectionLookupModal = ({
     }).sort((a, b) => {
       const na = a.network || 'Lainnya';
       const nb = b.network || 'Lainnya';
-      if (na !== nb) return na.localeCompare(nb);
+      if (na !== nb) return na.localeCompare(nb, 'id');
+      // Urutkan berdasarkan sort_order (sama seperti di halaman Master Ruas Tol)
+      const sa = a.sort_order ?? 0;
+      const sb = b.sort_order ?? 0;
+      if (sa !== sb) return sa - sb;
       const oa = a.origin_name || '';
       const ob = b.origin_name || '';
-      if (oa !== ob) return oa.localeCompare(ob);
-      return (a.destination_name || '').localeCompare(b.destination_name || '');
+      if (oa !== ob) return oa.localeCompare(ob, 'id');
+      return (a.destination_name || '').localeCompare(b.destination_name || '', 'id');
     });
   }, [sections, appliedField, appliedTerm]);
 

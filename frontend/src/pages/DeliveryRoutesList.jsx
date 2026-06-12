@@ -392,11 +392,27 @@ const DeliveryRoutesList = () => {
                       <span className="badge badge-blue" style={{ fontWeight: 600 }}>Rit {r.ritase || 1}</span>
                     </td>
                     <td>
-                      {r.stops.length} customer
+                      <div style={{ fontWeight: 500 }}>{r.stops.length} customer</div>
+                      {r.stops.length > 0 && (
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px', lineHeight: '1.3' }}>
+                          {r.stops.map((s, idx) => (
+                            <React.Fragment key={idx}>
+                              {idx > 0 && ', '}
+                              {s.customer_name ? (
+                                <Link to={`/customers?editId=${s.customer_id}`} style={{ textDecoration: 'none', color: '#4f46e5' }} title="Buka master customer">
+                                  {s.customer_name}
+                                </Link>
+                              ) : (
+                                'Tanpa Nama'
+                              )}
+                            </React.Fragment>
+                          ))}
+                        </div>
+                      )}
                       {r.stops.some((s) => s.items?.length) && (
-                        <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                        <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '4px' }}>
                           {r.stops.reduce((sum, s) => sum + (s.items?.length || 0), 0)} barang
-                        </span>
+                        </div>
                       )}
                     </td>
                     <td>

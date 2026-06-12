@@ -359,6 +359,20 @@ def _deactivate_exit_variant_sections(db: Session) -> int:
     return deactivated
 
 
+def _renumber_sort_orders(db: Session) -> None:
+    """Beri nomor urut unik lintas semua jaringan agar tidak ada sort_order dobel."""
+    rows = db.scalars(
+        select(TollSection).order_by(
+            TollSection.network.asc(),
+            TollSection.sort_order.asc(),
+            TollSection.name.asc(),
+            TollSection.id.asc(),
+        )
+    ).all()
+    for idx, row in enumerate(rows, start=1):
+        row.sort_order = idx
+
+
 def import_jabodetabek_sections(db: Session, *, deactivate_legacy: bool = True) -> dict:
     """Impor/upsert ruas tol dari semua paket dataset BPJT."""
     meta = fetch_bpjt_jabodetabek_meta()
@@ -374,6 +388,9 @@ def import_jabodetabek_sections(db: Session, *, deactivate_legacy: bool = True) 
         total_updated += updated
 
     deactivated_variants = _deactivate_exit_variant_sections(db)
+
+    # Re-number agar sort_order unik lintas semua jaringan
+    _renumber_sort_orders(db)
 
     db.commit()
     return {
