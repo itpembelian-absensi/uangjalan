@@ -1292,9 +1292,7 @@ def list_sales(
 
 @router.post("/sales", response_model=SaleOut, status_code=201)
 def create_sale(payload: SaleCreate, db: Session = Depends(get_db)):
-    if not payload.vehicle_id:
-        raise HTTPException(status_code=400, detail="Pilih kendaraan terlebih dahulu.")
-    if not db.get(Vehicle, payload.vehicle_id):
+    if payload.vehicle_id is not None and not db.get(Vehicle, payload.vehicle_id):
         raise HTTPException(status_code=400, detail="Kendaraan tidak ditemukan")
     if payload.driver_id is not None and not db.get(Driver, payload.driver_id):
         raise HTTPException(status_code=400, detail="Sopir tidak ditemukan")
@@ -1418,9 +1416,7 @@ def update_sale(sale_id: int, payload: SaleCreate, db: Session = Depends(get_db)
                 status_code=400,
                 detail="Sopir rute diubah lewat menu Rute Pengiriman.",
             )
-        if not payload.vehicle_id:
-            raise HTTPException(status_code=400, detail="Pilih kendaraan terlebih dahulu.")
-        if not db.get(Vehicle, payload.vehicle_id):
+        if payload.vehicle_id is not None and not db.get(Vehicle, payload.vehicle_id):
             raise HTTPException(status_code=400, detail="Kendaraan tidak ditemukan")
         route_customers = {
             s.customer_id
@@ -1458,9 +1454,7 @@ def update_sale(sale_id: int, payload: SaleCreate, db: Session = Depends(get_db)
         db.refresh(obj)
         return _serialize_sale(db, obj)
 
-    if not payload.vehicle_id:
-        raise HTTPException(status_code=400, detail="Pilih kendaraan terlebih dahulu.")
-    if not db.get(Vehicle, payload.vehicle_id):
+    if payload.vehicle_id is not None and not db.get(Vehicle, payload.vehicle_id):
         raise HTTPException(status_code=400, detail="Kendaraan tidak ditemukan")
     if payload.driver_id is not None and not db.get(Driver, payload.driver_id):
         raise HTTPException(status_code=400, detail="Sopir tidak ditemukan")

@@ -433,12 +433,8 @@ const Sales = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!form.date || !form.vehicle_id || (!fromRoute && !form.driver_id)) {
-      alert(
-        fromRoute
-          ? 'Pilih kendaraan (gudang) terlebih dahulu.'
-          : 'Pilih tanggal, kendaraan, dan sopir.'
-      );
+    if (!form.date) {
+      alert('Pilih tanggal.');
       return;
     }
 
@@ -450,7 +446,7 @@ const Sales = () => {
 
     const payload = {
       ...form,
-      vehicle_id: parseInt(form.vehicle_id, 10),
+      vehicle_id: form.vehicle_id ? parseInt(form.vehicle_id, 10) : null,
       driver_id: form.driver_id ? parseInt(form.driver_id, 10) : null,
       extra_uang_jalan: parseAmountInput(form.extra_uang_jalan) === ''
         ? 0
@@ -1007,7 +1003,6 @@ const Sales = () => {
                     <label className="form-label">Kendaraan {fromRoute ? '(Gudang)' : ''}</label>
                     <select
                       className="form-input"
-                      required
                       value={String(form.vehicle_id)}
                       onChange={(e) => setForm({ ...form, vehicle_id: e.target.value })}
                     >
@@ -1031,7 +1026,6 @@ const Sales = () => {
                     <label className="form-label">Sopir {fromRoute ? '(Gudang)' : ''}</label>
                     <select
                       className="form-input"
-                      required={!fromRoute}
                       value={String(form.driver_id)}
                       onChange={(e) => setForm({ ...form, driver_id: e.target.value })}
                     >
