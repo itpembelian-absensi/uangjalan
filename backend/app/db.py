@@ -706,6 +706,48 @@ def ensure_schema() -> None:
             )
         )
 
+        # --- Customer lock & custom toll breakdown columns ---
+        conn.execute(
+            text(
+                """
+                ALTER TABLE customers
+                ADD COLUMN IF NOT EXISTS custom_toll_breakdown TEXT
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                ALTER TABLE customers
+                ADD COLUMN IF NOT EXISTS is_locked BOOLEAN DEFAULT FALSE
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                ALTER TABLE customers
+                ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                DO $$
+                BEGIN
+                  IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'customers' AND column_name = 'updated_by_id'
+                  ) THEN
+                    ALTER TABLE customers
+                    ADD COLUMN updated_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+                  END IF;
+                END $$;
+                """
+            )
+        )
+
         # Reset ALL sequences that may be out of sync after data import/restore
         conn.execute(
             text(
