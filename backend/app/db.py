@@ -766,7 +766,16 @@ def ensure_schema() -> None:
                     SELECT 1 FROM information_schema.columns
                     WHERE table_name = 'customers' AND column_name = 'is_locked'
                   ) THEN
-                    ALTER TABLE customers RENAME COLUMN is_locked TO is_locked_marketing;
+                    IF EXISTS (
+                      SELECT 1 FROM information_schema.columns
+                      WHERE table_name = 'customers' AND column_name = 'is_locked_marketing'
+                    ) THEN
+                      -- Both exist: drop the old one (leftover)
+                      ALTER TABLE customers DROP COLUMN is_locked;
+                    ELSE
+                      -- Only is_locked exists: rename to is_locked_marketing
+                      ALTER TABLE customers RENAME COLUMN is_locked TO is_locked_marketing;
+                    END IF;
                   END IF;
                 END $$;
                 """

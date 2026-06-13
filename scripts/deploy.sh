@@ -130,7 +130,14 @@ BEGIN
     SELECT 1 FROM information_schema.columns
     WHERE table_name = 'customers' AND column_name = 'is_locked'
   ) THEN
-    ALTER TABLE customers RENAME COLUMN is_locked TO is_locked_marketing;
+    IF EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_name = 'customers' AND column_name = 'is_locked_marketing'
+    ) THEN
+      ALTER TABLE customers DROP COLUMN is_locked;
+    ELSE
+      ALTER TABLE customers RENAME COLUMN is_locked TO is_locked_marketing;
+    END IF;
   END IF;
 END $$;
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS is_locked_marketing BOOLEAN DEFAULT FALSE;
