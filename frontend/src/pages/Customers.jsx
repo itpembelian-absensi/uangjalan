@@ -1660,7 +1660,7 @@ const Customers = () => {
                 <button type="button" className="btn btn-secondary" onClick={closeModal}>
                   Batal
                 </button>
-                {!((user?.role !== 'admin' && form.is_locked_finance) || (user?.role === 'marketing' && form.is_locked_marketing)) && (
+                {!(user?.role !== 'admin' && form.is_locked_finance) && (
                   <button 
                     type="submit" 
                     className="btn btn-primary" 

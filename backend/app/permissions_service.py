@@ -63,7 +63,7 @@ def _default_access_level(menu: MenuDef, role: Role) -> str:
     """Hitung akses default dari definisi awal (sebelum ada DB)."""
     defaults: dict[str, dict[Role, str]] = {
         "dashboard": {Role.ADMIN: "full", Role.FINANCE: "read", Role.MARKETING: "read", Role.GUDANG: "read"},
-        "customers": {Role.ADMIN: "full", Role.FINANCE: "read", Role.MARKETING: "full", Role.GUDANG: "read"},
+        "customers": {Role.ADMIN: "full", Role.FINANCE: "full", Role.MARKETING: "full", Role.GUDANG: "read"},
         "drivers": {Role.ADMIN: "full", Role.FINANCE: "read", Role.MARKETING: "full", Role.GUDANG: "read"},
         "vehicles": {Role.ADMIN: "full", Role.FINANCE: "read", Role.MARKETING: "full", Role.GUDANG: "read"},
         "vehicle_brands": {Role.ADMIN: "full", Role.FINANCE: "none", Role.MARKETING: "full", Role.GUDANG: "read"},
