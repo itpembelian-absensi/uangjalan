@@ -738,6 +738,15 @@ def ensure_schema() -> None:
                 """
             )
         )
+        # Drop kolom uang_mel lama dari vehicle_types (diganti relationship via uang_mel_id)
+        conn.execute(
+            text(
+                """
+                ALTER TABLE vehicle_types
+                DROP COLUMN IF EXISTS uang_mel
+                """
+            )
+        )
 
         # --- Customer lock & custom toll breakdown columns ---
         conn.execute(

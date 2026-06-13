@@ -120,9 +120,20 @@ run_migrations() {
   docker compose exec -T db psql -U postgres -d uang_pengiriman -v ON_ERROR_STOP=0 <<'SQL'
 -- migrate_custom_toll
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS custom_toll_breakdown TEXT;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS share_location TEXT;
 
--- migrate_customer_lock
-ALTER TABLE customers ADD COLUMN IF NOT EXISTS is_locked BOOLEAN DEFAULT FALSE;
+-- migrate_customer_lock (is_locked -> is_locked_marketing + is_locked_finance)
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'customers' AND column_name = 'is_locked'
+  ) THEN
+    ALTER TABLE customers RENAME COLUMN is_locked TO is_locked_marketing;
+  END IF;
+END $$;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS is_locked_marketing BOOLEAN DEFAULT FALSE;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS is_locked_finance BOOLEAN DEFAULT FALSE;
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE;
 DO $$
 BEGIN
@@ -133,6 +144,24 @@ BEGIN
     ALTER TABLE customers ADD COLUMN updated_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
   END IF;
 END $$;
+
+-- migrate_uang_mel (buat tabel baru, tambah FK, drop kolom lama)
+CREATE TABLE IF NOT EXISTS uang_mel_master (
+  id BIGSERIAL PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
+  amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'vehicle_types' AND column_name = 'uang_mel_id'
+  ) THEN
+    ALTER TABLE vehicle_types ADD COLUMN uang_mel_id BIGINT REFERENCES uang_mel_master(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+ALTER TABLE vehicle_types DROP COLUMN IF EXISTS uang_mel;
 SQL
 
   log "Migrations done"
