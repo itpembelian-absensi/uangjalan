@@ -35,7 +35,9 @@ def ensure_schema() -> None:
                 """
                 ALTER TABLE customers
                 ADD COLUMN IF NOT EXISTS latitude NUMERIC(10,7),
-                ADD COLUMN IF NOT EXISTS longitude NUMERIC(10,7)
+                ADD COLUMN IF NOT EXISTS longitude NUMERIC(10,7),
+                ADD COLUMN IF NOT EXISTS share_location TEXT,
+                ADD COLUMN IF NOT EXISTS force_toll BOOLEAN NOT NULL DEFAULT FALSE
                 """
             )
         )
