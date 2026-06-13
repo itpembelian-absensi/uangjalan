@@ -1153,7 +1153,12 @@ const Customers = () => {
         </table>
       </div>
 
-      {isModalOpen && canWrite && (
+      {isModalOpen && canWrite && (() => {
+        const initialCustomer = customers.find(c => c.id === editId);
+        const initLockedFinance = initialCustomer?.is_locked_finance || false;
+        const initLockedMarketing = initialCustomer?.is_locked_marketing || false;
+
+        return (
         <div className="modal-overlay modal-overlay-full">
           <div className="modal-content modal-content-full" onClick={(e) => e.stopPropagation()}>
             <form onSubmit={handleSubmit}>
@@ -1164,7 +1169,7 @@ const Customers = () => {
                 </button>
               </div>
               <div className="modal-body">
-                <fieldset disabled={(user?.role !== 'admin' && form.is_locked_finance) || (user?.role === 'marketing' && form.is_locked_marketing)} style={{ border: 'none', padding: 0, margin: 0 }}>
+                <fieldset disabled={(user?.role !== 'admin' && initLockedFinance) || (user?.role === 'marketing' && initLockedMarketing)} style={{ border: 'none', padding: 0, margin: 0 }}>
                 {error && (
                   <div
                     style={{
@@ -1635,7 +1640,7 @@ const Customers = () => {
                       type="checkbox" 
                       id="is_locked_marketing" 
                       checked={form.is_locked_marketing} 
-                      disabled={form.is_locked_finance && user?.role !== 'admin'}
+                      disabled={initLockedFinance && user?.role !== 'admin'}
                       onChange={(e) => setForm({ ...form, is_locked_marketing: e.target.checked })} 
                     />
                     <label htmlFor="is_locked_marketing" style={{ cursor: 'pointer', fontSize: '0.9rem', fontWeight: 500, color: form.is_locked_marketing ? '#dc2626' : 'var(--text-secondary)' }}>
@@ -1648,7 +1653,7 @@ const Customers = () => {
                         type="checkbox" 
                         id="is_locked_finance" 
                         checked={form.is_locked_finance} 
-                        disabled={(user?.role === 'finance' && form.is_locked_finance) || !form.is_locked_marketing}
+                        disabled={(user?.role === 'finance' && initLockedFinance) || !form.is_locked_marketing}
                         onChange={(e) => setForm({ ...form, is_locked_finance: e.target.checked })} 
                       />
                       <label htmlFor="is_locked_finance" style={{ cursor: 'pointer', fontSize: '0.9rem', fontWeight: 500, color: form.is_locked_finance ? '#dc2626' : 'var(--text-secondary)' }}>
@@ -1660,7 +1665,7 @@ const Customers = () => {
                 <button type="button" className="btn btn-secondary" onClick={closeModal}>
                   Batal
                 </button>
-                {!(user?.role !== 'admin' && form.is_locked_finance) && (
+                {!(user?.role !== 'admin' && initLockedFinance) && (
                   <button 
                     type="submit" 
                     className="btn btn-primary" 
@@ -1674,7 +1679,8 @@ const Customers = () => {
             </form>
           </div>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 };
