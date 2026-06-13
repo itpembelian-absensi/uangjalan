@@ -50,11 +50,12 @@ DEFAULT_MENUS: list[MenuDef] = [
     MenuDef("bbm", "Master BBM", "/bbm", "Master Data", "Minus", 36, "bbm:read", "bbm:write"),
     MenuDef("toll_golongan", "Golongan Tol", "/toll-golongan", "Master Data", "Minus", 37, "toll:read", "toll:write"),
     MenuDef("toll_gates", "Gerbang Tol", "/toll-gates", "Master Data", "Minus", 38, "toll:read", "toll:write"),
-    MenuDef("warehouse", "Gudang", "/warehouse", "Master Data", "Warehouse", 39, "warehouse:read", "warehouse:write"),
-    MenuDef("toll_sections", "Ruas Tol", "/toll-sections", "Master Data", "Route", 40, "toll:read", "toll:write"),
-    MenuDef("users", "Manajemen User", "/users", "Administrasi", "Shield", 41, "users:read", "users:write"),
-    MenuDef("access_matrix", "Matriks Akses", "/access-matrix", "Administrasi", "Table2", 42, "access_matrix:read", "access_matrix:write"),
-    MenuDef("app_settings", "Pengaturan Aplikasi", "/app-settings", "Administrasi", "Settings", 43, "app_settings:read", "app_settings:write"),
+    MenuDef("master_uang_mel", "Master Uang Mel", "/uang-mel", "Master Data", "Minus", 39, "uang_mel:read", "uang_mel:write"),
+    MenuDef("warehouse", "Gudang", "/warehouse", "Master Data", "Warehouse", 40, "warehouse:read", "warehouse:write"),
+    MenuDef("toll_sections", "Ruas Tol", "/toll-sections", "Master Data", "Route", 41, "toll:read", "toll:write"),
+    MenuDef("users", "Manajemen User", "/users", "Administrasi", "Shield", 42, "users:read", "users:write"),
+    MenuDef("access_matrix", "Matriks Akses", "/access-matrix", "Administrasi", "Table2", 43, "access_matrix:read", "access_matrix:write"),
+    MenuDef("app_settings", "Pengaturan Aplikasi", "/app-settings", "Administrasi", "Settings", 44, "app_settings:read", "app_settings:write"),
 ]
 
 
@@ -67,6 +68,7 @@ def _default_access_level(menu: MenuDef, role: Role) -> str:
         "vehicles": {Role.ADMIN: "full", Role.FINANCE: "read", Role.MARKETING: "full", Role.GUDANG: "read"},
         "vehicle_brands": {Role.ADMIN: "full", Role.FINANCE: "none", Role.MARKETING: "full", Role.GUDANG: "read"},
         "vehicle_types": {Role.ADMIN: "full", Role.FINANCE: "read", Role.MARKETING: "full", Role.GUDANG: "read"},
+        "master_uang_mel": {Role.ADMIN: "full", Role.FINANCE: "read", Role.MARKETING: "full", Role.GUDANG: "read"},
         "warehouse": {Role.ADMIN: "full", Role.FINANCE: "read", Role.MARKETING: "full", Role.GUDANG: "full"},
         "bbm": {Role.ADMIN: "full", Role.FINANCE: "none", Role.MARKETING: "full", Role.GUDANG: "none"},
         "toll_golongan": {Role.ADMIN: "full", Role.FINANCE: "none", Role.MARKETING: "full", Role.GUDANG: "none"},

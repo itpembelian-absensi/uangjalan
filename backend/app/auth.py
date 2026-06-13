@@ -16,6 +16,7 @@ PATH_RESOURCE_MAP: list[tuple[str, str]] = [
     ("/api/customers", "customers"),
     ("/api/vehicle-brands", "vehicle_brands"),
     ("/api/bbm", "bbm"),
+    ("/api/uang-mel", "uang_mel"),
     ("/api/vehicle-types", "vehicle_types"),
     ("/api/vehicles", "vehicles"),
     ("/api/drivers", "drivers"),

@@ -63,6 +63,7 @@ class Customer(Base):
     longitude: Mapped[float | None] = mapped_column(Numeric(10, 7), nullable=True)
     phone: Mapped[str | None] = mapped_column(String, nullable=True)
     email: Mapped[str | None] = mapped_column(String, nullable=True)
+    share_location: Mapped[str | None] = mapped_column(String, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     force_toll: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     custom_toll_breakdown: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -267,6 +268,17 @@ class BbmMaster(Base):
     )
 
 
+class UangMelMaster(Base):
+    __tablename__ = "uang_mel_master"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
+    amount: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
 class VehicleType(Base):
     __tablename__ = "vehicle_types"
 
@@ -278,14 +290,17 @@ class VehicleType(Base):
     bbm_id: Mapped[int | None] = mapped_column(
         ForeignKey("bbm_master.id", ondelete="SET NULL"), nullable=True
     )
+    uang_mel_id: Mapped[int | None] = mapped_column(
+        ForeignKey("uang_mel_master.id", ondelete="SET NULL"), nullable=True
+    )
     km_per_liter: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
-    uang_mel: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, server_default="0")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
     toll_golongan: Mapped["TollGolongan | None"] = relationship()
     bbm: Mapped["BbmMaster | None"] = relationship()
+    uang_mel: Mapped["UangMelMaster | None"] = relationship()
 
 
 class Vehicle(Base):

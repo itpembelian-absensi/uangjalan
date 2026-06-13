@@ -36,6 +36,7 @@ class CustomerCreate(BaseModel):
     force_toll: bool = False
     is_locked: bool = False
     custom_toll_breakdown: list[dict] | None = None
+    share_location: str | None = None
     tariffs: list[CustomerTariffItem] = Field(default_factory=list)
 
 
@@ -71,6 +72,7 @@ class CustomerOut(BaseModel):
     longitude: float | None = None
     force_toll: bool
     custom_toll_breakdown: list[dict] | None = None
+    share_location: str | None = None
     tariffs: list[CustomerTariffOut] = Field(default_factory=list)
     created_at: datetime
     is_locked: bool
@@ -129,12 +131,27 @@ class BbmOut(BaseModel):
         from_attributes = True
 
 
+class UangMelCreate(BaseModel):
+    name: str = Field(min_length=1)
+    amount: float = Field(ge=0)
+
+
+class UangMelOut(BaseModel):
+    id: int
+    name: str
+    amount: float
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class VehicleTypeCreate(BaseModel):
     name: str = Field(min_length=1)
     toll_golongan_id: int | None = None
     bbm_id: int | None = None
+    uang_mel_id: int | None = None
     km_per_liter: float | None = Field(default=None, gt=0)
-    uang_mel: float = Field(ge=0, default=0)
 
 
 class VehicleTypeOut(BaseModel):
@@ -146,8 +163,10 @@ class VehicleTypeOut(BaseModel):
     bbm_id: int | None = None
     bbm_name: str | None = None
     bbm_price: float | None = None
+    uang_mel_id: int | None = None
+    uang_mel_name: str | None = None
+    uang_mel_amount: float = 0
     km_per_liter: float | None = None
-    uang_mel: float = 0
     created_at: datetime
 
     class Config:

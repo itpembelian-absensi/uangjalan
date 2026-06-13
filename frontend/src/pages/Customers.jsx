@@ -208,7 +208,7 @@ const tariffRowTotal = (row) =>
   + parseAmount(row.parkir)
   + parseAmount(row.lain_lain);
 
-const masterUangMel = (vehicleType) => String(vehicleType?.uang_mel || 0);
+const masterUangMel = (vehicleType) => String(vehicleType?.uang_mel_amount || 0);
 
 const buildTariffRows = (vehicleTypes, existingTariffs = []) =>
   vehicleTypes.map((t) => {
@@ -309,7 +309,6 @@ const Customers = () => {
   const [error, setError] = useState('');
   const [geocoding, setGeocoding] = useState(false);
   const [parsingShare, setParsingShare] = useState(false);
-  const [shareLocationInput, setShareLocationInput] = useState('');
   const [routeInfo, setRouteInfo] = useState(null);
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState('');
@@ -332,6 +331,7 @@ const Customers = () => {
     email: '',
     latitude: '',
     longitude: '',
+    share_location: '',
     is_active: true,
     is_locked: false,
     tariffs: [],
@@ -511,6 +511,7 @@ const Customers = () => {
           email: full.email || '',
           latitude: full.latitude != null ? String(full.latitude) : '',
           longitude: full.longitude != null ? String(full.longitude) : '',
+          share_location: full.share_location || '',
           is_active: full.is_active,
           is_locked: full.is_locked || false,
           tariffs: buildTariffRows(vehicleTypes, full.tariffs || []),
@@ -533,12 +534,12 @@ const Customers = () => {
         email: '',
         latitude: '',
         longitude: '',
+        share_location: '',
         is_active: true,
         is_locked: false,
         tariffs: buildTariffRows(vehicleTypes),
       });
     }
-    setShareLocationInput('');
     if (window.location.hash !== '#modal') {
       window.history.pushState(null, '', window.location.pathname + '#modal');
     }
@@ -579,7 +580,6 @@ const Customers = () => {
       setIsModalOpen(false);
       setRouteInfo(null);
       setRouteError('');
-      setShareLocationInput('');
     }
   };
 
@@ -592,7 +592,7 @@ const Customers = () => {
   };
 
   const handleParseShareLocation = async () => {
-    const text = shareLocationInput.trim();
+    const text = (form.share_location || '').trim();
     if (!text) return;
 
     setParsingShare(true);
@@ -795,6 +795,7 @@ const Customers = () => {
       force_toll: forceToll,
       latitude: form.latitude ? parseFloat(form.latitude) : null,
       longitude: form.longitude ? parseFloat(form.longitude) : null,
+      share_location: form.share_location || null,
       tariffs: tariffPayloadRows(form.tariffs),
       custom_toll_breakdown: routeInfo?.toll_breakdown || null,
     };
@@ -1337,14 +1338,14 @@ const Customers = () => {
                             className="form-input"
                             style={{ background: 'transparent' }}
                             placeholder="Tempel link share lokasi dari WhatsApp"
-                            value={shareLocationInput}
-                            onChange={(e) => setShareLocationInput(e.target.value)}
+                            value={form.share_location}
+                            onChange={(e) => setForm({ ...form, share_location: e.target.value })}
                           />
                           <button
                             type="button"
                             className="btn btn-secondary"
                             onClick={handleParseShareLocation}
-                            disabled={parsingShare || !shareLocationInput.trim()}
+                            disabled={parsingShare || !(form.share_location || '').trim()}
                           >
                             <MapPin size={16} /> {parsingShare ? '...' : 'Ambil Koordinat'}
                           </button>

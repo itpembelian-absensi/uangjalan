@@ -111,24 +111,33 @@ const KmPerLiterField = ({ value, onChange, id }) => (
   </div>
 );
 
-const UangMelField = ({ value, onChange, id }) => (
+const UangMelSelect = ({ value, onChange, id, uangMelList = [] }) => (
   <div className="form-group">
     <label className="form-label" htmlFor={id}>
-      Uang Mel (Rp)
+      Master Uang Mel
     </label>
-    <input
+    <select
       id={id}
-      type="text"
-      inputMode="numeric"
       className="form-input"
-      placeholder="Misal: 50.000"
-      style={{ textAlign: 'right' }}
-      value={value === '' ? '' : formatAmount(value)}
-      onChange={(e) => onChange(parseAmountInput(e.target.value))}
-    />
-    <small style={{ color: 'var(--text-secondary)' }}>
-      Nominal uang mel per jenis kendaraan.
-    </small>
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    >
+      <option value="">-- Pilih Uang Mel --</option>
+      {uangMelList.map((u) => (
+        <option key={u.id} value={String(u.id)}>
+          {u.name} — {formatIDR(u.amount)}
+        </option>
+      ))}
+    </select>
+    {uangMelList.length === 0 && (
+      <small style={{ color: 'var(--text-secondary)' }}>
+        Belum ada Uang Mel. Atur di{' '}
+        <Link to="/uang-mel" style={{ color: '#4f46e5' }}>
+          Master Uang Mel
+        </Link>
+        .
+      </small>
+    )}
   </div>
 );
 
@@ -137,11 +146,12 @@ const VehicleTypes = () => {
   const [types, setTypes] = useState([]);
   const [golonganList, setGolonganList] = useState([]);
   const [bbmList, setBbmList] = useState([]);
+  const [uangMelList, setUangMelList] = useState([]);
   const [name, setName] = useState('');
   const [tollGolonganId, setTollGolonganId] = useState('');
   const [bbmId, setBbmId] = useState('');
+  const [uangMelId, setUangMelId] = useState('');
   const [kmPerLiter, setKmPerLiter] = useState('');
-  const [uangMel, setUangMel] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -149,8 +159,8 @@ const VehicleTypes = () => {
   const [editName, setEditName] = useState('');
   const [editTollGolonganId, setEditTollGolonganId] = useState('');
   const [editBbmId, setEditBbmId] = useState('');
+  const [editUangMelId, setEditUangMelId] = useState('');
   const [editKmPerLiter, setEditKmPerLiter] = useState('');
-  const [editUangMel, setEditUangMel] = useState('');
 
   const parseKmPerLiter = (value) => {
     if (value === '' || value == null) return null;
@@ -189,9 +199,19 @@ const VehicleTypes = () => {
     }
   };
 
+  const fetchUangMel = async () => {
+    try {
+      const data = await apiFetch('/api/uang-mel');
+      setUangMelList(data);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   useEffect(() => {
     fetchGolongan();
     fetchBbm();
+    fetchUangMel();
     fetchTypes();
   }, []);
 
@@ -215,8 +235,8 @@ const VehicleTypes = () => {
     name: values.name.trim(),
     toll_golongan_id: values.tollGolonganId ? parseInt(values.tollGolonganId, 10) : null,
     bbm_id: values.bbmId ? parseInt(values.bbmId, 10) : null,
+    uang_mel_id: values.uangMelId ? parseInt(values.uangMelId, 10) : null,
     km_per_liter: parseKmPerLiter(values.kmPerLiter),
-    uang_mel: amountToNumber(values.uangMel),
   });
 
   const handleSubmit = async (e) => {
@@ -228,13 +248,13 @@ const VehicleTypes = () => {
       await apiFetch('/api/vehicle-types', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildPayload({ name, tollGolonganId, bbmId, kmPerLiter, uangMel })),
+        body: JSON.stringify(buildPayload({ name, tollGolonganId, bbmId, uangMelId, kmPerLiter })),
       });
       setName('');
       setTollGolonganId('');
       setBbmId('');
+      setUangMelId('');
       setKmPerLiter('');
-      setUangMel('');
       await fetchTypes();
     } catch (err) {
       setError(err.message);
@@ -249,8 +269,8 @@ const VehicleTypes = () => {
     setEditName(type.name);
     setEditTollGolonganId(type.toll_golongan_id ? String(type.toll_golongan_id) : '');
     setEditBbmId(type.bbm_id ? String(type.bbm_id) : '');
+    setEditUangMelId(type.uang_mel_id ? String(type.uang_mel_id) : '');
     setEditKmPerLiter(type.km_per_liter != null ? String(type.km_per_liter) : '');
-    setEditUangMel(type.uang_mel ? String(type.uang_mel) : '');
     setIsModalOpen(true);
   };
 
@@ -260,8 +280,8 @@ const VehicleTypes = () => {
     setEditName('');
     setEditTollGolonganId('');
     setEditBbmId('');
+    setEditUangMelId('');
     setEditKmPerLiter('');
-    setEditUangMel('');
   };
 
   const handleEditSubmit = async (e) => {
@@ -278,8 +298,8 @@ const VehicleTypes = () => {
             name: editName,
             tollGolonganId: editTollGolonganId,
             bbmId: editBbmId,
+            uangMelId: editUangMelId,
             kmPerLiter: editKmPerLiter,
-            uangMel: editUangMel,
           })
         ),
       });
@@ -352,8 +372,8 @@ const VehicleTypes = () => {
                 golonganList={golonganList}
               />
               <BbmSelect value={bbmId} onChange={setBbmId} id="add_bbm" bbmList={bbmList} />
+              <UangMelSelect value={uangMelId} onChange={setUangMelId} id="add_uang_mel" uangMelList={uangMelList} />
               <KmPerLiterField value={kmPerLiter} onChange={setKmPerLiter} id="add_km_per_liter" />
-              <UangMelField value={uangMel} onChange={setUangMel} id="add_uang_mel" />
               <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={saving}>
                 <Plus size={18} /> {saving ? 'Menyimpan...' : 'Simpan Jenis'}
               </button>
@@ -385,7 +405,7 @@ const VehicleTypes = () => {
                     <td style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{bbmLabel(t)}</td>
                     <td style={{ textAlign: 'right', fontSize: '0.9rem' }}>{formatKmPerLiter(t.km_per_liter)}</td>
                     <td style={{ textAlign: 'right', fontSize: '0.9rem', whiteSpace: 'nowrap' }}>
-                      {formatIDR(t.uang_mel || 0)}
+                      {t.uang_mel_name ? `${t.uang_mel_name} (${formatIDR(t.uang_mel_amount)})` : formatIDR(t.uang_mel_amount || 0)}
                     </td>
                     <CrudActionsCell canWrite={canWrite}>
                       <button
@@ -453,12 +473,17 @@ const VehicleTypes = () => {
                   id="edit_bbm"
                   bbmList={bbmList}
                 />
+                <UangMelSelect
+                  value={editUangMelId}
+                  onChange={setEditUangMelId}
+                  id="edit_uang_mel"
+                  uangMelList={uangMelList}
+                />
                 <KmPerLiterField
                   value={editKmPerLiter}
                   onChange={setEditKmPerLiter}
                   id="edit_km_per_liter"
                 />
-                <UangMelField value={editUangMel} onChange={setEditUangMel} id="edit_uang_mel" />
               </div>
               <div className="modal-footer" style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
                 <button type="button" className="btn btn-secondary" onClick={closeEdit}>

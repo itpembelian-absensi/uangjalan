@@ -39,6 +39,7 @@ from app.models import (
     TollGateFare,
     WarehouseSetting,
     AppSetting,
+    UangMelMaster,
 )
 from app.toll_gate_service import (
     TOLL_NOTE_BPJT,
@@ -91,6 +92,8 @@ from app.schemas import (
     VehicleBrandOut,
     BbmCreate,
     BbmOut,
+    UangMelCreate,
+    UangMelOut,
     VehicleCreate,
     VehicleOut,
     VehicleTypeCreate,
@@ -304,6 +307,7 @@ def _validate_gate_fare(db: Session, entry_gate_id: int, exit_gate_id: int, golo
 def _vehicle_type_out(obj: VehicleType) -> VehicleTypeOut:
     gol = obj.toll_golongan
     bbm = obj.bbm
+    uang_mel = obj.uang_mel
     return VehicleTypeOut(
         id=obj.id,
         name=obj.name,
@@ -313,8 +317,10 @@ def _vehicle_type_out(obj: VehicleType) -> VehicleTypeOut:
         bbm_id=obj.bbm_id,
         bbm_name=bbm.name if bbm else None,
         bbm_price=float(bbm.price) if bbm else None,
+        uang_mel_id=obj.uang_mel_id,
+        uang_mel_name=uang_mel.name if uang_mel else None,
+        uang_mel_amount=float(uang_mel.amount) if uang_mel else 0,
         km_per_liter=float(obj.km_per_liter) if obj.km_per_liter is not None else None,
-        uang_mel=float(obj.uang_mel or 0),
         created_at=obj.created_at,
     )
 
@@ -331,6 +337,13 @@ def _validate_bbm_id(db: Session, bbm_id: int | None) -> None:
         return
     if not db.get(BbmMaster, bbm_id):
         raise HTTPException(status_code=400, detail="BBM tidak ditemukan")
+
+
+def _validate_uang_mel_id(db: Session, uang_mel_id: int | None) -> None:
+    if uang_mel_id is None:
+        return
+    if not db.get(UangMelMaster, uang_mel_id):
+        raise HTTPException(status_code=400, detail="Master Uang Mel tidak ditemukan")
 
 
 def _vehicle_out(obj: Vehicle) -> VehicleOut:
@@ -484,6 +497,7 @@ def _serialize_customer(db: Session, customer: Customer) -> CustomerOut:
         custom_toll_breakdown=json.loads(customer.custom_toll_breakdown) if customer.custom_toll_breakdown else None,
         latitude=float(customer.latitude) if customer.latitude is not None else None,
         longitude=float(customer.longitude) if customer.longitude is not None else None,
+        share_location=customer.share_location,
         tariffs=tariffs,
         created_at=customer.created_at,
     )
@@ -589,6 +603,7 @@ def create_customer(payload: CustomerCreate, db: Session = Depends(get_db), curr
         updated_by_id=current_user.id,
         latitude=payload.latitude,
         longitude=payload.longitude,
+        share_location=payload.share_location,
         custom_toll_breakdown=json.dumps(payload.custom_toll_breakdown) if payload.custom_toll_breakdown else None,
     )
     db.add(obj)
@@ -632,6 +647,7 @@ def update_customer(customer_id: int, payload: CustomerCreate, db: Session = Dep
     obj.updated_by_id = current_user.id
     obj.latitude = payload.latitude
     obj.longitude = payload.longitude
+    obj.share_location = payload.share_location
     obj.custom_toll_breakdown = json.dumps(payload.custom_toll_breakdown) if payload.custom_toll_breakdown else None
 
     try:
@@ -786,12 +802,64 @@ def delete_bbm(bbm_id: int, db: Session = Depends(get_db)):
     db.commit()
 
 
+@router.get("/uang-mel", response_model=list[UangMelOut])
+def list_uang_mel(db: Session = Depends(get_db)):
+    return db.scalars(select(UangMelMaster).order_by(UangMelMaster.name.asc())).all()
+
+
+@router.post("/uang-mel", response_model=UangMelOut, status_code=201)
+def create_uang_mel(payload: UangMelCreate, db: Session = Depends(get_db)):
+    obj = UangMelMaster(name=payload.name.strip(), amount=payload.amount)
+    db.add(obj)
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise _unique_violation_to_409(e) from e
+    db.refresh(obj)
+    return obj
+
+
+@router.put("/uang-mel/{mel_id}", response_model=UangMelOut)
+def update_uang_mel(mel_id: int, payload: UangMelCreate, db: Session = Depends(get_db)):
+    obj = db.get(UangMelMaster, mel_id)
+    if not obj:
+        raise HTTPException(status_code=404, detail="Master Uang Mel tidak ditemukan")
+    obj.name = payload.name.strip()
+    obj.amount = payload.amount
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise _unique_violation_to_409(e) from e
+    db.refresh(obj)
+    return obj
+
+
+@router.delete("/uang-mel/{mel_id}", status_code=204)
+def delete_uang_mel(mel_id: int, db: Session = Depends(get_db)):
+    obj = db.get(UangMelMaster, mel_id)
+    if not obj:
+        raise HTTPException(status_code=404, detail="Master Uang Mel tidak ditemukan")
+    in_use = db.scalar(
+        select(func.count()).select_from(VehicleType).where(VehicleType.uang_mel_id == mel_id)
+    )
+    if in_use:
+        raise HTTPException(
+            status_code=409,
+            detail="Uang Mel masih dipakai jenis kendaraan. Ubah jenis kendaraan tersebut dulu.",
+        )
+    db.delete(obj)
+    db.commit()
+
+
 def _load_vehicle_types_query():
     return (
         select(VehicleType)
         .options(
             selectinload(VehicleType.toll_golongan),
             selectinload(VehicleType.bbm),
+            selectinload(VehicleType.uang_mel),
         )
         .order_by(VehicleType.name.asc())
     )
@@ -807,12 +875,13 @@ def list_vehicle_types(db: Session = Depends(get_db)):
 def create_vehicle_type(payload: VehicleTypeCreate, db: Session = Depends(get_db)):
     _validate_toll_golongan_id(db, payload.toll_golongan_id)
     _validate_bbm_id(db, payload.bbm_id)
+    _validate_uang_mel_id(db, payload.uang_mel_id)
     obj = VehicleType(
         name=payload.name.strip(),
         toll_golongan_id=payload.toll_golongan_id,
         bbm_id=payload.bbm_id,
+        uang_mel_id=payload.uang_mel_id,
         km_per_liter=payload.km_per_liter,
-        uang_mel=payload.uang_mel,
     )
     db.add(obj)
     try:
@@ -834,11 +903,12 @@ def update_vehicle_type(
         raise HTTPException(status_code=404, detail="Jenis tidak ditemukan")
     _validate_toll_golongan_id(db, payload.toll_golongan_id)
     _validate_bbm_id(db, payload.bbm_id)
+    _validate_uang_mel_id(db, payload.uang_mel_id)
     obj.name = payload.name.strip()
     obj.toll_golongan_id = payload.toll_golongan_id
     obj.bbm_id = payload.bbm_id
+    obj.uang_mel_id = payload.uang_mel_id
     obj.km_per_liter = payload.km_per_liter
-    obj.uang_mel = payload.uang_mel
     try:
         db.commit()
     except Exception as e:

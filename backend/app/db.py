@@ -706,6 +706,37 @@ def ensure_schema() -> None:
             )
         )
 
+        # --- Migrasi Master Uang Mel ---
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS uang_mel_master (
+                  id BIGSERIAL PRIMARY KEY,
+                  name TEXT NOT NULL UNIQUE,
+                  amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+                  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                )
+                """
+            )
+        )
+
+        conn.execute(
+            text(
+                """
+                DO $$
+                BEGIN
+                  IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'vehicle_types' AND column_name = 'uang_mel_id'
+                  ) THEN
+                    ALTER TABLE vehicle_types
+                    ADD COLUMN uang_mel_id BIGINT REFERENCES uang_mel_master(id) ON DELETE SET NULL;
+                  END IF;
+                END $$;
+                """
+            )
+        )
+
         # --- Customer lock & custom toll breakdown columns ---
         conn.execute(
             text(

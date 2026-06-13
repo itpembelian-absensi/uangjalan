@@ -4,6 +4,7 @@ import { AuthProvider } from './auth/AuthContext';
 import { AppSettingsProvider } from './context/AppSettingsContext';
 import ProtectedLayout from './components/ProtectedLayout';
 import Layout from './components/Layout';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Customers from './pages/Customers';
@@ -22,6 +23,7 @@ import TollSectionForm from './pages/TollSectionForm';
 import TollGolongan from './pages/TollGolongan';
 import TollGates from './pages/TollGates';
 import Bbm from './pages/Bbm';
+import UangMel from './pages/UangMel';
 import Users from './pages/Users';
 import AccessMatrix from './pages/AccessMatrix';
 import DbTools from './pages/DbTools';
@@ -32,6 +34,7 @@ function App() {
     <BrowserRouter>
       <AppSettingsProvider>
         <AuthProvider>
+        <ErrorBoundary>
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/db-tools" element={<DbTools />} />
@@ -55,6 +58,7 @@ function App() {
                 <Route path="toll-golongan" element={<TollGolongan />} />
                 <Route path="toll-gates" element={<TollGates />} />
                 <Route path="bbm" element={<Bbm />} />
+                <Route path="uang-mel" element={<UangMel />} />
                 <Route path="reports" element={<Reports />} />
                 <Route path="users" element={<Users />} />
                 <Route path="access-matrix" element={<AccessMatrix />} />
@@ -62,6 +66,7 @@ function App() {
               </Route>
             </Route>
           </Routes>
+        </ErrorBoundary>
         </AuthProvider>
       </AppSettingsProvider>
     </BrowserRouter>
