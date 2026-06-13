@@ -340,14 +340,6 @@ def ensure_schema() -> None:
         conn.execute(
             text(
                 """
-                ALTER TABLE vehicle_types
-                ADD COLUMN IF NOT EXISTS uang_mel NUMERIC(14,2) NOT NULL DEFAULT 0
-                """
-            )
-        )
-        conn.execute(
-            text(
-                """
                 ALTER TABLE customer_vehicle_tariffs
                 ADD COLUMN IF NOT EXISTS bbm NUMERIC(14,2) NOT NULL DEFAULT 0,
                 ADD COLUMN IF NOT EXISTS tol NUMERIC(14,2) NOT NULL DEFAULT 0,
@@ -367,12 +359,20 @@ def ensure_schema() -> None:
         conn.execute(
             text(
                 """
-                UPDATE customer_vehicle_tariffs cvt
-                SET uang_mel = COALESCE(vt.uang_mel, 0)
-                FROM vehicle_types vt
-                WHERE cvt.vehicle_type_id = vt.id
-                  AND cvt.uang_mel = 0
-                  AND COALESCE(vt.uang_mel, 0) > 0
+                DO $$
+                BEGIN
+                  IF EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'vehicle_types' AND column_name = 'uang_mel'
+                  ) THEN
+                    UPDATE customer_vehicle_tariffs cvt
+                    SET uang_mel = COALESCE(vt.uang_mel, 0)
+                    FROM vehicle_types vt
+                    WHERE cvt.vehicle_type_id = vt.id
+                      AND cvt.uang_mel = 0
+                      AND COALESCE(vt.uang_mel, 0) > 0;
+                  END IF;
+                END $$;
                 """
             )
         )

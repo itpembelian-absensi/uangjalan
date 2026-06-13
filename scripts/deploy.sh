@@ -104,6 +104,7 @@ health_check() {
   done
 
   docker compose ps
+  docker compose logs --tail=50 backend
   fail "Health check gagal pada port 3215"
 }
 
