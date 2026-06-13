@@ -107,8 +107,40 @@ health_check() {
   fail "Health check gagal pada port 3215"
 }
 
+run_migrations() {
+  log "Run database migrations"
+  cd "${DEPLOY_PATH}"
+
+  # Pastikan container db sedang jalan (mungkin belum restart)
+  docker compose up -d db
+  docker compose exec -T db sh -c 'until pg_isready -U postgres; do sleep 1; done'
+
+  # Jalankan ALTER TABLE via psql di container db.
+  # IF NOT EXISTS / IF NOT EXISTS pattern — aman dijalankan berulang.
+  docker compose exec -T db psql -U postgres -d uang_pengiriman -v ON_ERROR_STOP=0 <<'SQL'
+-- migrate_custom_toll
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS custom_toll_breakdown TEXT;
+
+-- migrate_customer_lock
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS is_locked BOOLEAN DEFAULT FALSE;
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_name = 'customers' AND column_name = 'updated_by_id'
+  ) THEN
+    ALTER TABLE customers ADD COLUMN updated_by_id INTEGER REFERENCES users(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+SQL
+
+  log "Migrations done"
+}
+
 preflight
 sync_code
 build_frontend
+run_migrations
 restart_services
 health_check
