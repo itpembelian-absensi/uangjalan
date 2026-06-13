@@ -34,7 +34,8 @@ class CustomerCreate(BaseModel):
     latitude: float | None = None
     longitude: float | None = None
     force_toll: bool = False
-    is_locked: bool = False
+    is_locked_marketing: bool = False
+    is_locked_finance: bool = False
     custom_toll_breakdown: list[dict] | None = None
     share_location: str | None = None
     tariffs: list[CustomerTariffItem] = Field(default_factory=list)
@@ -75,7 +76,8 @@ class CustomerOut(BaseModel):
     share_location: str | None = None
     tariffs: list[CustomerTariffOut] = Field(default_factory=list)
     created_at: datetime
-    is_locked: bool
+    is_locked_marketing: bool
+    is_locked_finance: bool
     updated_at: datetime | None = None
     updated_by_name: str | None = None
 
@@ -95,7 +97,8 @@ class CustomerListOut(BaseModel):
     latitude: float | None = None
     longitude: float | None = None
     force_toll: bool
-    is_locked: bool
+    is_locked_marketing: bool
+    is_locked_finance: bool
     updated_at: datetime | None = None
     updated_by_name: str | None = None
 

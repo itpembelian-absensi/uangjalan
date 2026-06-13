@@ -491,7 +491,8 @@ def _serialize_customer(db: Session, customer: Customer) -> CustomerOut:
         email=customer.email,
         is_active=customer.is_active,
         force_toll=customer.force_toll,
-        is_locked=customer.is_locked,
+        is_locked_marketing=customer.is_locked_marketing,
+        is_locked_finance=customer.is_locked_finance,
         updated_at=customer.updated_at,
         updated_by_name=customer.updated_by_user.full_name if customer.updated_by_user else None,
         custom_toll_breakdown=json.loads(customer.custom_toll_breakdown) if customer.custom_toll_breakdown else None,
@@ -516,7 +517,8 @@ def _serialize_customer_list(customer: Customer) -> CustomerListOut:
         latitude=float(customer.latitude) if customer.latitude is not None else None,
         longitude=float(customer.longitude) if customer.longitude is not None else None,
         force_toll=customer.force_toll,
-        is_locked=customer.is_locked,
+        is_locked_marketing=customer.is_locked_marketing,
+        is_locked_finance=customer.is_locked_finance,
         updated_at=customer.updated_at,
         updated_by_name=customer.updated_by_user.full_name if customer.updated_by_user else None,
     )
@@ -598,7 +600,8 @@ def create_customer(payload: CustomerCreate, db: Session = Depends(get_db), curr
         email=payload.email.strip() if payload.email else None,
         is_active=payload.is_active,
         force_toll=payload.force_toll,
-        is_locked=payload.is_locked,
+        is_locked_marketing=payload.is_locked_marketing,
+        is_locked_finance=payload.is_locked_finance,
         updated_at=func.now(),
         updated_by_id=current_user.id,
         latitude=payload.latitude,
@@ -626,8 +629,15 @@ def update_customer(customer_id: int, payload: CustomerCreate, db: Session = Dep
     if not obj:
         raise HTTPException(status_code=404, detail="Customer not found")
 
-    if obj.is_locked and current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Customer telah dikunci dan hanya dapat diubah oleh Admin")
+    if obj.is_locked_finance and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Customer telah dikunci final (Finance) dan hanya dapat diubah oleh Admin")
+    
+    if current_user.role == "marketing":
+        if obj.is_locked_marketing and payload.is_locked_marketing:
+            raise HTTPException(status_code=403, detail="Customer telah dikunci. Hilangkan centang Kunci Marketing terlebih dahulu untuk menyimpan perubahan.")
+    
+    if payload.is_locked_finance and not payload.is_locked_marketing:
+        raise HTTPException(status_code=400, detail="Kunci Finance hanya dapat dilakukan jika Kunci Marketing sudah aktif.")
 
     _validate_tariffs(db, payload.tariffs)
     code = _normalize_customer_code(payload.code)
@@ -642,7 +652,14 @@ def update_customer(customer_id: int, payload: CustomerCreate, db: Session = Dep
     obj.email = payload.email.strip() if payload.email else None
     obj.is_active = payload.is_active
     obj.force_toll = payload.force_toll
-    obj.is_locked = payload.is_locked
+
+    if current_user.role == "marketing":
+        obj.is_locked_marketing = payload.is_locked_marketing
+        # Ignore attempts to change finance lock
+    else:
+        obj.is_locked_marketing = payload.is_locked_marketing
+        obj.is_locked_finance = payload.is_locked_finance
+
     obj.updated_at = func.now()
     obj.updated_by_id = current_user.id
     obj.latitude = payload.latitude

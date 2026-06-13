@@ -70,7 +70,8 @@ class Customer(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-    is_locked: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    is_locked_marketing: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    is_locked_finance: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     updated_by_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True

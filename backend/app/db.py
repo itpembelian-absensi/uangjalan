@@ -751,8 +751,24 @@ def ensure_schema() -> None:
         conn.execute(
             text(
                 """
+                DO $$
+                BEGIN
+                  IF EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'customers' AND column_name = 'is_locked'
+                  ) THEN
+                    ALTER TABLE customers RENAME COLUMN is_locked TO is_locked_marketing;
+                  END IF;
+                END $$;
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
                 ALTER TABLE customers
-                ADD COLUMN IF NOT EXISTS is_locked BOOLEAN DEFAULT FALSE
+                ADD COLUMN IF NOT EXISTS is_locked_marketing BOOLEAN DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS is_locked_finance BOOLEAN DEFAULT FALSE
                 """
             )
         )

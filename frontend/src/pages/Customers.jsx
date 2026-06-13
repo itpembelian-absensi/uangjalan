@@ -104,9 +104,9 @@ const compareCustomers = (a, b, key, dir) => {
       if (a.is_active === b.is_active) return 0;
       return sign * (a.is_active ? -1 : 1);
     }
-    case 'is_locked': {
-      if (!!a.is_locked === !!b.is_locked) return 0;
-      return sign * (a.is_locked ? -1 : 1);
+    case 'is_locked_finance': {
+      if (!!a.is_locked_finance === !!b.is_locked_finance) return 0;
+      return sign * (a.is_locked_finance ? -1 : 1);
     }
     default:
       return 0;
@@ -312,6 +312,7 @@ const Customers = () => {
   const [routeInfo, setRouteInfo] = useState(null);
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState('');
+  const [routeTrigger, setRouteTrigger] = useState(0);
   const [tollSections, setTollSections] = useState([]);
   const [tollManualLoading, setTollManualLoading] = useState(false);
 
@@ -333,7 +334,8 @@ const Customers = () => {
     longitude: '',
     share_location: '',
     is_active: true,
-    is_locked: false,
+    is_locked_marketing: false,
+    is_locked_finance: false,
     tariffs: [],
   });
 
@@ -482,6 +484,7 @@ const Customers = () => {
         setIsModalOpen(false);
         setRouteInfo(null);
         setRouteError('');
+        setRouteTrigger(0);
       }
     };
     window.addEventListener('popstate', handlePopState);
@@ -513,7 +516,8 @@ const Customers = () => {
           longitude: full.longitude != null ? String(full.longitude) : '',
           share_location: full.share_location || '',
           is_active: full.is_active,
-          is_locked: full.is_locked || false,
+          is_locked_marketing: full.is_locked_marketing || false,
+          is_locked_finance: full.is_locked_finance || false,
           tariffs: buildTariffRows(vehicleTypes, full.tariffs || []),
         });
       } catch (err) {
@@ -536,7 +540,8 @@ const Customers = () => {
         longitude: '',
         share_location: '',
         is_active: true,
-        is_locked: false,
+        is_locked_marketing: false,
+        is_locked_finance: false,
         tariffs: buildTariffRows(vehicleTypes),
       });
     }
@@ -601,6 +606,7 @@ const Customers = () => {
       const local = parseCoordsFromShareText(text);
       if (local) {
         applyCoords(local.latitude, local.longitude);
+        setRouteTrigger(prev => prev + 1);
         return;
       }
 
@@ -610,6 +616,7 @@ const Customers = () => {
         body: JSON.stringify({ text }),
       });
       applyCoords(data.latitude, data.longitude);
+      setRouteTrigger(prev => prev + 1);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -663,7 +670,7 @@ const Customers = () => {
       fetchRouteInfo();
     }, 600);
     return () => clearTimeout(timer);
-  }, [form.latitude, form.longitude, isModalOpen, form.name, forceToll]);
+  }, [form.latitude, form.longitude, isModalOpen, form.name, forceToll, routeTrigger]);
 
   useEffect(() => {
     if (!isModalOpen || !routeInfo?.distance_km || vehicleTypes.length === 0) return;
@@ -715,7 +722,8 @@ const Customers = () => {
             phone: form.phone || null,
             email: form.email || null,
             is_active: form.is_active,
-            is_locked: form.is_locked,
+            is_locked_marketing: form.is_locked_marketing,
+            is_locked_finance: form.is_locked_finance,
             latitude: form.latitude ? parseFloat(form.latitude) : null,
             longitude: form.longitude ? parseFloat(form.longitude) : null,
             tariffs: tariffPayloadRows(form.tariffs),
@@ -791,7 +799,8 @@ const Customers = () => {
       phone: form.phone || null,
       email: form.email || null,
       is_active: form.is_active,
-      is_locked: form.is_locked,
+      is_locked_marketing: form.is_locked_marketing,
+      is_locked_finance: form.is_locked_finance,
       force_toll: forceToll,
       latitude: form.latitude ? parseFloat(form.latitude) : null,
       longitude: form.longitude ? parseFloat(form.longitude) : null,
@@ -1049,7 +1058,7 @@ const Customers = () => {
             <tr>
               <SortableTh label="KODE" column="code" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
               <SortableTh label="NAMA" column="name" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
-              <SortableTh label="LOCK" column="is_locked" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+              <SortableTh label="LOCK" column="is_locked_finance" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
               <SortableTh label="KOORDINAT" column="coords" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
               <SortableTh label="TELEPON" column="phone" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
               <th style={{ padding: '1rem', textAlign: 'left', fontWeight: 600, fontSize: '0.75rem', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>TOL</th>
@@ -1080,8 +1089,10 @@ const Customers = () => {
                   )}
                 </td>
                 <td>
-                  {c.is_locked ? (
-                    <span className="badge" style={{ background: 'rgba(220, 38, 38, 0.1)', color: '#dc2626', border: '1px solid rgba(220, 38, 38, 0.2)' }}>Terkunci</span>
+                  {c.is_locked_finance ? (
+                    <span className="badge" style={{ background: 'rgba(220, 38, 38, 0.1)', color: '#dc2626', border: '1px solid rgba(220, 38, 38, 0.2)' }}>Final</span>
+                  ) : c.is_locked_marketing ? (
+                    <span className="badge" style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.2)' }}>Marketing</span>
                   ) : (
                     <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.2)' }}>Open</span>
                   )}
@@ -1153,7 +1164,7 @@ const Customers = () => {
                 </button>
               </div>
               <div className="modal-body">
-                <fieldset disabled={form.is_locked && user?.role !== 'admin'} style={{ border: 'none', padding: 0, margin: 0 }}>
+                <fieldset disabled={(user?.role !== 'admin' && form.is_locked_finance) || (user?.role === 'marketing' && form.is_locked_marketing)} style={{ border: 'none', padding: 0, margin: 0 }}>
                 {error && (
                   <div
                     style={{
@@ -1618,28 +1629,38 @@ const Customers = () => {
                 </fieldset>
               </div>
               <div className="modal-footer" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                {(form.is_locked && user?.role !== 'admin') ? (
-                  <div style={{ flex: 1, color: '#dc2626', fontSize: '0.9rem', fontWeight: 500 }}>
-                    <Lock size={14} style={{ display: 'inline', verticalAlign: '-2px', marginRight: '4px' }} />
-                    Terkunci (Hanya Admin yang dapat mengubah)
-                  </div>
-                ) : (
-                  <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <input 
                       type="checkbox" 
-                      id="is_locked" 
-                      checked={form.is_locked} 
-                      onChange={(e) => setForm({ ...form, is_locked: e.target.checked })} 
+                      id="is_locked_marketing" 
+                      checked={form.is_locked_marketing} 
+                      disabled={form.is_locked_finance && user?.role !== 'admin'}
+                      onChange={(e) => setForm({ ...form, is_locked_marketing: e.target.checked })} 
                     />
-                    <label htmlFor="is_locked" style={{ cursor: 'pointer', fontSize: '0.9rem', fontWeight: 500, color: form.is_locked ? '#dc2626' : 'var(--text-secondary)' }}>
-                      Kunci Customer (Final)
+                    <label htmlFor="is_locked_marketing" style={{ cursor: 'pointer', fontSize: '0.9rem', fontWeight: 500, color: form.is_locked_marketing ? '#dc2626' : 'var(--text-secondary)' }}>
+                      Kunci Marketing
                     </label>
                   </div>
-                )}
+                  {(user?.role === 'finance' || user?.role === 'admin') && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <input 
+                        type="checkbox" 
+                        id="is_locked_finance" 
+                        checked={form.is_locked_finance} 
+                        disabled={(user?.role === 'finance' && form.is_locked_finance) || !form.is_locked_marketing}
+                        onChange={(e) => setForm({ ...form, is_locked_finance: e.target.checked })} 
+                      />
+                      <label htmlFor="is_locked_finance" style={{ cursor: 'pointer', fontSize: '0.9rem', fontWeight: 500, color: form.is_locked_finance ? '#dc2626' : 'var(--text-secondary)' }}>
+                        Kunci Finance (Final)
+                      </label>
+                    </div>
+                  )}
+                </div>
                 <button type="button" className="btn btn-secondary" onClick={closeModal}>
-                  {(form.is_locked && user?.role !== 'admin') ? 'Tutup' : 'Batal'}
+                  Batal
                 </button>
-                {(!form.is_locked || user?.role === 'admin') && (
+                {!((user?.role !== 'admin' && form.is_locked_finance) || (user?.role === 'marketing' && form.is_locked_marketing)) && (
                   <button 
                     type="submit" 
                     className="btn btn-primary" 
