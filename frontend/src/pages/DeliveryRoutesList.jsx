@@ -417,7 +417,7 @@ const DeliveryRoutesList = () => {
                     </td>
                     <td>
                       {r.sale_no ? (
-                        <span style={{ display: 'inline-flex', flexDirection: 'column', gap: '0.15rem' }}>
+                        <span style={{ display: 'inline-flex', flexDirection: 'column', gap: '0.15rem', alignItems: 'flex-start' }}>
                           {canGenerateSale ? (
                             <button
                               type="button"
@@ -447,7 +447,7 @@ const DeliveryRoutesList = () => {
                           )}
                         </span>
                       ) : (
-                        <span style={{ display: 'inline-flex', flexDirection: 'column', gap: '0.15rem' }}>
+                        <span style={{ display: 'inline-flex', flexDirection: 'column', gap: '0.15rem', alignItems: 'flex-start' }}>
                           <span style={{ color: 'var(--text-secondary)' }}>Belum dibuat</span>
                           {(r.missing_tariff_customers?.length || 0) > 0 && (
                             <span

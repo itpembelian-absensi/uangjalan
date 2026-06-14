@@ -1408,8 +1408,22 @@ def create_sale(payload: SaleCreate, db: Session = Depends(get_db)):
     # Generate sale_no if not provided
     sale_no = payload.sale_no
     if not sale_no:
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        sale_no = f"SL-{timestamp}"
+        now = datetime.now()
+        prefix = now.strftime("UJ%y%m")
+        last_sale = db.scalar(
+            select(Sale.sale_no)
+            .where(Sale.sale_no.like(f"{prefix}%"))
+            .order_by(Sale.sale_no.desc())
+            .limit(1)
+        )
+        if last_sale and len(last_sale) == 10:
+            try:
+                counter = int(last_sale[6:]) + 1
+            except ValueError:
+                counter = 1
+        else:
+            counter = 1
+        sale_no = f"{prefix}{counter:04d}"
     
     obj = Sale(
         sale_no=sale_no,
@@ -1671,8 +1685,22 @@ def create_delivery_route(payload: DeliveryRouteCreate, db: Session = Depends(ge
 
     route_no = payload.route_no
     if not route_no:
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        route_no = f"RT-{timestamp}"
+        now = datetime.now()
+        prefix = now.strftime("RT%y%m")
+        last_route = db.scalar(
+            select(DeliveryRoute.route_no)
+            .where(DeliveryRoute.route_no.like(f"{prefix}%"))
+            .order_by(DeliveryRoute.route_no.desc())
+            .limit(1)
+        )
+        if last_route and len(last_route) == 10:
+            try:
+                counter = int(last_route[6:]) + 1
+            except ValueError:
+                counter = 1
+        else:
+            counter = 1
+        route_no = f"{prefix}{counter:04d}"
 
     obj = DeliveryRoute(
         route_no=route_no,

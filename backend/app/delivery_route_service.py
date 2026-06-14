@@ -124,9 +124,24 @@ def sync_sale_from_route(db: Session, route: DeliveryRoute) -> Sale:
         sale.remarks = route.remarks
         db.execute(delete(SaleDetail).where(SaleDetail.sale_id == sale.id))
     else:
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        now = datetime.now()
+        prefix = now.strftime("UJ%y%m")
+        last_sale = db.scalar(
+            select(Sale.sale_no)
+            .where(Sale.sale_no.like(f"{prefix}%"))
+            .order_by(Sale.sale_no.desc())
+            .limit(1)
+        )
+        if last_sale and len(last_sale) == 10:
+            try:
+                counter = int(last_sale[6:]) + 1
+            except ValueError:
+                counter = 1
+        else:
+            counter = 1
+        
         sale = Sale(
-            sale_no=f"SL-{timestamp}",
+            sale_no=f"{prefix}{counter:04d}",
             date=route.date,
             vehicle_id=None,
             driver_id=route.driver_id,
