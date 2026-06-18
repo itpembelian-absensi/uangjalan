@@ -636,6 +636,12 @@ class BpjtGateImportResultOut(BaseModel):
     source_url: str | None = None
 
 
+class TollGateCoordRefreshResultOut(BaseModel):
+    updated: int
+    skipped: list[str] = Field(default_factory=list)
+    total: int
+
+
 class BpjtFullImportResultOut(BaseModel):
     sections: BpjtImportResultOut
     gates: BpjtGateImportResultOut

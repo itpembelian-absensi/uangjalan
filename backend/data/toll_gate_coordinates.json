@@ -1,0 +1,426 @@
+{
+  "source": "OpenStreetMap + manual overrides + Nominatim",
+  "updated_at": "2026-06-18",
+  "gates": {
+    "bekasibarat": {
+      "name": "Bekasi Barat",
+      "latitude": -6.252473,
+      "longitude": 106.987936,
+      "source": "osm:Bekasi Barat 2"
+    },
+    "bekasitimur": {
+      "name": "Bekasi Timur",
+      "latitude": -6.263516,
+      "longitude": 107.015864,
+      "source": "osm:Gerbang Tol Bekasi Timur 2"
+    },
+    "bendautama": {
+      "name": "Benda Utama",
+      "latitude": -6.135509,
+      "longitude": 106.681699,
+      "source": "osm:Benda Utama"
+    },
+    "buaranindah": {
+      "name": "Buaran Indah",
+      "latitude": -6.180776,
+      "longitude": 106.653466,
+      "source": "osm:Buaran Indah 1"
+    },
+    "cawang": {
+      "name": "Cawang",
+      "latitude": -6.243306,
+      "longitude": 106.859717,
+      "source": "osm:Toll Gate Cawang"
+    },
+    "ciawi": {
+      "name": "Ciawi",
+      "latitude": -6.631068,
+      "longitude": 106.839146,
+      "source": "osm:Gerbang Tol Ciawi"
+    },
+    "cibatu": {
+      "name": "Cibatu",
+      "latitude": -6.332211,
+      "longitude": 107.162167,
+      "source": "osm:Gerbang Tol Cibatu"
+    },
+    "cibitung": {
+      "name": "Cibitung",
+      "latitude": -6.283081,
+      "longitude": 107.075193,
+      "source": "osm:Cibitung 3"
+    },
+    "cikampek": {
+      "name": "Cikampek",
+      "latitude": -6.439909,
+      "longitude": 107.476867,
+      "source": "osm:Cikampek"
+    },
+    "cikarangbarat": {
+      "name": "Cikarang Barat",
+      "latitude": -6.312739,
+      "longitude": 107.137154,
+      "source": "osm:Gerbang Tol Cikarang Barat 1"
+    },
+    "cikarangtimur": {
+      "name": "Cikarang Timur",
+      "latitude": -6.341788,
+      "longitude": 107.185668,
+      "source": "osm:Gerbang Tol Cikarang Timur"
+    },
+    "cikunir": {
+      "name": "Cikunir",
+      "latitude": -6.259882,
+      "longitude": 106.958435,
+      "source": "osm:Cikunir 4"
+    },
+    "gtbintarajayadanjakasampurna": {
+      "name": "GT Bintara Jaya dan Jakasampurna",
+      "latitude": -6.221437,
+      "longitude": 106.950195,
+      "source": "osm:Bintara"
+    },
+    "gtpondokkelapa1dan2": {
+      "name": "GT Pondok Kelapa 1 dan 2",
+      "latitude": -6.248684,
+      "longitude": 106.933527,
+      "source": "osm:Pondok Kelapa 1"
+    },
+    "gabus": {
+      "name": "Gabus",
+      "latitude": -6.186706,
+      "longitude": 107.068533,
+      "source": "osm:Gerbang Tol Gabus"
+    },
+    "jcbenda": {
+      "name": "JC Benda",
+      "latitude": -6.109506,
+      "longitude": 106.691472,
+      "source": "osm:Benda"
+    },
+    "jatikarya": {
+      "name": "Jatikarya",
+      "latitude": -6.382513,
+      "longitude": 106.918524,
+      "source": "osm:Jatikarya 2"
+    },
+    "kalihurip": {
+      "name": "Kalihurip",
+      "latitude": -6.423503,
+      "longitude": 107.430429,
+      "source": "osm:Kalihurip 1"
+    },
+    "karawangbarat": {
+      "name": "Karawang Barat",
+      "latitude": -6.345921,
+      "longitude": 107.269586,
+      "source": "osm:Gerbang Tol Karawang Barat"
+    },
+    "karawangtimur": {
+      "name": "Karawang Timur",
+      "latitude": -6.361013,
+      "longitude": 107.331485,
+      "source": "osm:Gerbang Tol Karawang Timur 2"
+    },
+    "kebonjeruk": {
+      "name": "Kebon Jeruk",
+      "latitude": -6.190284,
+      "longitude": 106.767997,
+      "source": "osm:Toll Gate Kebon Jeruk 1"
+    },
+    "kelapagading": {
+      "name": "Kelapa Gading",
+      "latitude": -6.155722,
+      "longitude": 106.896925,
+      "source": "osm:Gerbang Tol Kelapa Gading"
+    },
+    "pamulang": {
+      "name": "Pamulang",
+      "latitude": -6.337284,
+      "longitude": 106.746955,
+      "source": "osm:Gerbang Tol Pamulang"
+    },
+    "pinang": {
+      "name": "Pinang",
+      "latitude": -6.290622,
+      "longitude": 106.78186,
+      "source": "osm:Toll Gate Pondok Pinang"
+    },
+    "pluit": {
+      "name": "Pluit",
+      "latitude": -6.124615,
+      "longitude": 106.77989,
+      "source": "osm:Pluit 3"
+    },
+    "pondokaren": {
+      "name": "Pondok Aren",
+      "latitude": -6.289306,
+      "longitude": 106.726186,
+      "source": "osm:Toll Gate Pondok Aren 1"
+    },
+    "pondokpinang": {
+      "name": "Pondok Pinang",
+      "latitude": -6.290622,
+      "longitude": 106.78186,
+      "source": "osm:Toll Gate Pondok Pinang"
+    },
+    "rorotan": {
+      "name": "Rorotan",
+      "latitude": -6.146076,
+      "longitude": 106.940282,
+      "source": "osm:Rorotan"
+    },
+    "ssparigi": {
+      "name": "SS Parigi",
+      "latitude": -6.266956,
+      "longitude": 106.685538,
+      "source": "osm:Parigi"
+    },
+    "sssetuselatan": {
+      "name": "SS Setu Selatan",
+      "latitude": -6.312219,
+      "longitude": 106.910376,
+      "source": "osm:Setu"
+    },
+    "sssetuutara": {
+      "name": "SS Setu Utara",
+      "latitude": -6.312219,
+      "longitude": 106.910376,
+      "source": "osm:Setu"
+    },
+    "sentulselatan": {
+      "name": "Sentul Selatan",
+      "latitude": -6.563906,
+      "longitude": 106.844914,
+      "source": "osm:Gerbang Tol Sentul Selatan 1"
+    },
+    "serpong": {
+      "name": "Serpong",
+      "latitude": -6.221475,
+      "longitude": 106.637188,
+      "source": "osm:Gerbang Tol Tanggerang Serpong"
+    },
+    "tamanmini": {
+      "name": "Taman Mini",
+      "latitude": -6.287103,
+      "longitude": 106.878255,
+      "source": "osm:Toll Gate Ramp Taman Mini 1"
+    },
+    "tambun": {
+      "name": "Tambun",
+      "latitude": -6.278567,
+      "longitude": 107.051659,
+      "source": "osm:Gerbang Tol Tambun"
+    },
+    "tanahtinggi": {
+      "name": "Tanah Tinggi",
+      "latitude": -6.168966,
+      "longitude": 106.653126,
+      "source": "osm:Tanah Tinggi 2"
+    },
+    "tarumajaya": {
+      "name": "Tarumajaya",
+      "latitude": -6.108019,
+      "longitude": 106.991022,
+      "source": "osm:Gerbang Tol Tarumajaya"
+    },
+    "telagaasih": {
+      "name": "Telaga Asih",
+      "latitude": -6.269289,
+      "longitude": 107.096917,
+      "source": "osm:Telaga Asih"
+    },
+    "kebonbawang": {
+      "name": "Kebon Bawang",
+      "latitude": -6.155421,
+      "longitude": 106.798312,
+      "source": "manual:JORR Kebon Bawang"
+    },
+    "penjaringan": {
+      "name": "Penjaringan",
+      "latitude": -6.118312,
+      "longitude": 106.805104,
+      "source": "manual:JORR Penjaringan"
+    },
+    "ulujami": {
+      "name": "Ulujami",
+      "latitude": -6.288012,
+      "longitude": 106.738012,
+      "source": "manual:JORR Ulujami"
+    },
+    "pulogebang": {
+      "name": "Pulogebang",
+      "latitude": -6.18722,
+      "longitude": 106.938324,
+      "source": "manual:Cakung/Pulogebang"
+    },
+    "cinere": {
+      "name": "Cinere",
+      "latitude": -6.33485,
+      "longitude": 106.78312,
+      "source": "manual:Cinere toll"
+    },
+    "cilincing": {
+      "name": "Cilincing",
+      "latitude": -6.108019,
+      "longitude": 106.991022,
+      "source": "manual:Cilincing area"
+    },
+    "casablanca": {
+      "name": "Casablanca",
+      "latitude": -6.243306,
+      "longitude": 106.859717,
+      "source": "manual:Casablanca/Cawang"
+    },
+    "dawuan": {
+      "name": "Dawuan",
+      "latitude": -6.348,
+      "longitude": 107.412,
+      "source": "manual:Japek Dawuan"
+    },
+    "simpangsemplak": {
+      "name": "Simpang Semplak",
+      "latitude": -6.564501,
+      "longitude": 106.835691,
+      "source": "manual:Sentul Barat/Semplak"
+    },
+    "simpangsusuncikeas": {
+      "name": "Simpang Susun Cikeas",
+      "latitude": -6.378092,
+      "longitude": 106.971369,
+      "source": "manual:Narogong/Cikeas"
+    },
+    "sscikeas": {
+      "name": "SS Cikeas",
+      "latitude": -6.378092,
+      "longitude": 106.971369,
+      "source": "manual:SS Cikeas"
+    },
+    "ssnarogong": {
+      "name": "SS Narogong",
+      "latitude": -6.378092,
+      "longitude": 106.971369,
+      "source": "manual:SS Narogong"
+    },
+    "sslegok": {
+      "name": "SS Legok",
+      "latitude": -6.316344,
+      "longitude": 106.59606,
+      "source": "manual:SS Legok"
+    },
+    "sscbd": {
+      "name": "SS CBD",
+      "latitude": -6.221475,
+      "longitude": 106.637188,
+      "source": "manual:Serpong CBD"
+    },
+    "sscimanggis": {
+      "name": "SS Cimanggis",
+      "latitude": -6.421048,
+      "longitude": 106.893678,
+      "source": "manual:Toll Gate Cimanggis"
+    },
+    "junctioncimanggis": {
+      "name": "Junction Cimanggis",
+      "latitude": -6.421048,
+      "longitude": 106.893678,
+      "source": "manual:Junction Cimanggis"
+    },
+    "jccibitung": {
+      "name": "Jc Cibitung",
+      "latitude": -6.287646,
+      "longitude": 107.083119,
+      "source": "manual:GT Cibitung 5"
+    },
+    "jckunciran": {
+      "name": "JC Kunciran",
+      "latitude": -6.220309,
+      "longitude": 106.666972,
+      "source": "manual:Kunciran 1"
+    },
+    "jcserpong": {
+      "name": "JC Serpong",
+      "latitude": -6.300385,
+      "longitude": 106.705376,
+      "source": "manual:Serpong 1"
+    },
+    "junctionserpong": {
+      "name": "Junction Serpong",
+      "latitude": -6.300385,
+      "longitude": 106.705376,
+      "source": "manual:Junction Serpong"
+    },
+    "jakarta": {
+      "name": "Jakarta",
+      "latitude": -6.243306,
+      "longitude": 106.859717,
+      "source": "manual:Jakarta/Cawang"
+    },
+    "jakartaic": {
+      "name": "Jakarta IC",
+      "latitude": -6.243306,
+      "longitude": 106.859717,
+      "source": "manual:Jakarta IC"
+    },
+    "jakartadalamkota": {
+      "name": "jakartadalamkota",
+      "latitude": -6.243306,
+      "longitude": 106.859717,
+      "source": "manual:Jakarta Dalam Kota"
+    },
+    "jembatantigapluit": {
+      "name": "Jembatan Tiga/Pluit",
+      "latitude": -6.13258,
+      "longitude": 106.791349,
+      "source": "manual:Jembatan Tiga 1"
+    },
+    "aksestanjungpriuk": {
+      "name": "Akses Tanjung Priuk",
+      "latitude": -6.132802,
+      "longitude": 106.892896,
+      "source": "manual:Tanjung Priok 1"
+    },
+    "seksie1e2e2a": {
+      "name": "Seksi E1,E2,E2A",
+      "latitude": -6.132802,
+      "longitude": 106.892896,
+      "source": "manual:Tanjung Priok seksi"
+    },
+    "pondokgedebarattimur": {
+      "name": "Pondok Gede Barat/Timur",
+      "latitude": -6.256337,
+      "longitude": 106.908136,
+      "source": "manual:Pondok Gede Barat 2"
+    },
+    "gtjatiwaringin1dan2": {
+      "name": "GT Jatiwaringin 1 dan 2",
+      "latitude": -6.245462,
+      "longitude": 106.903752,
+      "source": "manual:Jatiwaringin 1"
+    },
+    "gtmargajaya1dan2": {
+      "name": "GT Marga Jaya 1 dan 2",
+      "latitude": -6.24969,
+      "longitude": 106.950163,
+      "source": "manual:Bintara/Marga Jaya"
+    },
+    "onofframpjatikarya": {
+      "name": "On/Off Ramp Jatikarya",
+      "latitude": -6.385131,
+      "longitude": 106.895567,
+      "source": "manual:Cimanggis/Jatikarya"
+    },
+    "profdrsoedijatmo": {
+      "name": "profdrsoedijatmo",
+      "latitude": -6.126,
+      "longitude": 106.655,
+      "source": "manual:Prof Soedijatmo"
+    },
+    "profdrirsoedijatmo": {
+      "name": "profdrirsoedijatmo",
+      "latitude": -6.126,
+      "longitude": 106.655,
+      "source": "manual:Prof Soedijatmo"
+    }
+  }
+}

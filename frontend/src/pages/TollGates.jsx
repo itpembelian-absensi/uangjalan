@@ -2,7 +2,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Plus, Trash2, Edit2, RefreshCw } from 'lucide-react';
 import GlassCard from '../components/GlassCard';
+import LocationPickerMap from '../components/LocationPickerMap';
 import { apiFetch } from '../api';
+import { parseCoordsFromShareText } from '../utils/locationParse';
 import {
   useCrudWrite,
   crudTableGridSpan,
@@ -36,6 +38,51 @@ const emptyFareForm = () => ({
   rate: '',
 });
 
+const GateCoordPicker = ({
+  latitude,
+  longitude,
+  onLocationChange,
+  pasteValue,
+  onPasteChange,
+  onPasteApply,
+  parsingPaste,
+}) => (
+  <>
+    <div className="form-group" style={{ gridColumn: '1 / -1', marginBottom: 0 }}>
+      <label className="form-label">Tempel link Google Maps</label>
+      <div style={{ display: 'flex', gap: '0.5rem' }}>
+        <input
+          className="form-input"
+          placeholder="Salin link dari Google Maps setelah menemukan titik gerbang"
+          value={pasteValue}
+          onChange={(e) => onPasteChange(e.target.value)}
+        />
+        <button
+          type="button"
+          className="btn btn-secondary"
+          style={{ whiteSpace: 'nowrap' }}
+          disabled={parsingPaste || !pasteValue.trim()}
+          onClick={onPasteApply}
+        >
+          Ambil
+        </button>
+      </div>
+      <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0.35rem 0 0' }}>
+        Koordinat bawaan hanya perkiraan. Klik peta, seret penanda, atau tempel link Maps untuk menyesuaikan.
+      </p>
+    </div>
+    <div style={{ gridColumn: '1 / -1', marginTop: '0.5rem' }}>
+      <LocationPickerMap
+        key={`${latitude}-${longitude}`}
+        latitude={latitude}
+        longitude={longitude}
+        onLocationChange={onLocationChange}
+        height={280}
+      />
+    </div>
+  </>
+);
+
 const TollGates = () => {
   const canWrite = useCrudWrite();
   const [sections, setSections] = useState([]);
@@ -49,11 +96,17 @@ const TollGates = () => {
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncInfo, setSyncInfo] = useState(null);
+  const [refreshingCoords, setRefreshingCoords] = useState(false);
+  const [coordRefreshInfo, setCoordRefreshInfo] = useState(null);
   const [gatesPage, setGatesPage] = useState(1);
   const [faresPage, setFaresPage] = useState(1);
   const [editGateId, setEditGateId] = useState(null);
   const [editGateForm, setEditGateForm] = useState(emptyGateForm());
   const [isGateModalOpen, setIsGateModalOpen] = useState(false);
+  const [gateCoordPaste, setGateCoordPaste] = useState('');
+  const [editCoordPaste, setEditCoordPaste] = useState('');
+  const [parsingGateCoordPaste, setParsingGateCoordPaste] = useState(false);
+  const [parsingEditCoordPaste, setParsingEditCoordPaste] = useState(false);
 
   const fetchAll = async () => {
     const [sec, gol, gts, frs] = await Promise.all([
@@ -99,6 +152,30 @@ const TollGates = () => {
     if (!entry) return gates;
     return gates.filter((g) => g.section_id === entry.section_id);
   }, [gates, fareForm.entry_gate_id]);
+
+  const parseCoordPaste = async (text, applyCoords, setParsing) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    setParsing(true);
+    setError('');
+    try {
+      const local = parseCoordsFromShareText(trimmed);
+      if (local) {
+        applyCoords(local.latitude, local.longitude);
+        return;
+      }
+      const data = await apiFetch('/api/geocode/from-share', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: trimmed }),
+      });
+      applyCoords(data.latitude, data.longitude);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setParsing(false);
+    }
+  };
 
   const handleGateSubmit = async (e) => {
     e.preventDefault();
@@ -165,6 +242,7 @@ const TollGates = () => {
       sort_order: String(row.sort_order ?? ''),
       is_active: row.is_active,
     });
+    setEditCoordPaste('');
     setIsGateModalOpen(true);
   };
 
@@ -218,6 +296,27 @@ const TollGates = () => {
     }
   };
 
+  const handleRefreshCoordinates = async () => {
+    if (
+      !window.confirm(
+        'Perbarui koordinat semua gerbang dari data OpenStreetMap? Koordinat lama akan ditimpa.'
+      )
+    )
+      return;
+    setRefreshingCoords(true);
+    setError('');
+    setCoordRefreshInfo(null);
+    try {
+      const result = await apiFetch('/api/toll-gates/refresh-coordinates', { method: 'POST' });
+      setCoordRefreshInfo(result);
+      await fetchAll();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setRefreshingCoords(false);
+    }
+  };
+
   const handleDeleteGate = async (row) => {
     if (!window.confirm(`Hapus gerbang ${row.code}? Tarif terkait ikut terhapus.`)) return;
     try {
@@ -249,18 +348,51 @@ const TollGates = () => {
           </p>
         </div>
         {canWrite && (
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={handleSyncBpjtGates}
-            disabled={syncing}
-            style={{ whiteSpace: 'nowrap' }}
-          >
-            <RefreshCw size={18} />
-            {syncing ? 'Mengimpor BPJT...' : 'Impor Matriks BPJT'}
-          </button>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleRefreshCoordinates}
+              disabled={refreshingCoords || syncing}
+              style={{ whiteSpace: 'nowrap' }}
+              title="Perbarui koordinat semua gerbang dari data OpenStreetMap"
+            >
+              <RefreshCw size={18} className={refreshingCoords ? 'spin' : ''} />
+              {refreshingCoords ? 'Memperbarui koordinat...' : 'Perbarui Koordinat'}
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleSyncBpjtGates}
+              disabled={syncing || refreshingCoords}
+              style={{ whiteSpace: 'nowrap' }}
+            >
+              <RefreshCw size={18} />
+              {syncing ? 'Mengimpor BPJT...' : 'Impor Matriks BPJT'}
+            </button>
+          </div>
         )}
       </div>
+
+      {coordRefreshInfo && (
+        <div
+          style={{
+            marginBottom: '1rem',
+            padding: '0.75rem 1rem',
+            borderRadius: '8px',
+            background: '#eff6ff',
+            color: '#1e40af',
+            border: '1px solid #bfdbfe',
+            fontSize: '0.9rem',
+          }}
+        >
+          Koordinat diperbarui: {coordRefreshInfo.updated} dari {coordRefreshInfo.total} gerbang.
+          {coordRefreshInfo.skipped?.length > 0 && (
+            <> Tanpa mapping: {coordRefreshInfo.skipped.slice(0, 8).join(', ')}
+            {coordRefreshInfo.skipped.length > 8 ? ` (+${coordRefreshInfo.skipped.length - 8} lagi)` : ''}.</>
+          )}
+        </div>
+      )}
 
       {syncInfo && (
         <div
@@ -355,7 +487,7 @@ const TollGates = () => {
                 <label className="form-label">Latitude</label>
                 <input
                   className="form-input"
-                  placeholder="Opsional — untuk deteksi otomatis"
+                  placeholder="Klik peta atau tempel link Maps"
                   value={gateForm.latitude}
                   onChange={(e) => setGateForm({ ...gateForm, latitude: e.target.value })}
                 />
@@ -364,11 +496,28 @@ const TollGates = () => {
                 <label className="form-label">Longitude</label>
                 <input
                   className="form-input"
-                  placeholder="Opsional — untuk deteksi otomatis"
+                  placeholder="Klik peta atau tempel link Maps"
                   value={gateForm.longitude}
                   onChange={(e) => setGateForm({ ...gateForm, longitude: e.target.value })}
                 />
               </div>
+              <GateCoordPicker
+                latitude={gateForm.latitude}
+                longitude={gateForm.longitude}
+                onLocationChange={(lat, lng) =>
+                  setGateForm((prev) => ({ ...prev, latitude: String(lat), longitude: String(lng) }))
+                }
+                pasteValue={gateCoordPaste}
+                onPasteChange={setGateCoordPaste}
+                parsingPaste={parsingGateCoordPaste}
+                onPasteApply={() =>
+                  parseCoordPaste(
+                    gateCoordPaste,
+                    (lat, lng) => setGateForm((prev) => ({ ...prev, latitude: String(lat), longitude: String(lng) })),
+                    setParsingGateCoordPaste,
+                  )
+                }
+              />
             </div>
             <button type="submit" className="btn btn-primary" style={{ marginTop: '1rem' }} disabled={saving}>
               <Plus size={16} /> Simpan Gerbang
@@ -412,7 +561,19 @@ const TollGates = () => {
                     <td style={{ fontWeight: 600 }}>{g.code}</td>
                     <td>{g.name}</td>
                     <td style={{ fontSize: '0.85rem' }}>
-                      {g.latitude != null && g.longitude != null ? `${g.latitude}, ${g.longitude}` : '-'}
+                      {g.latitude != null && g.longitude != null ? (
+                        <a
+                          href={`https://www.google.com/maps/search/?api=1&query=${g.latitude},${g.longitude}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title="Buka di Google Maps"
+                          style={{ color: '#2563eb', textDecoration: 'none' }}
+                        >
+                          {g.latitude}, {g.longitude}
+                        </a>
+                      ) : (
+                        '-'
+                      )}
                     </td>
                     <td>{g.sort_order}</td>
                     <td>{g.is_active ? 'Aktif' : 'Nonaktif'}</td>
@@ -595,9 +756,9 @@ const TollGates = () => {
 
       {isGateModalOpen && (
         <div className="modal-overlay">
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h2>Edit Gerbang</h2>
-            <form onSubmit={handleEditGateSubmit}>
+          <div className="modal-content" style={{ maxWidth: '720px' }} onClick={(e) => e.stopPropagation()}>
+            <h2 style={{ padding: '1.5rem 1.5rem 0', margin: 0 }}>Edit Gerbang</h2>
+            <form onSubmit={handleEditGateSubmit} style={{ padding: '1.5rem' }}>
               <div className="grid-cols-2" style={{ gap: '1rem' }}>
                 <div className="form-group">
                   <label className="form-label">Ruas</label>
@@ -629,6 +790,23 @@ const TollGates = () => {
                   <label className="form-label">Longitude</label>
                   <input className="form-input" value={editGateForm.longitude} onChange={(e) => setEditGateForm({ ...editGateForm, longitude: e.target.value })} />
                 </div>
+                <GateCoordPicker
+                  latitude={editGateForm.latitude}
+                  longitude={editGateForm.longitude}
+                  onLocationChange={(lat, lng) =>
+                    setEditGateForm((prev) => ({ ...prev, latitude: String(lat), longitude: String(lng) }))
+                  }
+                  pasteValue={editCoordPaste}
+                  onPasteChange={setEditCoordPaste}
+                  parsingPaste={parsingEditCoordPaste}
+                  onPasteApply={() =>
+                    parseCoordPaste(
+                      editCoordPaste,
+                      (lat, lng) => setEditGateForm((prev) => ({ ...prev, latitude: String(lat), longitude: String(lng) })),
+                      setParsingEditCoordPaste,
+                    )
+                  }
+                />
               </div>
               <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
                 <button type="submit" className="btn btn-primary" disabled={saving}>

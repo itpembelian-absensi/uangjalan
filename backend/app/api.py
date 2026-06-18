@@ -45,6 +45,7 @@ from app.toll_gate_service import (
     TOLL_NOTE_BPJT,
     build_manual_toll_breakdown,
     estimate_toll_bpjt_gates,
+    refresh_gate_coordinates,
     serialize_gate_fare_context,
 )
 from app.bpjt_import_service import import_jabodetabek_all, import_jabodetabek_gate_matrices
@@ -123,6 +124,7 @@ from app.schemas import (
     BpjtImportResultOut,
     BpjtGateImportResultOut,
     BpjtFullImportResultOut,
+    TollGateCoordRefreshResultOut,
     TollSectionOut,
     TollSectionRateOut,
     TollGolonganCreate,
@@ -2230,6 +2232,16 @@ def sync_bpjt_jabodetabek_gates(db: Session = Depends(get_db)):
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Gagal impor gerbang BPJT: {exc}") from exc
     return BpjtGateImportResultOut(**result)
+
+
+@router.post("/toll-gates/refresh-coordinates", response_model=TollGateCoordRefreshResultOut)
+def refresh_toll_gate_coordinates(db: Session = Depends(get_db)):
+    """Perbarui koordinat semua gerbang dari data OSM yang dibundel."""
+    try:
+        result = refresh_gate_coordinates(db)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Gagal memperbarui koordinat gerbang: {exc}") from exc
+    return TollGateCoordRefreshResultOut(**result)
 
 
 @router.get("/toll-gates", response_model=list[TollGateOut])

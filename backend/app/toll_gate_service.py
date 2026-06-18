@@ -1,67 +1,59 @@
 from __future__ import annotations
 
+import json
 import math
 import re
+from functools import lru_cache
+from pathlib import Path
+
+from sqlalchemy import select
 
 TOLL_NOTE_BPJT = (
     "Tarif berdasarkan ruas tol yang dilalui di peta (rute OSRM), dicocokkan ke master gerbang BPJT. "
     "Total pulang-pergi dikali 2."
 )
 
-# Koordinat acuan gerbang — dipakai jika belum diisi di database.
-BUILTIN_GATE_COORDINATES: dict[str, tuple[float, float]] = {
-    # Japek
-    "jakartaic": (-6.2165, 106.9368),
-    "pondokgedebarattimur": (-6.2815, 106.9175),
-    "cikunir": (-6.2678, 106.9785),
-    "bekasibarat": (-6.2385, 106.9895),
-    "bekasitimur": (-6.2495, 107.0228),
-    "tambun": (-6.2125, 107.0575),
-    "cibitung": (-6.2195, 107.1035),
-    "cikarangbarat": (-6.2615, 107.1385),
-    "cibatu": (-6.2885, 107.1225),
-    "cikarangtimur": (-6.2925, 107.1685),
-    "karawangbarat": (-6.3115, 107.2685),
-    "karawangtimur": (-6.3250, 107.3350),
-    "dawuan": (-6.3480, 107.4120),
-    "kalihurip": (-6.3610, 107.4680),
-    "cikampek": (-6.4190, 107.4640),
-    # Jabodetabek utara / dalam kota
-    "profdrirsoedijatmo": (-6.1260, 106.6550),
-    "cawang": (-6.2440, 106.8720),
-    "tomang": (-6.1780, 106.7980),
-    "pluit": (-6.1120, 106.7930),
-    "jembatantigapluit": (-6.1080, 106.7880),
-    "aksestanjungpriuk": (-6.1040, 106.8810),
-    "seksie1e2e2a": (-6.0980, 106.9050),
-    "penjaringan": (-6.1180, 106.8050),
-    "kebonjeruk": (-6.1920, 106.7680),
-    "ulujami": (-6.2880, 106.7380),
-    "pondokpinang": (-6.2650, 106.7780),
-    "tamanmini": (-6.3030, 106.8910),
-    "rorotan": (-6.1450, 106.9280),
-    "kebonbawang": (-6.1550, 106.7980),
-    "jakarta": (-6.2940, 106.8710),
-    "ciawi": (-6.7370, 106.8480),
-    "jcbenda": (-6.1220, 106.6920),
-    "bendautama": (-6.1280, 106.7020),
-    "batuceper": (-6.1550, 106.6780),
-    "cengkareng": (-6.1380, 106.7180),
-    "tanatinggi": (-6.1750, 106.6520),
-    "pinang": (-6.1980, 106.6280),
-    "jckunciran": (-6.2080, 106.5980),
-    "jcserpong": (-6.2850, 106.6680),
-    "ssparigi": (-6.3120, 106.6480),
-    "jakartadalamkota": (-6.244, 106.873),
-    "jakartaic": (-6.244, 106.873),
-    "cibubur": (-6.376, 106.902),
-    "gunungputri": (-6.438, 106.892),
-    "citeureup": (-6.488, 106.883),
-    "cibinong": (-6.498, 106.873),
-    "sentulselatan": (-6.568, 106.863),
-    "sentulbarat": (-6.562, 106.852),
-    "bogor": (-6.600, 106.820),
+_DATA_DIR = Path(__file__).resolve().parents[1] / "data"
+_GATE_COORDS_FILE = _DATA_DIR / "toll_gate_coordinates.json"
+
+# Fallback jika file koordinat belum ada (mis. development lokal).
+_LEGACY_GATE_COORDINATES: dict[str, tuple[float, float]] = {
+    "pondokpinang": (-6.290622, 106.781860),
+    "tamanmini": (-6.287103, 106.878255),
+    "rorotan": (-6.146076, 106.940282),
+    "kebonbawang": (-6.155421, 106.798312),
+    "kebonjeruk": (-6.190284, 106.767997),
+    "penjaringan": (-6.118312, 106.805104),
+    "cawang": (-6.243306, 106.859717),
+    "tomang": (-6.181638, 106.793521),
+    "pluit": (-6.124615, 106.779890),
+    "jembatantigapluit": (-6.132580, 106.791349),
+    "cikampek": (-6.439909, 107.476867),
+    "cibubur": (-6.365784, 106.895049),
+    "bogor": (-6.597505, 106.817689),
+    "ciawi": (-6.631068, 106.839146),
 }
+
+
+@lru_cache(maxsize=1)
+def _load_gate_coordinates() -> dict[str, tuple[float, float]]:
+    coords = dict(_LEGACY_GATE_COORDINATES)
+    if not _GATE_COORDS_FILE.exists():
+        return coords
+    try:
+        payload = json.loads(_GATE_COORDS_FILE.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return coords
+    for key, row in (payload.get("gates") or {}).items():
+        try:
+            coords[key] = (float(row["latitude"]), float(row["longitude"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+    return coords
+
+
+# Koordinat acuan gerbang — dipakai jika belum diisi di database.
+BUILTIN_GATE_COORDINATES: dict[str, tuple[float, float]] = _load_gate_coordinates()
 
 # (kata kunci di nama ruas tol OSRM, kata kunci di nama ruas/gerbang BPJT)
 SECTION_ROUTE_HINTS: list[tuple[list[str], list[str]]] = [
@@ -126,7 +118,7 @@ def _gate_coordinates(gate: dict) -> tuple[float, float] | None:
     if glat is not None and glng is not None:
         return float(glat), float(glng)
     key = _normalize_gate_name(gate.get("name") or "")
-    return BUILTIN_GATE_COORDINATES.get(key)
+    return _load_gate_coordinates().get(key)
 
 
 def _fare_index(fares: list[dict]) -> dict[tuple[int, int, str], float]:
@@ -1051,7 +1043,27 @@ def build_manual_toll_breakdown(
 
 
 def gate_coordinate_lookup(name: str) -> tuple[float, float] | None:
-    return BUILTIN_GATE_COORDINATES.get(_normalize_gate_name(name))
+    return _load_gate_coordinates().get(_normalize_gate_name(name))
+
+
+def refresh_gate_coordinates(db) -> dict:
+    """Apply bundled toll_gate_coordinates.json to all gates in DB."""
+    from app.models import TollGate
+
+    coords = _load_gate_coordinates()
+    updated = 0
+    skipped: list[str] = []
+    for gate in db.scalars(select(TollGate)).all():
+        key = _normalize_gate_name(gate.name or "")
+        point = coords.get(key)
+        if not point:
+            skipped.append(gate.name or f"id={gate.id}")
+            continue
+        gate.latitude = round(point[0], 6)
+        gate.longitude = round(point[1], 6)
+        updated += 1
+    db.commit()
+    return {"updated": updated, "skipped": skipped, "total": updated + len(skipped)}
 
 
 def serialize_gate_fare_context(gates_rows, fare_rows) -> dict:
