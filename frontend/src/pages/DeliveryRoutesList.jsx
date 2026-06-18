@@ -348,7 +348,7 @@ const DeliveryRoutesList = () => {
                 <SortableTh id="route_no" label="No Rute" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
                 <SortableTh id="date" label="Tanggal" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
                 <SortableTh id="vehicle_type" label="Jenis Kendaraan" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
-                <SortableTh id="ritase" label="Rit" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                <SortableTh id="ritase" label="Rit" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} style={{ minWidth: '76px' }} />
                 <SortableTh id="stops" label="Stop" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
                 <SortableTh id="sale_no" label="Uang Jalan" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
                 <th style={{ textAlign: 'right', minWidth: '220px', display: showRouteActions ? undefined : 'none' }}>Aksi</th>
@@ -388,8 +388,8 @@ const DeliveryRoutesList = () => {
                     <td style={{ fontWeight: 600 }}>{r.route_no}</td>
                     <td>{formatRouteDate(r.date)}</td>
                     <td>{r.vehicle_type_name || '-'}</td>
-                    <td>
-                      <span className="badge badge-blue" style={{ fontWeight: 600 }}>Rit {r.ritase || 1}</span>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      <span className="badge badge-blue" style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>Rit {r.ritase || 1}</span>
                     </td>
                     <td>
                       <div style={{ fontWeight: 500 }}>{r.stops.length} customer</div>
