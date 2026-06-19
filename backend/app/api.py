@@ -631,8 +631,15 @@ def update_customer(customer_id: int, payload: CustomerCreate, db: Session = Dep
     if not obj:
         raise HTTPException(status_code=404, detail="Customer not found")
 
+    # Check if finance can unlock customers
+    app_setting = db.scalars(select(AppSetting).limit(1)).first()
+    finance_can_unlock = app_setting.finance_can_unlock_customer if app_setting else False
+
     if obj.is_locked_finance and current_user.role != "admin":
-        raise HTTPException(status_code=403, detail="Customer telah dikunci final (Finance) dan hanya dapat diubah oleh Admin")
+        if current_user.role == "finance" and finance_can_unlock:
+            pass  # Finance is allowed to unlock
+        else:
+            raise HTTPException(status_code=403, detail="Customer telah dikunci final (Finance) dan hanya dapat diubah oleh Admin")
     
     if current_user.role == "marketing":
         if obj.is_locked_marketing and payload.is_locked_marketing:
@@ -2476,6 +2483,8 @@ def update_app_setting(payload: AppSettingUpdate, db: Session = Depends(get_db))
         setting.logo_base64 = update_data["logo_base64"]
     if "favicon_base64" in update_data:
         setting.favicon_base64 = update_data["favicon_base64"]
+    if "finance_can_unlock_customer" in update_data and update_data["finance_can_unlock_customer"] is not None:
+        setting.finance_can_unlock_customer = update_data["finance_can_unlock_customer"]
 
     db.commit()
     db.refresh(setting)

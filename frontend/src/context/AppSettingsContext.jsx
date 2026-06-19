@@ -12,6 +12,7 @@ export function AppSettingsProvider({ children }) {
     app_subtitle: 'Premium Logistics',
     logo_base64: null,
     favicon_base64: null,
+    finance_can_unlock_customer: false,
   });
 
   const [loading, setLoading] = useState(true);
@@ -32,6 +33,7 @@ export function AppSettingsProvider({ children }) {
           app_subtitle: data.app_subtitle || 'Premium Logistics',
           logo_base64: data.logo_base64,
           favicon_base64: data.favicon_base64,
+          finance_can_unlock_customer: data.finance_can_unlock_customer || false,
         });
       }
     } catch (error) {

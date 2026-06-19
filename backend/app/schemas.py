@@ -830,6 +830,7 @@ class AppSettingUpdate(BaseModel):
     app_subtitle: str | None = Field(default=None)
     logo_base64: str | None = None
     favicon_base64: str | None = None
+    finance_can_unlock_customer: bool | None = None
 
 
 class AppSettingOut(BaseModel):
@@ -838,6 +839,7 @@ class AppSettingOut(BaseModel):
     app_subtitle: str
     logo_base64: str | None = None
     favicon_base64: str | None = None
+    finance_can_unlock_customer: bool = False
     created_at: datetime
 
     class Config:

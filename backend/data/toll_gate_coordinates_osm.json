@@ -1,0 +1,306 @@
+{
+  "bekasibarat": {
+    "name": "Bekasi Barat",
+    "latitude": -6.2524732,
+    "longitude": 106.9879357,
+    "osm_name": "Bekasi Barat 2",
+    "score": 85.0,
+    "sections": "Jakarta-Cikampek dan Jakarta-Cikampek II Elevated"
+  },
+  "bekasitimur": {
+    "name": "Bekasi Timur",
+    "latitude": -6.2635156,
+    "longitude": 107.0158643,
+    "osm_name": "Gerbang Tol Bekasi Timur 2",
+    "score": 85.0,
+    "sections": "Jakarta-Cikampek dan Jakarta-Cikampek II Elevated"
+  },
+  "bendautama": {
+    "name": "Benda Utama",
+    "latitude": -6.135509,
+    "longitude": 106.6816991,
+    "osm_name": "Benda Utama",
+    "score": 100.0,
+    "sections": "Cengkareng-Batu Ceper-Kunciran"
+  },
+  "buaranindah": {
+    "name": "Buaran Indah",
+    "latitude": -6.180776,
+    "longitude": 106.6534657,
+    "osm_name": "Buaran Indah 1",
+    "score": 85.0,
+    "sections": "Cengkareng-Batu Ceper-Kunciran"
+  },
+  "cawang": {
+    "name": "Cawang",
+    "latitude": -6.2433059,
+    "longitude": 106.859717,
+    "osm_name": "Toll Gate Cawang",
+    "score": 85.0,
+    "sections": "Cawang-Tj. Priok-Ancol Timur-Jembatan Tiga/Pluit, Cawang-Tomang-Pluit (CTC)"
+  },
+  "ciawi": {
+    "name": "Ciawi",
+    "latitude": -6.6310677,
+    "longitude": 106.839146,
+    "osm_name": "Gerbang Tol Ciawi",
+    "score": 85.0,
+    "sections": "Jakarta-Bogor-Ciawi"
+  },
+  "cibatu": {
+    "name": "Cibatu",
+    "latitude": -6.3322114,
+    "longitude": 107.1621674,
+    "osm_name": "Gerbang Tol Cibatu",
+    "score": 85.0,
+    "sections": "Jakarta-Cikampek dan Jakarta-Cikampek II Elevated"
+  },
+  "cibitung": {
+    "name": "Cibitung",
+    "latitude": -6.2830808,
+    "longitude": 107.0751928,
+    "osm_name": "Cibitung 3",
+    "score": 85.0,
+    "sections": "Cibitung-Cilincing Seksi 2 & 3, Cibitung-Cilincing Seksi 4, Jakarta-Cikampek dan Jakarta-Cikampek II Elevated"
+  },
+  "cikampek": {
+    "name": "Cikampek",
+    "latitude": -6.4399087,
+    "longitude": 107.476867,
+    "osm_name": "Cikampek",
+    "score": 100.0,
+    "sections": "Jakarta-Cikampek dan Jakarta-Cikampek II Elevated"
+  },
+  "cikarangbarat": {
+    "name": "Cikarang Barat",
+    "latitude": -6.3127388,
+    "longitude": 107.1371542,
+    "osm_name": "Gerbang Tol Cikarang Barat 1",
+    "score": 85.0,
+    "sections": "Jakarta-Cikampek dan Jakarta-Cikampek II Elevated"
+  },
+  "cikarangtimur": {
+    "name": "Cikarang Timur",
+    "latitude": -6.3417884,
+    "longitude": 107.1856681,
+    "osm_name": "Gerbang Tol Cikarang Timur",
+    "score": 85.0,
+    "sections": "Jakarta-Cikampek dan Jakarta-Cikampek II Elevated"
+  },
+  "cikunir": {
+    "name": "Cikunir",
+    "latitude": -6.2598825,
+    "longitude": 106.9584355,
+    "osm_name": "Cikunir 4",
+    "score": 85.0,
+    "sections": "Jakarta-Cikampek dan Jakarta-Cikampek II Elevated"
+  },
+  "gtbintarajayadanjakasampurna": {
+    "name": "GT Bintara Jaya dan Jakasampurna",
+    "latitude": -6.221437,
+    "longitude": 106.9501948,
+    "osm_name": "Bintara",
+    "score": 75.0,
+    "sections": "Bekasi-Cawang-Kampung Melayu"
+  },
+  "gtpondokkelapa1dan2": {
+    "name": "GT Pondok Kelapa 1 dan 2",
+    "latitude": -6.2486839,
+    "longitude": 106.9335267,
+    "osm_name": "Pondok Kelapa 1",
+    "score": 75.0,
+    "sections": "Bekasi-Cawang-Kampung Melayu"
+  },
+  "gabus": {
+    "name": "Gabus",
+    "latitude": -6.1867061,
+    "longitude": 107.0685332,
+    "osm_name": "Gerbang Tol Gabus",
+    "score": 85.0,
+    "sections": "Cibitung-Cilincing Seksi 2 & 3, Cibitung-Cilincing Seksi 4"
+  },
+  "jcbenda": {
+    "name": "JC Benda",
+    "latitude": -6.109506,
+    "longitude": 106.6914719,
+    "osm_name": "Benda",
+    "score": 75.0,
+    "sections": "Cengkareng-Batu Ceper-Kunciran"
+  },
+  "jatikarya": {
+    "name": "Jatikarya",
+    "latitude": -6.3825133,
+    "longitude": 106.9185235,
+    "osm_name": "Jatikarya 2",
+    "score": 85.0,
+    "sections": "Cimanggis-Cibitung Seksi 2B"
+  },
+  "kalihurip": {
+    "name": "Kalihurip",
+    "latitude": -6.4235026,
+    "longitude": 107.4304285,
+    "osm_name": "Kalihurip 1",
+    "score": 85.0,
+    "sections": "Jakarta-Cikampek dan Jakarta-Cikampek II Elevated"
+  },
+  "karawangbarat": {
+    "name": "Karawang Barat",
+    "latitude": -6.3459205,
+    "longitude": 107.269586,
+    "osm_name": "Gerbang Tol Karawang Barat",
+    "score": 85.0,
+    "sections": "Jakarta-Cikampek dan Jakarta-Cikampek II Elevated"
+  },
+  "karawangtimur": {
+    "name": "Karawang Timur",
+    "latitude": -6.3610126,
+    "longitude": 107.3314852,
+    "osm_name": "Gerbang Tol Karawang Timur 2",
+    "score": 85.0,
+    "sections": "Jakarta-Cikampek dan Jakarta-Cikampek II Elevated"
+  },
+  "kebonjeruk": {
+    "name": "Kebon Jeruk",
+    "latitude": -6.190284,
+    "longitude": 106.7679973,
+    "osm_name": "Toll Gate Kebon Jeruk 1",
+    "score": 85.0,
+    "sections": "JORR W1 (Kebon Jeruk-Penjaringan), JORR W2 Utara (Kebon Jeruk-Ulujami)"
+  },
+  "kelapagading": {
+    "name": "Kelapa Gading",
+    "latitude": -6.1557222,
+    "longitude": 106.8969249,
+    "osm_name": "Gerbang Tol Kelapa Gading",
+    "score": 85.0,
+    "sections": "6 (Enam) Ruas Dalam Kota Jakarta Seksi A (Kelapa Gading-Pulo Gebang)"
+  },
+  "pamulang": {
+    "name": "Pamulang",
+    "latitude": -6.3372842,
+    "longitude": 106.7469555,
+    "osm_name": "Gerbang Tol Pamulang",
+    "score": 85.0,
+    "sections": "Serpong-Cinere"
+  },
+  "pinang": {
+    "name": "Pinang",
+    "latitude": -6.2906217,
+    "longitude": 106.7818599,
+    "osm_name": "Toll Gate Pondok Pinang",
+    "score": 85.0,
+    "sections": "Cengkareng-Batu Ceper-Kunciran"
+  },
+  "pluit": {
+    "name": "Pluit",
+    "latitude": -6.1246155,
+    "longitude": 106.7798903,
+    "osm_name": "Pluit 3",
+    "score": 85.0,
+    "sections": "Cawang-Tomang-Pluit (CTC)"
+  },
+  "pondokaren": {
+    "name": "Pondok Aren",
+    "latitude": -6.2893057,
+    "longitude": 106.7261857,
+    "osm_name": "Toll Gate Pondok Aren 1",
+    "score": 85.0,
+    "sections": "Pondok Aren-Bintaro Viaduct-Ulujami, Pondok Aren-Serpong"
+  },
+  "pondokpinang": {
+    "name": "Pondok Pinang",
+    "latitude": -6.2906217,
+    "longitude": 106.7818599,
+    "osm_name": "Toll Gate Pondok Pinang",
+    "score": 85.0,
+    "sections": "JORR S"
+  },
+  "rorotan": {
+    "name": "Rorotan",
+    "latitude": -6.146076,
+    "longitude": 106.9402824,
+    "osm_name": "Rorotan",
+    "score": 100.0,
+    "sections": "JORR NON S"
+  },
+  "ssparigi": {
+    "name": "SS Parigi",
+    "latitude": -6.2669563,
+    "longitude": 106.6855381,
+    "osm_name": "Parigi",
+    "score": 75.0,
+    "sections": "Kunciran-Serpong"
+  },
+  "sssetuselatan": {
+    "name": "SS Setu Selatan",
+    "latitude": -6.3122188,
+    "longitude": 106.9103765,
+    "osm_name": "Setu",
+    "score": 75.0,
+    "sections": "Cimanggis-Cibitung Seksi 2B"
+  },
+  "sssetuutara": {
+    "name": "SS Setu Utara",
+    "latitude": -6.3122188,
+    "longitude": 106.9103765,
+    "osm_name": "Setu",
+    "score": 75.0,
+    "sections": "Cimanggis-Cibitung Seksi 2B"
+  },
+  "sentulselatan": {
+    "name": "Sentul Selatan",
+    "latitude": -6.5639063,
+    "longitude": 106.8449143,
+    "osm_name": "Gerbang Tol Sentul Selatan 1",
+    "score": 85.0,
+    "sections": "Bogor Ring Road Seksi I-IIIA (Sentul Selatan-Simpang Semplak)"
+  },
+  "serpong": {
+    "name": "Serpong",
+    "latitude": -6.2214745,
+    "longitude": 106.637188,
+    "osm_name": "Gerbang Tol Tanggerang Serpong",
+    "score": 85.0,
+    "sections": "Pondok Aren-Serpong, Serpong-Balaraja Seksi 1 (Serpong-SS Legok)"
+  },
+  "tamanmini": {
+    "name": "Taman Mini",
+    "latitude": -6.2871032,
+    "longitude": 106.8782549,
+    "osm_name": "Toll Gate Ramp Taman Mini 1",
+    "score": 85.0,
+    "sections": "JORR S"
+  },
+  "tambun": {
+    "name": "Tambun",
+    "latitude": -6.2785673,
+    "longitude": 107.0516585,
+    "osm_name": "Gerbang Tol Tambun",
+    "score": 85.0,
+    "sections": "Jakarta-Cikampek dan Jakarta-Cikampek II Elevated"
+  },
+  "tanahtinggi": {
+    "name": "Tanah Tinggi",
+    "latitude": -6.1689659,
+    "longitude": 106.653126,
+    "osm_name": "Tanah Tinggi 2",
+    "score": 85.0,
+    "sections": "Cengkareng-Batu Ceper-Kunciran"
+  },
+  "tarumajaya": {
+    "name": "Tarumajaya",
+    "latitude": -6.1080188,
+    "longitude": 106.9910222,
+    "osm_name": "Gerbang Tol Tarumajaya",
+    "score": 85.0,
+    "sections": "Cibitung-Cilincing Seksi 2 & 3, Cibitung-Cilincing Seksi 4"
+  },
+  "telagaasih": {
+    "name": "Telaga Asih",
+    "latitude": -6.2692894,
+    "longitude": 107.0969174,
+    "osm_name": "Telaga Asih",
+    "score": 100.0,
+    "sections": "Cibitung-Cilincing Seksi 1, Cibitung-Cilincing Seksi 2 & 3, Cibitung-Cilincing Seksi 4"
+  }
+}

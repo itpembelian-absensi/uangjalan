@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Save, Upload, X } from 'lucide-react';
+import { Save, Upload, X, ShieldCheck } from 'lucide-react';
 import { useAppSettings } from '../context/AppSettingsContext';
 
 const AppSettings = () => {
@@ -9,6 +9,7 @@ const AppSettings = () => {
     app_subtitle: '',
     logo_base64: null,
     favicon_base64: null,
+    finance_can_unlock_customer: false,
   });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
@@ -21,6 +22,7 @@ const AppSettings = () => {
         app_subtitle: settings.app_subtitle || '',
         logo_base64: settings.logo_base64 || null,
         favicon_base64: settings.favicon_base64 || null,
+        finance_can_unlock_customer: settings.finance_can_unlock_customer || false,
       });
     }
   }, [settings]);
@@ -69,6 +71,7 @@ const AppSettings = () => {
           // Extract base64 part if it contains data:image/...;base64,
           logo_base64: formData.logo_base64,
           favicon_base64: formData.favicon_base64,
+          finance_can_unlock_customer: formData.finance_can_unlock_customer,
         }),
       });
 
@@ -169,6 +172,43 @@ const AppSettings = () => {
                 style={{ padding: '0.4rem' }}
               />
             )}
+          </div>
+
+          <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--glass-border, #e5e7eb)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+              <ShieldCheck size={18} style={{ color: '#6366f1' }} />
+              <h3 style={{ margin: 0, fontSize: '1rem' }}>Kontrol Akses</h3>
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+                padding: '1rem',
+                borderRadius: '8px',
+                background: formData.finance_can_unlock_customer
+                  ? 'rgba(16, 185, 129, 0.08)'
+                  : 'rgba(107, 114, 128, 0.06)',
+                border: `1px solid ${formData.finance_can_unlock_customer ? 'rgba(16, 185, 129, 0.25)' : 'rgba(107, 114, 128, 0.15)'}`,
+                transition: 'all 0.2s ease',
+              }}>
+                <input
+                  type="checkbox"
+                  id="finance_can_unlock_customer"
+                  checked={formData.finance_can_unlock_customer}
+                  onChange={(e) => setFormData({ ...formData, finance_can_unlock_customer: e.target.checked })}
+                  style={{ width: '18px', height: '18px', cursor: 'pointer' }}
+                />
+                <div>
+                  <label htmlFor="finance_can_unlock_customer" style={{ cursor: 'pointer', fontWeight: 500, display: 'block' }}>
+                    Finance dapat unlock Master Customer
+                  </label>
+                  <small style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                    Jika aktif, role Finance bisa membuka kunci (uncheck &ldquo;Kunci Finance&rdquo;) pada master customer yang sudah dikunci final. Jika nonaktif, hanya Admin yang bisa membuka kunci.
+                  </small>
+                </div>
+              </div>
+            </div>
           </div>
 
           {error && <div className="alert alert-error">{error}</div>}

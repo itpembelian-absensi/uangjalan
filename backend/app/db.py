@@ -815,6 +815,31 @@ def ensure_schema() -> None:
             )
         )
 
+        # --- App Settings table & finance_can_unlock_customer ---
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS app_settings (
+                  id BIGSERIAL PRIMARY KEY,
+                  app_name TEXT NOT NULL DEFAULT 'Biaya Pengiriman',
+                  app_subtitle TEXT NOT NULL DEFAULT 'Premium Logistics',
+                  logo_base64 TEXT,
+                  favicon_base64 TEXT,
+                  finance_can_unlock_customer BOOLEAN NOT NULL DEFAULT FALSE,
+                  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                )
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                ALTER TABLE app_settings
+                ADD COLUMN IF NOT EXISTS finance_can_unlock_customer BOOLEAN NOT NULL DEFAULT FALSE
+                """
+            )
+        )
+
         # Reset ALL sequences that may be out of sync after data import/restore
         conn.execute(
             text(

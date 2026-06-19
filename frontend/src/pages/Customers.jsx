@@ -294,9 +294,12 @@ const TariffReadonlyAmount = ({ value }) => (
 );
 
 import { useAuth } from '../auth/AuthContext';
+import { useAppSettings } from '../context/AppSettingsContext';
 
 const Customers = () => {
   const { user } = useAuth();
+  const { settings: appSettings } = useAppSettings();
+  const financeCanUnlock = appSettings?.finance_can_unlock_customer || false;
   const canWrite = useCrudWrite();
   const location = useLocation();
   const [customers, setCustomers] = useState([]);
@@ -1169,7 +1172,7 @@ const Customers = () => {
                 </button>
               </div>
               <div className="modal-body">
-                <fieldset disabled={(user?.role !== 'admin' && initLockedFinance) || (user?.role === 'marketing' && initLockedMarketing)} style={{ border: 'none', padding: 0, margin: 0 }}>
+                <fieldset disabled={(user?.role !== 'admin' && !(user?.role === 'finance' && financeCanUnlock) && initLockedFinance) || (user?.role === 'marketing' && initLockedMarketing)} style={{ border: 'none', padding: 0, margin: 0 }}>
                 {error && (
                   <div
                     style={{
@@ -1640,7 +1643,7 @@ const Customers = () => {
                       type="checkbox" 
                       id="is_locked_marketing" 
                       checked={form.is_locked_marketing} 
-                      disabled={initLockedFinance && user?.role !== 'admin'}
+                      disabled={initLockedFinance && user?.role !== 'admin' && !(user?.role === 'finance' && financeCanUnlock)}
                       onChange={(e) => setForm({ ...form, is_locked_marketing: e.target.checked })} 
                     />
                     <label htmlFor="is_locked_marketing" style={{ cursor: 'pointer', fontSize: '0.9rem', fontWeight: 500, color: form.is_locked_marketing ? '#dc2626' : 'var(--text-secondary)' }}>
@@ -1653,7 +1656,7 @@ const Customers = () => {
                         type="checkbox" 
                         id="is_locked_finance" 
                         checked={form.is_locked_finance} 
-                        disabled={(user?.role === 'finance' && initLockedFinance) || !form.is_locked_marketing}
+                        disabled={(user?.role === 'finance' && initLockedFinance && !financeCanUnlock) || !form.is_locked_marketing}
                         onChange={(e) => setForm({ ...form, is_locked_finance: e.target.checked })} 
                       />
                       <label htmlFor="is_locked_finance" style={{ cursor: 'pointer', fontSize: '0.9rem', fontWeight: 500, color: form.is_locked_finance ? '#dc2626' : 'var(--text-secondary)' }}>
@@ -1665,7 +1668,7 @@ const Customers = () => {
                 <button type="button" className="btn btn-secondary" onClick={closeModal}>
                   Batal
                 </button>
-                {!(user?.role !== 'admin' && initLockedFinance) && (
+                {!(user?.role !== 'admin' && !(user?.role === 'finance' && financeCanUnlock) && initLockedFinance) && (
                   <button 
                     type="submit" 
                     className="btn btn-primary" 
