@@ -87,7 +87,7 @@ health_check() {
   sleep 5
 
   local i api_code frontend_ok=0
-  for i in $(seq 1 30); do
+  for i in $(seq 1 90); do
     api_code="$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3215/api/auth/me || true)"
     if curl -sf http://localhost:3215/ 2>/dev/null | grep -q 'id="root"'; then
       frontend_ok=1
@@ -99,7 +99,7 @@ health_check() {
       return 0
     fi
 
-    echo "Waiting for services... (${i}/30) api=${api_code:-000} frontend=${frontend_ok}"
+    echo "Waiting for services... (${i}/90) api=${api_code:-000} frontend=${frontend_ok}"
     sleep 2
   done
 
