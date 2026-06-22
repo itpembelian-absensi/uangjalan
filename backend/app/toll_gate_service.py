@@ -74,6 +74,9 @@ SECTION_ROUTE_HINTS: list[tuple[list[str], list[str]]] = [
     (["cinere"], ["cinere", "jagorawi", "cimanggis"]),
     (["bekasicawang", "bckm"], ["bekasi", "cawang", "kampungmelayu"]),
     (["cimanggis", "cibitung"], ["cimanggis", "cibitung", "jatikarya"]),
+    (["merak", "tangerang"], ["merak", "tangerang"]),
+    (["bakauheni", "terbanggi", "sumatera"], ["bakauheni", "terbanggi", "sumatera"]),
+    (["ferry", "penyeberangan", "kapal"], ["ferry", "penyeberangan", "merakbakauheni"]),
 ]
 
 

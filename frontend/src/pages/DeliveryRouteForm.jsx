@@ -39,6 +39,7 @@ const DeliveryRouteForm = () => {
   const [routesError, setRoutesError] = useState(null);
   const [customersError, setCustomersError] = useState(null);
   const [isMapFullscreen, setIsMapFullscreen] = useState(false);
+  const [routeDistance, setRouteDistance] = useState(0);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(defaultRouteForm());
   const soInputRefs = useRef([]);
@@ -565,7 +566,7 @@ const DeliveryRouteForm = () => {
                     minHeight: '240px',
                   }}
                 >
-                  <MultiPointMap points={points} height={240} />
+                  <MultiPointMap points={points} height={240} onRouteCalculated={setRouteDistance} />
                   <div
                     style={{
                       position: 'absolute',
@@ -590,6 +591,11 @@ const DeliveryRouteForm = () => {
                     <span>
                       <span className="map-legend-dot map-legend-dot-customer" /> Customer (stop)
                     </span>
+                    {routeDistance > 0 && (
+                      <span style={{ marginTop: '4px', fontWeight: 600, color: '#1e40af' }}>
+                        Jarak Tempuh: {routeDistance.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km
+                      </span>
+                    )}
                   </div>
                   <button
                     type="button"
@@ -691,7 +697,12 @@ const DeliveryRouteForm = () => {
             style={{ maxWidth: '95vw', width: '900px', padding: '1rem' }}
             onClick={(e) => e.stopPropagation()}
           >
-            <MultiPointMap points={points} height="70vh" />
+            <MultiPointMap points={points} height="70vh" onRouteCalculated={setRouteDistance} />
+            {routeDistance > 0 && (
+              <div style={{ marginTop: '0.5rem', textAlign: 'center', fontWeight: 'bold', color: '#1e40af' }}>
+                Total Jarak Tempuh Rute: {routeDistance.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km
+              </div>
+            )}
           </div>
         </div>
       )}

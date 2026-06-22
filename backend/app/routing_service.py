@@ -905,6 +905,13 @@ def _google_toll_idr(origin_lat: float, origin_lng: float, dest_lat: float, dest
 def _is_toll_step(step: dict) -> bool:
     name = step.get("name", "").lower()
     ref = step.get("ref", "").lower()
+    
+    # Check for ferry
+    if step.get("mode") == "ferry" or step.get("maneuver", {}).get("type") == "ferry":
+        return True
+    if any(k in name for k in ["ferry", "penyeberangan", "kapal"]):
+        return True
+        
     if "tol " in name or name.startswith("tol") or "toll" in name:
         return True
     if "tol " in ref or ref.startswith("tol") or "toll" in ref:
@@ -918,6 +925,10 @@ def _is_toll_step(step: dict) -> bool:
 def _step_display_name(step: dict) -> str:
     name = (step.get("name") or "").strip()
     ref = (step.get("ref") or "").strip()
+    
+    if step.get("mode") == "ferry" or step.get("maneuver", {}).get("type") == "ferry":
+        return name or "Penyeberangan Ferry"
+        
     if name and name.lower() not in ("jalan tol", "toll road"):
         return name
     if ref:
@@ -940,7 +951,8 @@ def extract_toll_roads_from_route(route: dict) -> list[dict]:
                 continue
             seen.add(norm)
 
-            step_geom = step.get("geometry", {}).get("coordinates") or []
+            geom = step.get("geometry")
+            step_geom = geom.get("coordinates") if isinstance(geom, dict) else []
             lat: float | None = None
             lng: float | None = None
             geometry: list[list[float]] = []
