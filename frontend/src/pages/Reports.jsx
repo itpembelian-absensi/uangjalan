@@ -7,6 +7,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import DeliveryRouteReportTab from './DeliveryRouteReportTab';
+import TablePager from '../components/TablePager';
 import { computeUangJalanTotals } from '../utils/saleExport';
 
 const formatIDR = (val) =>
@@ -56,6 +57,7 @@ const Reports = () => {
   const [toDate, setToDate] = useState(lastDay);
   const [filterDriver, setFilterDriver] = useState('');
   const [filterCustomer, setFilterCustomer] = useState('');
+  const [filterFinanceStatus, setFilterFinanceStatus] = useState('');
 
   const fetchData = async () => {
     setLoading(true);
@@ -80,6 +82,7 @@ const Reports = () => {
       if (toDate) url += `to=${toDate}&`;
       if (filterDriver) url += `driver_id=${filterDriver}&`;
       if (filterCustomer) url += `customer_id=${filterCustomer}&`;
+      if (filterFinanceStatus) url += `finance_status=${filterFinanceStatus}&`;
       const data = await apiFetch(url);
       setSales((Array.isArray(data) ? data : []).map(enrichSaleReportRow));
     } catch (err) {
@@ -94,7 +97,26 @@ const Reports = () => {
 
   useEffect(() => {
     if (activeTab === 'sales' && canSalesReport) fetchReport();
-  }, [activeTab, fromDate, toDate, filterDriver, filterCustomer, canSalesReport]);
+  }, [activeTab, fromDate, toDate, filterDriver, filterCustomer, filterFinanceStatus, canSalesReport]);
+
+  const PAGE_SIZE = 15;
+  const [page, setPage] = useState(1);
+  
+  const totalPages = Math.max(1, Math.ceil(sales.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [sales.length]);
+
+  const paginatedSales = React.useMemo(() => {
+    const start = (safePage - 1) * PAGE_SIZE;
+    return sales.slice(start, start + PAGE_SIZE);
+  }, [sales, safePage]);
 
   // Summary calculations
   const totalTransaksi = sales.length;
@@ -426,6 +448,14 @@ const Reports = () => {
                   {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                 </select>
               </div>
+              <div className="form-group" style={{ marginBottom: 0, flex: '1 1 200px' }}>
+                <label className="form-label"><FileText size={14} /> Status Pembayaran</label>
+                <select className="form-input" value={filterFinanceStatus} onChange={(e) => setFilterFinanceStatus(e.target.value)}>
+                  <option value="">Semua Status</option>
+                  <option value="paid">Sudah Dibayar (Selesai)</option>
+                  <option value="pending">Belum Dibayar (Pending)</option>
+                </select>
+              </div>
             </>
           )}
         </div>
@@ -519,13 +549,27 @@ const Reports = () => {
       </div>
 
       {/* Detail Table */}
-      <GlassCard title={`Detail Transaksi (${totalTransaksi} data)`}>
+      <GlassCard style={{ marginBottom: '1.5rem' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', gap: '1rem' }}>
+          <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+            Detail Transaksi ({totalTransaksi} data)
+          </h3>
+          {sales.length > PAGE_SIZE && (
+            <TablePager
+              page={safePage}
+              pageSize={PAGE_SIZE}
+              totalItems={sales.length}
+              onPageChange={setPage}
+              label="Transaksi"
+            />
+          )}
+        </div>
         <div className="table-container" style={{ padding: 0 }}>
           <table className="glass-table" style={{ fontSize: '0.85rem' }}>
             <thead>
               <tr>
                 <th style={{ width: '40px', textAlign: 'center' }}>No</th>
-                <th>Tanggal</th>
+                <th style={{ minWidth: '140px', whiteSpace: 'nowrap' }}>Tanggal</th>
                 <th>No. Transaksi</th>
                 <th>Kendaraan</th>
                 <th>Sopir</th>
@@ -538,10 +582,12 @@ const Reports = () => {
               </tr>
             </thead>
             <tbody>
-              {sales.map((s, i) => (
+              {paginatedSales.map((s, i) => {
+                const globalIndex = (safePage - 1) * PAGE_SIZE + i;
+                return (
                 <tr key={s.id}>
-                  <td style={{ textAlign: 'center' }}>{i + 1}</td>
-                  <td>{formatDate(s.date)}</td>
+                  <td style={{ textAlign: 'center' }}>{globalIndex + 1}</td>
+                  <td style={{ whiteSpace: 'nowrap' }}>{formatDate(s.date)}</td>
                   <td style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{s.sale_no}</td>
                   <td>{s.vehicle_plate}</td>
                   <td>{s.driver_name}</td>
@@ -552,7 +598,8 @@ const Reports = () => {
                   <td style={{ textAlign: 'right', color: '#7c3aed' }}>{formatIDR(s.rounding_uang_jalan)}</td>
                   <td style={{ textAlign: 'right', fontWeight: 700 }}>{formatIDR(s.total_uang_jalan)}</td>
                 </tr>
-              ))}
+                );
+              })}
               {sales.length === 0 && (
                 <tr>
                   <td colSpan="11" style={{ textAlign: 'center', opacity: 0.5, padding: '2rem' }}>
@@ -575,6 +622,18 @@ const Reports = () => {
           </table>
         </div>
       </GlassCard>
+
+      {sales.length > PAGE_SIZE && (
+        <div style={{ marginTop: '0.5rem', marginBottom: '1.5rem' }}>
+          <TablePager
+            page={safePage}
+            pageSize={PAGE_SIZE}
+            totalItems={sales.length}
+            onPageChange={setPage}
+            label="Transaksi"
+          />
+        </div>
+      )}
         </>
       )}
 

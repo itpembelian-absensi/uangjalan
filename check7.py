@@ -1,0 +1,1 @@
+import sys; sys.path.append('backend'); from app.db import SessionLocal; from app.models import Customer; from app.api import _serialize_customer; db = SessionLocal(); c = db.query(Customer).filter_by(id=5352).first(); out = _serialize_customer(db, c); print([t.uang_jalan for t in out.tariffs if t.vehicle_type_id==4])  

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import GlassCard from '../components/GlassCard';
 import DeliveryRouteStopDetailTable from '../components/DeliveryRouteStopDetailTable';
-import { Download, Printer, Truck, FileText } from 'lucide-react';
+import TablePager from '../components/TablePager';
+import { Download, Printer, Truck, FileText, ChevronDown, ChevronRight } from 'lucide-react';
 import { apiFetch } from '../api';
 import {
   buildReportQuery,
@@ -24,9 +25,29 @@ const DeliveryRouteReportTab = ({ fromDate, toDate }) => {
   const [vehicleTypes, setVehicleTypes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filterVehicleType, setFilterVehicleType] = useState('');
+  const [expandedRouteNo, setExpandedRouteNo] = useState(null);
+
+  const PAGE_SIZE = 15;
+  const [page, setPage] = useState(1);
 
   const filterParams = { fromDate, toDate, vehicleTypeId: filterVehicleType };
   const { routes, stop_rows, total_routes, total_stops, total_items_qty } = report;
+
+  const totalPages = Math.max(1, Math.ceil(routes.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [routes.length]);
+
+  const paginatedRoutes = React.useMemo(() => {
+    const start = (safePage - 1) * PAGE_SIZE;
+    return routes.slice(start, start + PAGE_SIZE);
+  }, [routes, safePage]);
 
   useEffect(() => {
     (async () => {
@@ -42,6 +63,7 @@ const DeliveryRouteReportTab = ({ fromDate, toDate }) => {
   useEffect(() => {
     const fetchReport = async () => {
       setLoading(true);
+      setExpandedRouteNo(null);
       try {
         const data = await apiFetch(`/api/reports/delivery-routes${buildReportQuery(filterParams)}`);
         setReport(data);
@@ -52,6 +74,10 @@ const DeliveryRouteReportTab = ({ fromDate, toDate }) => {
     };
     fetchReport();
   }, [fromDate, toDate, filterVehicleType]);
+
+  const toggleRoute = (routeNo) => {
+    setExpandedRouteNo((prev) => (prev === routeNo ? null : routeNo));
+  };
 
   return (
     <>
@@ -129,13 +155,27 @@ const DeliveryRouteReportTab = ({ fromDate, toDate }) => {
         </GlassCard>
       </div>
 
-      <GlassCard title={`Ringkasan Rute (${total_routes} data)`} style={{ marginBottom: '1.5rem' }}>
+      <GlassCard style={{ marginBottom: '1.5rem' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', gap: '1rem' }}>
+          <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+            Ringkasan Rute ({total_routes} data) — klik baris untuk lihat detail
+          </h3>
+          {routes.length > PAGE_SIZE && (
+            <TablePager
+              page={safePage}
+              pageSize={PAGE_SIZE}
+              totalItems={routes.length}
+              onPageChange={setPage}
+              label="Rute"
+            />
+          )}
+        </div>
         <div className="table-container" style={{ padding: 0 }}>
           <table className="glass-table" style={{ fontSize: '0.85rem' }}>
             <thead>
               <tr>
-                <th style={{ width: '40px', textAlign: 'center' }}>No</th>
-                <th>Tanggal</th>
+                <th style={{ width: '50px', textAlign: 'center' }}>No</th>
+                <th style={{ minWidth: '140px', whiteSpace: 'nowrap' }}>Tanggal</th>
                 <th>No. Rute</th>
                 <th>Jenis Kendaraan</th>
                 <th>No. Transaksi</th>
@@ -145,20 +185,67 @@ const DeliveryRouteReportTab = ({ fromDate, toDate }) => {
               </tr>
             </thead>
             <tbody>
-              {routes.map((r, i) => (
-                <tr key={r.id}>
-                  <td style={{ textAlign: 'center' }}>{i + 1}</td>
-                  <td>{formatReportDate(r.date)}</td>
-                  <td style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{r.route_no}</td>
-                  <td>{r.vehicle_type_name || '-'}</td>
-                  <td style={{ whiteSpace: 'pre-line', lineHeight: 1.35, fontSize: '0.85rem' }}>
-                    {formatSaleTransactionText(r)}
-                  </td>
-                  <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.stop_count}</td>
-                  <td>{r.customers}</td>
-                  <td>{r.remarks || '-'}</td>
-                </tr>
-              ))}
+              {paginatedRoutes.map((r, i) => {
+                const globalIndex = (safePage - 1) * PAGE_SIZE + i;
+                const isExpanded = expandedRouteNo === r.route_no;
+                const routeStops = isExpanded
+                  ? stop_rows.filter((sr) => sr.route_no === r.route_no)
+                  : [];
+                return (
+                  <React.Fragment key={r.id}>
+                    <tr
+                      onClick={() => toggleRoute(r.route_no)}
+                      style={{
+                        cursor: 'pointer',
+                        background: isExpanded ? 'var(--bg-secondary)' : undefined,
+                        transition: 'background 0.15s',
+                      }}
+                      title="Klik untuk lihat detail customer & barang"
+                    >
+                      <td style={{ textAlign: 'center' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px' }}>
+                          {isExpanded
+                            ? <ChevronDown size={14} style={{ color: 'var(--accent-color)' }} />
+                            : <ChevronRight size={14} style={{ opacity: 0.5 }} />}
+                          {globalIndex + 1}
+                        </span>
+                      </td>
+                      <td style={{ whiteSpace: 'nowrap' }}>{formatReportDate(r.date)}</td>
+                      <td style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{r.route_no}</td>
+                      <td>{r.vehicle_type_name || '-'}</td>
+                      <td style={{ whiteSpace: 'pre-line', lineHeight: 1.35, fontSize: '0.85rem' }}>
+                        {formatSaleTransactionText(r)}
+                      </td>
+                      <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.stop_count}</td>
+                      <td>{r.customers}</td>
+                      <td>{r.remarks || '-'}</td>
+                    </tr>
+                    {isExpanded && (
+                      <tr>
+                        <td colSpan="8" style={{ padding: 0, background: 'var(--bg-secondary)' }}>
+                          <div style={{ padding: '0.75rem 1rem' }}>
+                            <h4 style={{
+                              margin: '0 0 0.5rem',
+                              fontSize: '0.8rem',
+                              color: 'var(--text-secondary)',
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.04em',
+                            }}>
+                              Detail Customer & Barang — {r.route_no}
+                            </h4>
+                            <DeliveryRouteStopDetailTable
+                              stopRows={routeStops}
+                              loading={false}
+                              showSaleNo
+                              maxHeight="none"
+                            />
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
+                );
+              })}
               {routes.length === 0 && (
                 <tr>
                   <td colSpan="8" style={{ textAlign: 'center', opacity: 0.5, padding: '2rem' }}>
@@ -171,14 +258,17 @@ const DeliveryRouteReportTab = ({ fromDate, toDate }) => {
         </div>
       </GlassCard>
 
-      <GlassCard title={`Detail Customer & Barang (${stop_rows.length} baris)`}>
-        <DeliveryRouteStopDetailTable
-          stopRows={stop_rows}
-          loading={loading}
-          showSaleNo
-          maxHeight="400px"
-        />
-      </GlassCard>
+      {routes.length > PAGE_SIZE && (
+        <div style={{ marginTop: '0.5rem', marginBottom: '1.5rem' }}>
+          <TablePager
+            page={safePage}
+            pageSize={PAGE_SIZE}
+            totalItems={routes.length}
+            onPageChange={setPage}
+            label="Rute"
+          />
+        </div>
+      )}
     </>
   );
 };

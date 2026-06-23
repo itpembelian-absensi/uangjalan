@@ -1,0 +1,1 @@
+import sys; sys.path.append('backend'); from app.db import SessionLocal; from app.models import DeliveryRoute, Sale, Vehicle, SaleDetail; db = SessionLocal(); r = db.query(DeliveryRoute).filter_by(route_no='RT26060019').first(); print('Route VT:', r.vehicle_type_id if r else None)  

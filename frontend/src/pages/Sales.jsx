@@ -20,6 +20,7 @@ import {
   Undo2,
   ChevronDown,
   ChevronRight,
+  Ban,
 } from 'lucide-react';
 import { apiFetch } from '../api';
 import { useAuth } from '../auth/AuthContext';
@@ -220,6 +221,8 @@ const Sales = () => {
   const [routeResult, setRouteResult] = useState(null);
   const [routeLoading, setRouteLoading] = useState(false);
 
+  const [voidModal, setVoidModal] = useState({ open: false, saleId: null, reason: '' });
+
   const fetchSales = async () => {
     setLoading(true);
     try {
@@ -273,7 +276,6 @@ const Sales = () => {
     fetchData();
   }, []);
 
-  // Auto-fetch when date filters change (skip initial mount handled by fetchData above)
   const initialLoadDone = React.useRef(false);
   useEffect(() => {
     if (!initialLoadDone.current) {
@@ -344,10 +346,6 @@ const Sales = () => {
 
   const handleApprovePayment = async (sale) => {
     if (sale.is_finance_paid) return;
-    if (!sale.vehicle_id || !sale.driver_id) {
-      alert('Tidak dapat menyetujui transaksi: kendaraan dan sopir harus diisi terlebih dahulu.');
-      return;
-    }
     const msg = `Setujui pembayaran uang jalan ${sale.sale_no}? Rute terkait akan dikunci dan tidak dapat diubah lagi.`;
     if (!window.confirm(msg)) return;
     setFinanceActionId(sale.id);
@@ -376,13 +374,23 @@ const Sales = () => {
     }
   };
 
-  const handleEdit = (sale) => {
-    if (sale.is_finance_paid) {
-      alert(
-        'Transaksi sudah disetujui dibayar dan tidak dapat diubah. Gunakan Batalkan di kolom Aksi atau hapus transaksi untuk membuka kunci rute.',
-      );
-      return;
+  const handleVoidSale = async (e) => {
+    e.preventDefault();
+    if (!voidModal.saleId || !voidModal.reason || voidModal.reason.length < 3) return;
+    try {
+      const updated = await apiFetch(`/api/sales/${voidModal.saleId}/void`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ void_reason: voidModal.reason })
+      });
+      setSales((prev) => prev.map((s) => (s.id === voidModal.saleId ? updated : s)));
+      setVoidModal({ open: false, saleId: null, reason: '' });
+    } catch (err) {
+      alert(err.message);
     }
+  };
+
+  const handleEdit = (sale) => {
     setIsEdit(true);
     setCurrentId(sale.id);
     setLinkedRouteId(sale.delivery_route_id || null);
@@ -394,6 +402,7 @@ const Sales = () => {
       driver_id: sale.driver_id ? String(sale.driver_id) : '',
       remarks: sale.remarks || '',
       extra_uang_jalan: sale.extra_uang_jalan ? String(sale.extra_uang_jalan) : '',
+      is_finance_paid: sale.is_finance_paid,
       details: sale.details.map((d) => {
         let vehicleTypeId =
           d.vehicle_type_id != null && d.vehicle_type_id !== ''
@@ -493,7 +502,10 @@ const Sales = () => {
         (t) => String(t.vehicle_type_id) === String(val)
       );
       row.vehicle_type_name = tariff?.vehicle_type_name || row.vehicle_type_name;
-      row.amount = lookupTariffAmount(row.customer_id, val);
+      const newAmount = lookupTariffAmount(row.customer_id, val);
+      if (newAmount !== '') {
+        row.amount = newAmount;
+      }
     }
 
     newDetails[idx] = row;
@@ -721,7 +733,6 @@ const Sales = () => {
                   };
                   const saleDoc = () => buildSaleDocumentFromSaleOut(s);
 
-                  // Compute uang jalan totals for expanded detail
                   const amounts = (s.details || []).map((d) => parseFloat(d.amount) || 0).filter((n) => n > 0);
                   const maxNom = amounts.length > 0 ? Math.max(...amounts) : 0;
                   const extraAmt = parseFloat(s.extra_uang_jalan) || 0;
@@ -766,8 +777,8 @@ const Sales = () => {
                               <React.Fragment key={idx}>
                                 {idx > 0 && ', '}
                                 {d.customer_name ? (
-                                  <Link to={`/customers?editId=${d.customer_id}`} style={{ textDecoration: 'none', color: '#4f46e5' }} title="Buka master customer" onClick={(e) => e.stopPropagation()}>
-                                    {d.customer_name}
+                                  <Link to={`/customers?editId=${d.customer_id}`} style={{ textDecoration: 'none', color: d.customer_is_locked ? '#3b82f6' : '#ef4444' }} title={d.customer_is_locked ? 'Customer sudah di-lock (finance)' : 'Buka master customer'} onClick={(e) => e.stopPropagation()}>
+                                    {d.customer_name} {d.customer_is_locked && <Lock size={10} style={{ display: 'inline', verticalAlign: 'middle', marginBottom: '2px' }} />}
                                   </Link>
                                 ) : (
                                   'Tanpa Nama'
@@ -777,11 +788,21 @@ const Sales = () => {
                           </div>
                         )}
                       </td>
-                      <td style={{ textAlign: 'right', color: 'var(--success-color)', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                        {formatIDR(totalUJ)}
+                      <td style={{ textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                        {s.is_void ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                            <span style={{ color: 'var(--text-secondary)', textDecoration: 'line-through' }}>{formatIDR(totalUJ)}</span>
+                          </div>
+                        ) : (
+                          <span style={{ color: 'var(--success-color)' }}>{formatIDR(totalUJ)}</span>
+                        )}
                       </td>
-                      <td style={{ whiteSpace: 'nowrap' }}>
-                        {s.is_finance_paid ? (
+                      <td style={{ textAlign: 'center' }}>
+                        {s.is_void ? (
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '0.25rem 0.6rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 600, background: '#fee2e2', color: '#b91c1c' }} title={s.void_reason}>
+                            <Ban size={12} /> Void
+                          </span>
+                        ) : s.is_finance_paid ? (
                           <span className="badge-finance-paid" title={s.finance_paid_by_name ? `Oleh ${s.finance_paid_by_name}` : undefined}>
                             <Lock size={12} aria-hidden /> Sudah dibayar
                           </span>
@@ -818,7 +839,7 @@ const Sales = () => {
                           >
                             <FileSpreadsheet size={14} />
                           </button>
-                          {canApprovePayment && !s.is_finance_paid && (
+                          {canApprovePayment && !s.is_finance_paid && !s.is_void && (
                             <button
                               type="button"
                               className="btn btn-primary"
@@ -842,23 +863,36 @@ const Sales = () => {
                               <Undo2 size={14} /> Batalkan
                             </button>
                           )}
+                          {!s.is_void && (
                           <button
                             type="button"
                             className="btn btn-secondary"
                             style={{ padding: '0.4rem 0.6rem' }}
-                            disabled={Boolean(s.is_finance_paid) || !canWrite}
+                            disabled={!canWrite}
                             onClick={() => handleEdit(s)}
-                            title={!canWrite ? 'Tidak ada akses edit' : s.is_finance_paid ? 'Sudah dibayar — tidak dapat diedit' : 'Edit'}
+                            title={!canWrite ? 'Tidak ada akses edit' : s.is_finance_paid ? 'Edit Kendaraan & Supir (Sudah Dibayar)' : 'Edit'}
                           >
                             <Edit size={16} />
                           </button>
-                          {canWrite && (
+                          )}
+                          {canWrite && !s.is_void && !s.is_finance_paid && (user?.role === 'gudang' || user?.role === 'admin') && (
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            style={{ padding: '0.4rem 0.6rem', color: '#ef4444', borderColor: '#fecaca' }}
+                            onClick={() => setVoidModal({ open: true, saleId: s.id, reason: '' })}
+                            title="Void Transaksi"
+                          >
+                            <Ban size={16} />
+                          </button>
+                          )}
+                          {canWrite && !s.is_void && !s.is_finance_paid && (
                           <button
                             type="button"
                             className="btn btn-danger"
                             style={{ padding: '0.4rem 0.6rem' }}
                             onClick={() => handleDelete(s)}
-                            title={s.is_finance_paid ? 'Hapus untuk membuka kunci rute' : 'Hapus'}
+                            title="Hapus"
                           >
                             <Trash2 size={16} />
                           </button>
@@ -876,7 +910,6 @@ const Sales = () => {
                             flexWrap: 'wrap',
                             alignItems: 'flex-start',
                           }}>
-                            {/* Detail Customer */}
                             <div style={{ flex: '1 1 400px', minWidth: '280px' }}>
                               <h4 style={{ margin: '0 0 0.5rem', fontSize: '0.85rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Detail Customer</h4>
                               <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
@@ -899,7 +932,6 @@ const Sales = () => {
                               </table>
                             </div>
 
-                            {/* Ringkasan Uang Jalan */}
                             <div style={{
                               flex: '0 0 280px',
                               background: 'var(--bg-primary)',
@@ -945,7 +977,7 @@ const Sales = () => {
                     TOTAL KESELURUHAN
                   </td>
                   <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--success-color)', padding: '1rem', whiteSpace: 'nowrap', fontSize: '1.05rem' }}>
-                    {formatIDR(displaySales.reduce((sum, s) => sum + saleDetailTotal(s), 0))}
+                    {formatIDR(displaySales.reduce((sum, s) => sum + (s.is_void ? 0 : saleDetailTotal(s)), 0))}
                   </td>
                   <td colSpan="2"></td>
                 </tr>
@@ -1002,7 +1034,7 @@ const Sales = () => {
                       type="date"
                       className="form-input"
                       required
-                      readOnly={fromRoute}
+                      disabled={fromRoute || form.is_finance_paid}
                       value={form.date}
                       onChange={(e) => setForm({ ...form, date: e.target.value })}
                     />
@@ -1013,6 +1045,7 @@ const Sales = () => {
                       type="text"
                       className="form-input"
                       placeholder="Auto Generate"
+                      disabled={form.is_finance_paid}
                       value={form.sale_no}
                       onChange={(e) => setForm({ ...form, sale_no: e.target.value })}
                     />
@@ -1070,6 +1103,7 @@ const Sales = () => {
                   <input
                     type="text"
                     className="form-input"
+                    disabled={form.is_finance_paid}
                     value={form.remarks}
                     onChange={(e) => setForm({ ...form, remarks: e.target.value })}
                   />
@@ -1078,7 +1112,7 @@ const Sales = () => {
                 <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--card-border)', paddingTop: '1.5rem', flex: 1, display: 'flex', flexDirection: 'column' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                     <h4 style={{ margin: 0, fontWeight: 500 }}>Detail Customer</h4>
-                    {!fromRoute && (
+                    {!fromRoute && !form.is_finance_paid && (
                       <button type="button" className="btn btn-secondary" onClick={addDetailRow} style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>
                         <Plus size={16} /> Tambah Baris
                       </button>
@@ -1112,7 +1146,7 @@ const Sales = () => {
                                   className="form-input"
                                   style={{ background: 'transparent', padding: '0.4rem 0.5rem' }}
                                   required
-                                  disabled={fromRoute}
+                                  disabled={fromRoute || form.is_finance_paid}
                                   value={String(row.customer_id)}
                                   onChange={(e) => updateDetail(idx, 'customer_id', e.target.value)}
                                 >
@@ -1128,7 +1162,7 @@ const Sales = () => {
                                   style={{ background: 'transparent', padding: '0.4rem 0.5rem' }}
                                   required
                                   value={String(row.vehicle_type_id)}
-                                  disabled={fromRoute || !row.customer_id}
+                                  disabled={fromRoute || !row.customer_id || form.is_finance_paid}
                                   onChange={(e) => updateDetail(idx, 'vehicle_type_id', e.target.value)}
                                 >
                                   <option value="">-- Pilih Jenis --</option>
@@ -1151,6 +1185,7 @@ const Sales = () => {
                                   className="form-input"
                                   style={{ background: 'transparent', padding: '0.4rem 0.5rem', textAlign: 'right' }}
                                   required
+                                  disabled={form.is_finance_paid}
                                   placeholder="0"
                                   value={row.amount === '' ? '' : formatAmount(row.amount)}
                                   onChange={(e) =>
@@ -1175,6 +1210,7 @@ const Sales = () => {
                                   <button
                                     type="button"
                                     className="btn btn-danger"
+                                    disabled={form.is_finance_paid}
                                     onClick={() => removeDetailRow(idx)}
                                     style={{ padding: '0.35rem 0.5rem' }}
                                   >
@@ -1283,6 +1319,7 @@ const Sales = () => {
                                   inputMode="numeric"
                                   className="form-input"
                                   style={{ textAlign: 'right' }}
+                                  disabled={form.is_finance_paid}
                                   value={form.extra_uang_jalan === '' ? '' : formatAmount(form.extra_uang_jalan)}
                                   onChange={(e) =>
                                     setForm({ ...form, extra_uang_jalan: parseAmountInput(e.target.value) })
@@ -1370,6 +1407,43 @@ const Sales = () => {
         onClose={() => setRouteResult(null)}
         onApplyToll={applyTollToForm}
       />
+      {/* Void Modal */}
+      {voidModal.open && (
+        <div className="modal-overlay" onClick={() => setVoidModal({ open: false, saleId: null, reason: '' })}>
+          <div className="modal-content" style={{ maxWidth: '400px' }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Void Transaksi</h2>
+              <button className="btn-close" onClick={() => setVoidModal({ open: false, saleId: null, reason: '' })}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <form onSubmit={handleVoidSale}>
+                <div className="form-group">
+                  <label>Alasan Batal Jalan <span style={{ color: '#ef4444' }}>*</span></label>
+                  <textarea
+                    className="form-input"
+                    rows="3"
+                    value={voidModal.reason}
+                    onChange={(e) => setVoidModal({ ...voidModal, reason: e.target.value })}
+                    placeholder="Masukkan alasan pembatalan..."
+                    required
+                    minLength={3}
+                  />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '1rem' }}>
+                  <button type="button" className="btn btn-secondary" onClick={() => setVoidModal({ open: false, saleId: null, reason: '' })}>
+                    Batal
+                  </button>
+                  <button type="submit" className="btn btn-danger" disabled={voidModal.reason.length < 3}>
+                    Void Transaksi
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

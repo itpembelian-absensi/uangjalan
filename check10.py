@@ -1,0 +1,1 @@
+import sys; sys.path.append('backend'); from app.db import SessionLocal; from app.models import DeliveryRoute, Sale, SaleDetail; db = SessionLocal(); s = db.query(Sale).filter_by(sale_no='UJ26060020').first(); print(s.is_finance_paid if s else None)  

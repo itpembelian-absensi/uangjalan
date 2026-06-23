@@ -403,6 +403,7 @@ class SaleDetailOut(BaseModel):
     id: int
     customer_id: int
     customer_name: str | None = None
+    customer_is_locked: bool = False
     vehicle_type_id: int | None = None
     vehicle_type_name: str | None = None
     amount: float = Field(ge=0, default=0)
@@ -441,7 +442,12 @@ class SaleOut(BaseModel):
     is_finance_paid: bool = False
     finance_paid_at: datetime | None = None
     finance_paid_by_name: str | None = None
+    is_void: bool = False
+    void_reason: str | None = None
     created_at: datetime
+
+class SaleVoid(BaseModel):
+    void_reason: str = Field(..., min_length=3)
 
     class Config:
         from_attributes = True

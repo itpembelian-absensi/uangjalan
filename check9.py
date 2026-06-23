@@ -1,0 +1,1 @@
+import sys; sys.path.append('backend'); from app.db import SessionLocal; from app.models import TollSection; db = SessionLocal(); print('Active Tolls:', db.query(TollSection).filter(TollSection.is_active==True).count())  

@@ -102,6 +102,7 @@ from app.schemas import (
     SaleCreate,
     SaleOut,
     SaleDetailOut,
+    SaleVoid,
     DeliveryRouteCreate,
     DeliveryRouteBulkSyncOut,
     DeliveryRouteOut,
@@ -242,7 +243,9 @@ def _replace_section_rates(db: Session, section: TollSection, rate_items: list) 
 def _load_toll_gate_fare_context(db: Session) -> dict:
     gates = db.scalars(
         select(TollGate)
+        .join(TollSection, TollGate.section_id == TollSection.id)
         .where(TollGate.is_active.is_(True))
+        .where(TollSection.is_active.is_(True))
         .options(selectinload(TollGate.section))
         .order_by(TollGate.section_id.asc(), TollGate.sort_order.asc(), TollGate.id.asc())
     ).all()
@@ -250,7 +253,9 @@ def _load_toll_gate_fare_context(db: Session) -> dict:
         select(TollGateFare, TollGolongan.code)
         .join(TollGolongan, TollGateFare.golongan_id == TollGolongan.id)
         .join(TollGate, TollGateFare.entry_gate_id == TollGate.id)
+        .join(TollSection, TollGate.section_id == TollSection.id)
         .where(TollGate.is_active.is_(True))
+        .where(TollSection.is_active.is_(True))
     ).all()
     return serialize_gate_fare_context(gates, fare_rows)
 
@@ -1158,11 +1163,15 @@ def report_sales(
     to_date: date | None = Query(None, alias="to"),
     driver_id: int | None = None,
     customer_id: int | None = None,
+    finance_status: str | None = None,
     db: Session = Depends(get_db),
 ):
     stmt = (
         select(Sale)
         .options(selectinload(Sale.details))
+        .where(Sale.is_void == False)
+        .where(Sale.driver_id.isnot(None))
+        .where(Sale.vehicle_id.isnot(None))
         .order_by(Sale.date.desc(), Sale.created_at.desc())
     )
     if from_date:
@@ -1177,6 +1186,10 @@ def report_sales(
                 select(SaleDetail.sale_id).where(SaleDetail.customer_id == customer_id)
             )
         )
+    if finance_status == "paid":
+        stmt = stmt.where(Sale.finance_paid_at.isnot(None))
+    elif finance_status == "pending":
+        stmt = stmt.where(Sale.finance_paid_at.is_(None))
 
     sales = db.scalars(stmt).all()
     results = []
@@ -1270,6 +1283,7 @@ def _serialize_sale(db: Session, obj: Sale) -> SaleOut:
                 id=d.id,
                 customer_id=d.customer_id,
                 customer_name=cust.name if cust else None,
+                customer_is_locked=bool(cust.is_locked_finance) if cust else False,
                 vehicle_type_id=d.vehicle_type_id,
                 vehicle_type_name=vtype.name if vtype else None,
                 amount=float(d.amount),
@@ -1305,6 +1319,8 @@ def _serialize_sale(db: Session, obj: Sale) -> SaleOut:
         is_finance_paid=sale_finance_locked(obj),
         finance_paid_at=obj.finance_paid_at,
         finance_paid_by_name=paid_by,
+        is_void=obj.is_void,
+        void_reason=obj.void_reason,
         created_at=obj.created_at,
     )
 
@@ -1489,13 +1505,10 @@ def finance_approve_sale(
     obj = db.get(Sale, sale_id)
     if not obj:
         raise HTTPException(status_code=404, detail="Penjualan tidak ditemukan")
+    if getattr(obj, "is_void", False):
+        raise HTTPException(status_code=400, detail="Transaksi sudah berstatus void dan tidak dapat disetujui.")
     if sale_finance_locked(obj):
         raise HTTPException(status_code=400, detail="Pembayaran uang jalan sudah disetujui.")
-    if not obj.vehicle_id or not obj.driver_id:
-        raise HTTPException(
-            status_code=400, 
-            detail="Tidak dapat menyetujui transaksi: kendaraan dan sopir harus diisi terlebih dahulu."
-        )
     obj.finance_paid_at = datetime.now(timezone.utc)
     obj.finance_paid_by = user.id
     db.commit()
@@ -1526,15 +1539,57 @@ def finance_unapprove_sale(
     return _serialize_sale(db, obj)
 
 
+@router.post("/sales/{sale_id}/void", response_model=SaleOut)
+def void_sale(
+    sale_id: int,
+    payload: SaleVoid,
+    user: User = Depends(require_permission("sales:write")),
+    db: Session = Depends(get_db),
+):
+    if user.role not in (Role.GUDANG.value, Role.ADMIN.value):
+        raise HTTPException(
+            status_code=403,
+            detail="Hanya Gudang atau Admin yang dapat melakukan void transaksi.",
+        )
+    obj = db.get(Sale, sale_id)
+    if not obj:
+        raise HTTPException(status_code=404, detail="Penjualan tidak ditemukan")
+    if getattr(obj, "is_void", False):
+        raise HTTPException(status_code=400, detail="Transaksi sudah berstatus void.")
+    if sale_finance_locked(obj):
+        raise HTTPException(status_code=400, detail="Uang jalan sudah disetujui finance dan tidak bisa divoid.")
+    
+    obj.is_void = True
+    obj.void_reason = payload.void_reason
+    db.commit()
+    db.refresh(obj)
+    return _serialize_sale(db, obj)
+
+
 @router.put("/sales/{sale_id}", response_model=SaleOut)
 def update_sale(sale_id: int, payload: SaleCreate, db: Session = Depends(get_db)):
     db.execute(select(Sale).where(Sale.id == sale_id).with_for_update()).scalar_one_or_none()
     obj = db.get(Sale, sale_id)
     if not obj:
         raise HTTPException(status_code=404, detail="Penjualan tidak ditemukan")
+    if getattr(obj, "is_void", False):
+        raise HTTPException(status_code=400, detail="Transaksi sudah berstatus void dan tidak dapat diedit.")
 
-    assert_sale_editable(obj)
-
+    from app.sale_lock import sale_finance_locked
+    if sale_finance_locked(obj):
+        if payload.vehicle_id is not None and not db.get(Vehicle, payload.vehicle_id):
+            raise HTTPException(status_code=400, detail="Kendaraan tidak ditemukan")
+        if payload.driver_id is not None and not db.get(Driver, payload.driver_id):
+            raise HTTPException(status_code=400, detail="Sopir tidak ditemukan")
+        obj.vehicle_id = payload.vehicle_id
+        obj.driver_id = payload.driver_id
+        try:
+            db.commit()
+            db.refresh(obj)
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(status_code=400, detail=f"Gagal mengupdate transaksi: {e}")
+        return _serialize_sale(db, obj)
     if obj.delivery_route_id:
         route = db.get(DeliveryRoute, obj.delivery_route_id)
         if payload.date != obj.date:
