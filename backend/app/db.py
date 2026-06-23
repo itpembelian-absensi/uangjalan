@@ -840,6 +840,17 @@ def ensure_schema() -> None:
             )
         )
 
+        # --- Kolom Void untuk Sales ---
+        conn.execute(
+            text(
+                """
+                ALTER TABLE sales
+                ADD COLUMN IF NOT EXISTS is_void BOOLEAN DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS void_reason TEXT
+                """
+            )
+        )
+
         # Reset ALL sequences that may be out of sync after data import/restore
         conn.execute(
             text(
