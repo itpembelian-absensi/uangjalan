@@ -6,3 +6,4 @@ build/
 *.log
 sql/
 Database/database.sql
+backend/app/__pycache__/db.cpython-315.pyc

@@ -541,6 +541,110 @@ def list_customers(db: Session = Depends(get_db)):
     return [_serialize_customer_list(c) for c in customers]
 
 
+@router.post("/customers/refresh-stale-toll")
+def refresh_stale_customer_toll(db: Session = Depends(get_db)):
+    """Recalculate custom_toll_breakdown for customers that have stale (Rp 0) segments."""
+    from app.routing_service import calculate_route
+
+    warehouse = _get_or_create_warehouse(db)
+    if not warehouse or warehouse.latitude is None or warehouse.longitude is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Koordinat gudang belum diatur.",
+        )
+
+    origin_lat = float(warehouse.latitude)
+    origin_lng = float(warehouse.longitude)
+
+    sections = _load_active_toll_sections(db)
+    gate_context = _load_toll_gate_fare_context(db)
+
+    customers = db.scalars(
+        select(Customer).where(Customer.custom_toll_breakdown.isnot(None))
+    ).all()
+
+    updated = 0
+    skipped = 0
+    errors: list[str] = []
+
+    for cust in customers:
+        if cust.latitude is None or cust.longitude is None:
+            skipped += 1
+            continue
+
+        try:
+            old_segments = json.loads(cust.custom_toll_breakdown)
+        except (json.JSONDecodeError, TypeError):
+            skipped += 1
+            continue
+
+        # Check if any segments have one_way_idr == 0 with source "route"
+        has_stale = any(
+            seg.get("one_way_idr", 0) == 0 and seg.get("source") == "route"
+            for seg in old_segments
+        )
+        if not has_stale:
+            skipped += 1
+            continue
+
+        dest_lat = float(cust.latitude)
+        dest_lng = float(cust.longitude)
+
+        try:
+            route = calculate_route(
+                origin_lat, origin_lng,
+                dest_lat, dest_lng,
+                sections=sections,
+                force_toll=cust.force_toll,
+                gate_context=gate_context,
+                prefer_cheapest_toll=True,
+            )
+            new_segments = route.get("toll_breakdown")
+            if new_segments:
+                # Merge: keep any manually edited segments, replace stale route segments
+                new_by_name = {}
+                for seg in new_segments:
+                    key = (seg.get("section_name") or "").strip().lower()
+                    new_by_name[key] = seg
+
+                merged = []
+                for old_seg in old_segments:
+                    key = (old_seg.get("section_name") or "").strip().lower()
+                    if old_seg.get("one_way_idr", 0) == 0 and old_seg.get("source") == "route":
+                        # Replace stale segment with fresh data if available
+                        new_seg = new_by_name.get(key)
+                        if new_seg and float(new_seg.get("one_way_idr") or 0) > 0:
+                            merged.append(new_seg)
+                        else:
+                            merged.append(old_seg)
+                    else:
+                        merged.append(old_seg)
+
+                has_changes = any(
+                    m.get("one_way_idr", 0) != o.get("one_way_idr", 0)
+                    for m, o in zip(merged, old_segments)
+                )
+                if has_changes:
+                    cust.custom_toll_breakdown = json.dumps(merged)
+                    updated += 1
+                else:
+                    skipped += 1
+            else:
+                skipped += 1
+        except Exception as exc:
+            errors.append(f"Customer {cust.id} ({cust.name}): {exc}")
+            skipped += 1
+
+    db.commit()
+
+    return {
+        "updated": updated,
+        "skipped": skipped,
+        "errors": errors[:10],
+        "total": len(customers),
+    }
+
+
 @router.get("/customers/{customer_id}", response_model=CustomerOut)
 def get_customer(customer_id: int, db: Session = Depends(get_db)):
     obj = db.get(Customer, customer_id)
@@ -2647,4 +2751,5 @@ def import_toll_data(payload: TollDataExport, db: Session = Depends(get_db)):
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=400, detail=f"Gagal import data: {str(e)}")
+
 
