@@ -1718,3 +1718,5 @@ body.customer-lookup-dragging .customer-lookup-drag-handle {
     color: #333;
   }
 }
+
+.hover-row:hover { background-color: rgba(0,0,0,0.02) !important; }

@@ -1324,6 +1324,7 @@ def report_sales(
             "driver_name": driver.name if driver else "-",
             "remarks": s.remarks,
             "customers": ", ".join(d["customer_name"] for d in detail_rows),
+            "customers_list": [d["customer_name"] for d in detail_rows],
             "vehicle_type": ", ".join(set(d["vehicle_type_name"] for d in detail_rows)),
             "uang_jalan": base_uang_jalan,
             "extra_uang_jalan": extra,

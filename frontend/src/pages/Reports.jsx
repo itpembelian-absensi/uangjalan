@@ -101,8 +101,24 @@ const Reports = () => {
 
   const PAGE_SIZE = 15;
   const [page, setPage] = useState(1);
-  
-  const totalPages = Math.max(1, Math.ceil(sales.length / PAGE_SIZE));
+  const [summaryFilter, setSummaryFilter] = useState(null);
+  const [exportType, setExportType] = useState('all');
+
+  const detailSales = React.useMemo(() => {
+    if (!summaryFilter) return sales;
+    if (summaryFilter.type === 'driver') {
+      return sales.filter(s => s.driver_name === summaryFilter.value);
+    }
+    if (summaryFilter.type === 'customer') {
+      return sales.filter(s => {
+        const custs = s.customers_list || s.customers.split(', ');
+        return custs.includes(summaryFilter.value);
+      });
+    }
+    return sales;
+  }, [sales, summaryFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(detailSales.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
 
   useEffect(() => {
@@ -111,12 +127,12 @@ const Reports = () => {
 
   useEffect(() => {
     setPage(1);
-  }, [sales.length]);
+  }, [detailSales.length]);
 
   const paginatedSales = React.useMemo(() => {
     const start = (safePage - 1) * PAGE_SIZE;
-    return sales.slice(start, start + PAGE_SIZE);
-  }, [sales, safePage]);
+    return detailSales.slice(start, start + PAGE_SIZE);
+  }, [detailSales, safePage]);
 
   // Summary calculations
   const totalTransaksi = sales.length;
@@ -138,7 +154,7 @@ const Reports = () => {
   // Group by customer
   const customerSummary = {};
   sales.forEach((s) => {
-    const custs = s.customers.split(', ');
+    const custs = s.customers_list || s.customers.split(', ');
     custs.forEach((c) => {
       if (!customerSummary[c]) {
         customerSummary[c] = { count: 0, total: 0 };
@@ -148,6 +164,28 @@ const Reports = () => {
     });
   });
 
+  const getReportTitle = () => {
+    switch (exportType) {
+      case 'detail': return 'Laporan Detail Uang Jalan';
+      case 'driver': return 'Laporan Ringkasan Sopir';
+      case 'customer': return 'Laporan Ringkasan Customer';
+      default: return 'Laporan Uang Jalan';
+    }
+  };
+
+  const getExportFilename = (ext) => {
+    let prefix = 'laporan-uang-jalan';
+    if (exportType === 'detail') prefix = 'laporan-detail-uang-jalan';
+    if (exportType === 'driver') prefix = 'laporan-ringkasan-sopir';
+    if (exportType === 'customer') prefix = 'laporan-ringkasan-customer';
+    return `${prefix}-${fromDate}-${toDate}.${ext}`;
+  };
+
+  const totalDriverTrip = Object.values(driverSummary).reduce((acc, curr) => acc + curr.count, 0);
+  const totalDriverAmount = Object.values(driverSummary).reduce((acc, curr) => acc + curr.total, 0);
+  const totalCustomerTrip = Object.values(customerSummary).reduce((acc, curr) => acc + curr.count, 0);
+  const totalCustomerAmount = Object.values(customerSummary).reduce((acc, curr) => acc + curr.total, 0);
+
   const handleExportPdf = () => {
     const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
     const pageWidth = pdf.internal.pageSize.getWidth();
@@ -155,7 +193,7 @@ const Reports = () => {
     const tableWidth = pageWidth - marginX * 2;
 
     pdf.setFontSize(16);
-    pdf.text('Laporan Uang Jalan', pageWidth / 2, 14, { align: 'center' });
+    pdf.text(getReportTitle(), pageWidth / 2, 14, { align: 'center' });
     pdf.setFontSize(10);
     pdf.setTextColor(100);
     pdf.text(
@@ -168,6 +206,7 @@ const Reports = () => {
 
     const summaryCol = tableWidth / 4;
 
+    // We can always render the top total summary
     autoTable(pdf, {
       startY: 26,
       margin: { left: marginX, right: marginX },
@@ -190,85 +229,119 @@ const Reports = () => {
       },
     });
 
-    const detailColumns = {
-      0: { cellWidth: 10, halign: 'center' },
-      1: { cellWidth: 22, halign: 'center' },
-      2: { cellWidth: 30, halign: 'left' },
-      3: { cellWidth: 22, halign: 'center' },
-      4: { cellWidth: 22, halign: 'left' },
-      5: { cellWidth: 40, halign: 'left' },
-      6: { cellWidth: 18, halign: 'center' },
-      7: { cellWidth: 24, halign: 'right' },
-      8: { cellWidth: 22, halign: 'right' },
-      9: { cellWidth: 22, halign: 'right' },
-      10: { cellWidth: 24, halign: 'right' },
-    };
+    if (exportType === 'all' || exportType === 'detail') {
+      const detailColumns = {
+        0: { cellWidth: 10, halign: 'center' },
+        1: { cellWidth: 22, halign: 'center' },
+        2: { cellWidth: 30, halign: 'left' },
+        3: { cellWidth: 22, halign: 'center' },
+        4: { cellWidth: 22, halign: 'left' },
+        5: { cellWidth: 40, halign: 'left' },
+        6: { cellWidth: 18, halign: 'center' },
+        7: { cellWidth: 24, halign: 'right' },
+        8: { cellWidth: 22, halign: 'right' },
+        9: { cellWidth: 22, halign: 'right' },
+        10: { cellWidth: 24, halign: 'right' },
+      };
 
-    autoTable(pdf, {
-      startY: pdf.lastAutoTable.finalY + 6,
-      margin: { left: marginX, right: marginX },
-      tableWidth,
-      head: [['No', 'Tanggal', 'No. Transaksi', 'Kendaraan', 'Sopir', 'Customer', 'Jenis', 'Uang Jalan', 'Tambahan', 'Pembulatan', 'Total']],
-      body: sales.map((s, i) => [
-        i + 1,
-        formatDate(s.date),
-        s.sale_no,
-        s.vehicle_plate,
-        s.driver_name,
-        s.customers,
-        s.vehicle_type,
-        formatIDR(s.uang_jalan),
-        formatIDR(s.extra_uang_jalan),
-        formatIDR(s.rounding_uang_jalan),
-        formatIDR(s.total_uang_jalan),
-      ]),
-      foot: [
-        [
-          { content: 'TOTAL', colSpan: 7, styles: { halign: 'right', fontStyle: 'bold' } },
-          { content: formatIDR(totalBaseUangJalan), styles: { halign: 'right', fontStyle: 'bold' } },
-          { content: formatIDR(totalExtra), styles: { halign: 'right', fontStyle: 'bold' } },
-          { content: formatIDR(totalRounding), styles: { halign: 'right', fontStyle: 'bold' } },
-          { content: formatIDR(totalUangJalan), styles: { halign: 'right', fontStyle: 'bold' } },
+      autoTable(pdf, {
+        startY: pdf.lastAutoTable.finalY + 6,
+        margin: { left: marginX, right: marginX },
+        tableWidth,
+        head: [['No', 'Tanggal', 'No. Transaksi', 'Kendaraan', 'Sopir', 'Customer', 'Jenis', 'Uang Jalan', 'Tambahan', 'Pembulatan', 'Total']],
+        body: sales.map((s, i) => [
+          i + 1,
+          formatDate(s.date),
+          s.sale_no,
+          s.vehicle_plate,
+          s.driver_name,
+          s.customers,
+          s.vehicle_type,
+          formatIDR(s.uang_jalan),
+          formatIDR(s.extra_uang_jalan),
+          formatIDR(s.rounding_uang_jalan),
+          formatIDR(s.total_uang_jalan),
+        ]),
+        foot: [
+          [
+            { content: 'TOTAL', colSpan: 7, styles: { halign: 'right', fontStyle: 'bold' } },
+            { content: formatIDR(totalBaseUangJalan), styles: { halign: 'right', fontStyle: 'bold' } },
+            { content: formatIDR(totalExtra), styles: { halign: 'right', fontStyle: 'bold' } },
+            { content: formatIDR(totalRounding), styles: { halign: 'right', fontStyle: 'bold' } },
+            { content: formatIDR(totalUangJalan), styles: { halign: 'right', fontStyle: 'bold' } },
+          ],
         ],
-      ],
-      styles: {
-        fontSize: 9,
-        cellPadding: { top: 3, right: 3, bottom: 3, left: 3 },
-        lineColor: [203, 213, 225],
-        lineWidth: 0.1,
-        overflow: 'linebreak',
-      },
-      headStyles: {
-        fillColor: [51, 65, 85],
-        textColor: 255,
-        fontStyle: 'bold',
-        halign: 'center',
-        cellPadding: 4,
-      },
-      footStyles: {
-        fillColor: [241, 245, 249],
-        textColor: 20,
-        fontStyle: 'bold',
-        cellPadding: 4,
-      },
-      columnStyles: detailColumns,
-      didParseCell(data) {
-        if (data.section === 'head' && [7, 8, 9, 10].includes(data.column.index)) {
-          data.cell.styles.halign = 'right';
-        }
-      },
-    });
+        styles: {
+          fontSize: 9,
+          cellPadding: { top: 3, right: 3, bottom: 3, left: 3 },
+          lineColor: [203, 213, 225],
+          lineWidth: 0.1,
+          overflow: 'linebreak',
+        },
+        headStyles: {
+          fillColor: [51, 65, 85],
+          textColor: 255,
+          fontStyle: 'bold',
+          halign: 'center',
+          cellPadding: 4,
+        },
+        footStyles: {
+          fillColor: [241, 245, 249],
+          textColor: 20,
+          fontStyle: 'bold',
+          cellPadding: 4,
+        },
+        columnStyles: detailColumns,
+        didParseCell(data) {
+          if (data.section === 'head' && [7, 8, 9, 10].includes(data.column.index)) {
+            data.cell.styles.halign = 'right';
+          }
+        },
+      });
+    }
 
-    pdf.save(`laporan-uang-jalan-${fromDate}-${toDate}.pdf`);
+    if (exportType === 'all' || exportType === 'driver') {
+      autoTable(pdf, {
+        startY: pdf.lastAutoTable.finalY + 10,
+        margin: { left: marginX, right: marginX },
+        tableWidth,
+        head: [['Ringkasan per Sopir', 'Trip', 'Total']],
+        body: Object.entries(driverSummary).sort((a, b) => b[1].total - a[1].total).map(([name, data]) => [name, data.count, formatIDR(data.total)]),
+        foot: [[{ content: 'TOTAL', styles: { halign: 'left', fontStyle: 'bold' } }, { content: totalDriverTrip, styles: { halign: 'center', fontStyle: 'bold' } }, { content: formatIDR(totalDriverAmount), styles: { halign: 'right', fontStyle: 'bold' } }]],
+        styles: { fontSize: 9, cellPadding: { top: 3, right: 3, bottom: 3, left: 3 }, lineColor: [203, 213, 225], lineWidth: 0.1 },
+        headStyles: { fillColor: [51, 65, 85], textColor: 255, fontStyle: 'bold', halign: 'center', cellPadding: 4 },
+        columnStyles: { 1: { halign: 'center', cellWidth: 30 }, 2: { halign: 'right', cellWidth: 40 } }
+      });
+    }
+
+    if (exportType === 'all' || exportType === 'customer') {
+      autoTable(pdf, {
+        startY: pdf.lastAutoTable.finalY + 10,
+        margin: { left: marginX, right: marginX },
+        tableWidth,
+        head: [['Ringkasan per Customer', 'Trip', 'Total']],
+        body: Object.entries(customerSummary).sort((a, b) => b[1].total - a[1].total).map(([name, data]) => [name, data.count, formatIDR(data.total)]),
+        foot: [[{ content: 'TOTAL', styles: { halign: 'left', fontStyle: 'bold' } }, { content: totalCustomerTrip, styles: { halign: 'center', fontStyle: 'bold' } }, { content: formatIDR(totalCustomerAmount), styles: { halign: 'right', fontStyle: 'bold' } }]],
+        styles: { fontSize: 9, cellPadding: { top: 3, right: 3, bottom: 3, left: 3 }, lineColor: [203, 213, 225], lineWidth: 0.1 },
+        headStyles: { fillColor: [51, 65, 85], textColor: 255, fontStyle: 'bold', halign: 'center', cellPadding: 4 },
+        columnStyles: { 1: { halign: 'center', cellWidth: 30 }, 2: { halign: 'right', cellWidth: 40 } }
+      });
+    }
+
+    pdf.save(getExportFilename('pdf'));
   };
 
   const handleExportExcel = () => {
     const rows = [
-      ['Laporan Uang Jalan'],
+      [getReportTitle()],
       [`Periode: ${formatDate(fromDate)} - ${formatDate(toDate)}`],
       [`Dicetak: ${new Date().toLocaleString('id-ID')}`],
       [],
-      ['No', 'Tanggal', 'No. Transaksi', 'Kendaraan', 'Sopir', 'Customer', 'Jenis Kendaraan', 'Uang Jalan', 'Tambahan', 'Pembulatan', 'Total Uang Jalan'],
+    ];
+
+    if (exportType === 'all' || exportType === 'detail') {
+      rows.push(
+        ['No', 'Tanggal', 'No. Transaksi', 'Kendaraan', 'Sopir', 'Customer', 'Jenis Kendaraan', 'Uang Jalan', 'Tambahan', 'Pembulatan', 'Total Uang Jalan'],
       ...sales.map((s, i) => [
         i + 1,
         formatDate(s.date),
@@ -283,8 +356,29 @@ const Reports = () => {
         s.total_uang_jalan,
       ]),
       [],
-      ['', '', '', '', '', '', 'TOTAL', totalBaseUangJalan, totalExtra, totalRounding, totalUangJalan],
-    ];
+        ['', '', '', '', '', '', 'TOTAL', totalBaseUangJalan, totalExtra, totalRounding, totalUangJalan],
+        [], []
+      );
+    }
+
+    if (exportType === 'all' || exportType === 'driver') {
+      rows.push(
+        ['Ringkasan per Sopir', '', ''],
+      ['Sopir', 'Trip', 'Total'],
+      ...Object.entries(driverSummary).sort((a, b) => b[1].total - a[1].total).map(([name, data]) => [name, data.count, data.total]),
+        ['TOTAL', totalDriverTrip, totalDriverAmount],
+        [], []
+      );
+    }
+
+    if (exportType === 'all' || exportType === 'customer') {
+      rows.push(
+        ['Ringkasan per Customer', '', ''],
+      ['Customer', 'Trip', 'Total'],
+        ...Object.entries(customerSummary).sort((a, b) => b[1].total - a[1].total).map(([name, data]) => [name, data.count, data.total]),
+        ['TOTAL', totalCustomerTrip, totalCustomerAmount]
+      );
+    }
 
     const ws = XLSX.utils.aoa_to_sheet(rows);
     ws['!cols'] = [
@@ -293,7 +387,7 @@ const Reports = () => {
     ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Laporan');
-    XLSX.writeFile(wb, `laporan-uang-jalan-${fromDate}-${toDate}.xlsx`);
+    XLSX.writeFile(wb, getExportFilename('xlsx'));
   };
 
   const handlePrint = () => {
@@ -317,7 +411,7 @@ const Reports = () => {
     `).join('');
 
     printWindow.document.write(`<!DOCTYPE html><html><head>
-      <title>Laporan Uang Jalan</title>
+      <title>${getReportTitle()}</title>
       <style>
         body { font-family: Arial, sans-serif; padding: 20px; color: #111; }
         h1 { text-align: center; font-size: 20px; margin-bottom: 4px; }
@@ -343,13 +437,14 @@ const Reports = () => {
         @media print { body { padding: 0; } }
       </style>
     </head><body>
-      <h1>Laporan Uang Jalan</h1>
+      <h1>${getReportTitle()}</h1>
       <p class="meta">Periode: ${formatDate(fromDate)} - ${formatDate(toDate)} | Dicetak: ${new Date().toLocaleString('id-ID')}</p>
       <div class="summary">
         <div class="summary-card"><label>Total Transaksi</label><h2>${totalTransaksi}</h2></div>
         <div class="summary-card"><label>Total Uang Jalan</label><h2>${formatIDR(totalUangJalan)}</h2></div>
         <div class="summary-card"><label>Total Pembulatan</label><h2>${formatIDR(totalRounding)}</h2></div>
       </div>
+      ${(exportType === 'all' || exportType === 'detail') ? `
       <table>
         <colgroup>
           <col class="no" /><col class="date" /><col class="trx" /><col class="plate" />
@@ -359,7 +454,33 @@ const Reports = () => {
         <thead><tr><th class="center">No</th><th class="center">Tanggal</th><th>No. Transaksi</th><th class="center">Kendaraan</th><th>Sopir</th><th>Customer</th><th class="center">Jenis</th><th class="num">Uang Jalan</th><th class="num">Tambahan</th><th class="num">Pembulatan</th><th class="num">Total</th></tr></thead>
         <tbody>${tableRows}</tbody>
         <tfoot><tr><td colspan="7" class="num">TOTAL</td><td class="num">${formatIDR(totalBaseUangJalan)}</td><td class="num">${formatIDR(totalExtra)}</td><td class="num">${formatIDR(totalRounding)}</td><td class="num">${formatIDR(totalUangJalan)}</td></tr></tfoot>
-      </table>
+      </table>` : ''}
+
+      ${(exportType === 'all' || exportType === 'driver' || exportType === 'customer') ? `
+      <div style="display: flex; gap: 20px; margin-top: 20px; page-break-inside: avoid;">
+        ${(exportType === 'all' || exportType === 'driver') ? `
+        <div style="flex: 1;">
+          <h3 style="font-size: 14px; margin-bottom: 8px; color: #334155;">Ringkasan per Sopir</h3>
+          <table>
+            <thead><tr><th>Sopir</th><th class="center">Trip</th><th class="num">Total</th></tr></thead>
+            <tbody>
+              ${Object.entries(driverSummary).sort((a, b) => b[1].total - a[1].total).map(([name, data]) => `<tr><td>${name}</td><td class="center">${data.count}</td><td class="num">${formatIDR(data.total)}</td></tr>`).join('')}
+            </tbody>
+            <tfoot><tr><td>TOTAL</td><td class="center">${totalDriverTrip}</td><td class="num">${formatIDR(totalDriverAmount)}</td></tr></tfoot>
+          </table>
+        </div>` : ''}
+        ${(exportType === 'all' || exportType === 'customer') ? `
+        <div style="flex: 1;">
+          <h3 style="font-size: 14px; margin-bottom: 8px; color: #334155;">Ringkasan per Customer</h3>
+          <table>
+            <thead><tr><th>Customer</th><th class="center">Trip</th><th class="num">Total</th></tr></thead>
+            <tbody>
+              ${Object.entries(customerSummary).sort((a, b) => b[1].total - a[1].total).map(([name, data]) => `<tr><td>${name}</td><td class="center">${data.count}</td><td class="num">${formatIDR(data.total)}</td></tr>`).join('')}
+            </tbody>
+            <tfoot><tr><td>TOTAL</td><td class="center">${totalCustomerTrip}</td><td class="num">${formatIDR(totalCustomerAmount)}</td></tr></tfoot>
+          </table>
+        </div>` : ''}
+      </div>` : ''}
     </body></html>`);
     printWindow.document.close();
     printWindow.onload = () => { printWindow.focus(); printWindow.print(); };
@@ -391,7 +512,18 @@ const Reports = () => {
           </p>
         </div>
         {activeTab === 'sales' && canSalesReport && (
-          <div style={{ display: 'flex', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+            <select 
+              className="form-input" 
+              style={{ marginBottom: 0, padding: '0.4rem 2rem 0.4rem 0.75rem', fontSize: '0.85rem' }} 
+              value={exportType} 
+              onChange={(e) => setExportType(e.target.value)}
+            >
+              <option value="all">Semua Laporan</option>
+              <option value="detail">Detail Uang Jalan</option>
+              <option value="driver">Ringkasan Sopir</option>
+              <option value="customer">Ringkasan Customer</option>
+            </select>
             <button className="btn btn-secondary" onClick={handlePrint}
               style={{ background: 'var(--accent-color)', color: 'white', border: 'none' }}>
               <Printer size={18} /> Print
@@ -511,7 +643,15 @@ const Reports = () => {
                 {Object.entries(driverSummary)
                   .sort((a, b) => b[1].total - a[1].total)
                   .map(([name, data]) => (
-                    <tr key={name}>
+                    <tr 
+                      key={name}
+                      onClick={() => setSummaryFilter(summaryFilter?.type === 'driver' && summaryFilter?.value === name ? null : { type: 'driver', value: name })}
+                      style={{ 
+                        cursor: 'pointer', 
+                        background: summaryFilter?.type === 'driver' && summaryFilter?.value === name ? 'rgba(0,0,0,0.05)' : '',
+                      }}
+                      className="hover-row"
+                    >
                       <td>{name}</td>
                       <td style={{ textAlign: 'center' }}>{data.count}</td>
                       <td style={{ textAlign: 'right', fontWeight: 600 }}>{formatIDR(data.total)}</td>
@@ -521,6 +661,15 @@ const Reports = () => {
                   <tr><td colSpan="3" style={{ textAlign: 'center', opacity: 0.5, padding: '1.5rem' }}>Belum ada data</td></tr>
                 )}
               </tbody>
+              {Object.keys(driverSummary).length > 0 && (
+                <tfoot style={{ background: 'var(--bg-secondary)', fontWeight: 'bold' }}>
+                  <tr>
+                    <td>TOTAL</td>
+                    <td style={{ textAlign: 'center' }}>{totalDriverTrip}</td>
+                    <td style={{ textAlign: 'right' }}>{formatIDR(totalDriverAmount)}</td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
         </GlassCard>
@@ -533,7 +682,15 @@ const Reports = () => {
                 {Object.entries(customerSummary)
                   .sort((a, b) => b[1].total - a[1].total)
                   .map(([name, data]) => (
-                    <tr key={name}>
+                    <tr 
+                      key={name}
+                      onClick={() => setSummaryFilter(summaryFilter?.type === 'customer' && summaryFilter?.value === name ? null : { type: 'customer', value: name })}
+                      style={{ 
+                        cursor: 'pointer', 
+                        background: summaryFilter?.type === 'customer' && summaryFilter?.value === name ? 'rgba(0,0,0,0.05)' : '',
+                      }}
+                      className="hover-row"
+                    >
                       <td>{name}</td>
                       <td style={{ textAlign: 'center' }}>{data.count}</td>
                       <td style={{ textAlign: 'right', fontWeight: 600 }}>{formatIDR(data.total)}</td>
@@ -543,6 +700,15 @@ const Reports = () => {
                   <tr><td colSpan="3" style={{ textAlign: 'center', opacity: 0.5, padding: '1.5rem' }}>Belum ada data</td></tr>
                 )}
               </tbody>
+              {Object.keys(customerSummary).length > 0 && (
+                <tfoot style={{ background: 'var(--bg-secondary)', fontWeight: 'bold' }}>
+                  <tr>
+                    <td>TOTAL</td>
+                    <td style={{ textAlign: 'center' }}>{totalCustomerTrip}</td>
+                    <td style={{ textAlign: 'right' }}>{formatIDR(totalCustomerAmount)}</td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
         </GlassCard>
@@ -552,13 +718,24 @@ const Reports = () => {
       <GlassCard style={{ marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', gap: '1rem' }}>
           <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-            Detail Transaksi ({totalTransaksi} data)
+            Detail Transaksi ({detailSales.length} data)
+            {summaryFilter && (
+              <span style={{ fontSize: '0.8rem', marginLeft: '0.5rem', color: 'var(--accent-color)', fontWeight: 'normal' }}>
+                (Difilter berdasarkan {summaryFilter.type === 'driver' ? 'Sopir' : 'Customer'}: {summaryFilter.value})
+                <button 
+                  onClick={() => setSummaryFilter(null)} 
+                  style={{ marginLeft: '0.5rem', background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', textDecoration: 'underline' }}
+                >
+                  Reset
+                </button>
+              </span>
+            )}
           </h3>
-          {sales.length > PAGE_SIZE && (
+          {detailSales.length > PAGE_SIZE && (
             <TablePager
               page={safePage}
               pageSize={PAGE_SIZE}
-              totalItems={sales.length}
+              totalItems={detailSales.length}
               onPageChange={setPage}
               label="Transaksi"
             />
