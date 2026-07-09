@@ -1,0 +1,138 @@
+{
+  "source_title": "Tarif Tol Trans Jawa - Cipularang, Padaleunyi, Cisumdawu",
+  "source_url": "https://bpjt.pu.go.id/tarif_dan_golongan/tarif-tol-transjawa/",
+  "pdf_url": "https://bpjt.pu.go.id/wp-content/uploads/Tarif-Tol-TransJawa.pdf",
+  "network": "Trans Jawa",
+  "kepmen": "496/KPTS/M/2023, 533/KPTS/M/2023, 2789/KPTS/M/2024",
+  "note": "Ruas tol arah Padalarang, Bandung (Cileunyi), dan Tasik (Cisumdawu). Tarif acuan BPJT per ruas penuh dan varian gerbang untuk pilihan manual.",
+  "sections": [
+    {
+      "sort_order": 275,
+      "name": "Cikampek-Purwakarta-Padalarang (Cipularang)",
+      "origin_name": "Cikampek",
+      "destination_name": "Padalarang",
+      "length_km": 41.0,
+      "rates": { "I": 45000, "II": 76000, "III": 76000, "IV": 110000, "V": 110000 }
+    },
+    {
+      "sort_order": 276,
+      "name": "Cipularang · Cikampek → Padalarang",
+      "origin_name": "Cikampek",
+      "destination_name": "Padalarang",
+      "length_km": 41.0,
+      "rates": { "I": 45000, "II": 76000, "III": 76000, "IV": 110000, "V": 110000 }
+    },
+    {
+      "sort_order": 277,
+      "name": "Cipularang · Dawuan → Padalarang",
+      "origin_name": "Dawuan",
+      "destination_name": "Padalarang",
+      "length_km": 35.0,
+      "rates": { "I": 45000, "II": 76000, "III": 76000, "IV": 110000, "V": 110000 }
+    },
+    {
+      "sort_order": 278,
+      "name": "Cipularang · Cikampek → Sadang",
+      "origin_name": "Cikampek",
+      "destination_name": "Sadang",
+      "length_km": 12.0,
+      "rates": { "I": 8000, "II": 13000, "III": 13000, "IV": 18000, "V": 18000 }
+    },
+    {
+      "sort_order": 279,
+      "name": "Cipularang · Cikampek → PLTA Jatiluhur",
+      "origin_name": "Cikampek",
+      "destination_name": "PLTA Jatiluhur",
+      "length_km": 22.0,
+      "rates": { "I": 20000, "II": 33000, "III": 33000, "IV": 48000, "V": 48000 }
+    },
+    {
+      "sort_order": 280,
+      "name": "Cipularang · Cikampek → Purbaleunyi",
+      "origin_name": "Cikampek",
+      "destination_name": "Purbaleunyi",
+      "length_km": 32.0,
+      "rates": { "I": 35000, "II": 59000, "III": 59000, "IV": 85000, "V": 85000 }
+    },
+    {
+      "sort_order": 281,
+      "name": "Padalarang-Cileunyi (Padaleunyi/Purbaleunyi)",
+      "origin_name": "Padalarang",
+      "destination_name": "Cileunyi",
+      "length_km": 28.0,
+      "rates": { "I": 10500, "II": 18500, "III": 18500, "IV": 25000, "V": 25000 }
+    },
+    {
+      "sort_order": 282,
+      "name": "Padaleunyi · Padalarang → Cileunyi",
+      "origin_name": "Padalarang",
+      "destination_name": "Cileunyi",
+      "length_km": 28.0,
+      "rates": { "I": 10500, "II": 18500, "III": 18500, "IV": 25000, "V": 25000 }
+    },
+    {
+      "sort_order": 283,
+      "name": "Padaleunyi · Padalarang → Pasteur",
+      "origin_name": "Padalarang",
+      "destination_name": "Pasteur",
+      "length_km": 22.0,
+      "rates": { "I": 9000, "II": 16000, "III": 16000, "IV": 22000, "V": 22000 }
+    },
+    {
+      "sort_order": 284,
+      "name": "Padaleunyi · Padalarang → Buah Batu",
+      "origin_name": "Padalarang",
+      "destination_name": "Buah Batu",
+      "length_km": 18.0,
+      "rates": { "I": 7500, "II": 13500, "III": 13500, "IV": 18500, "V": 18500 }
+    },
+    {
+      "sort_order": 285,
+      "name": "Cileunyi-Sumedang-Dawuan (Cisumdawu)",
+      "origin_name": "Cileunyi",
+      "destination_name": "Cisumdawu Utama",
+      "length_km": 61.0,
+      "rates": { "I": 78500, "II": 118500, "III": 118500, "IV": 158000, "V": 158000 }
+    },
+    {
+      "sort_order": 286,
+      "name": "Cisumdawu · Cileunyi → Cisumdawu Utama",
+      "origin_name": "Cileunyi",
+      "destination_name": "Cisumdawu Utama",
+      "length_km": 61.0,
+      "rates": { "I": 78500, "II": 118500, "III": 118500, "IV": 158000, "V": 158000 }
+    },
+    {
+      "sort_order": 287,
+      "name": "Cisumdawu · Cileunyi → Paseh",
+      "origin_name": "Cileunyi",
+      "destination_name": "Paseh",
+      "length_km": 35.0,
+      "rates": { "I": 52000, "II": 78000, "III": 78000, "IV": 104000, "V": 104000 }
+    },
+    {
+      "sort_order": 288,
+      "name": "Cisumdawu · Cileunyi → Jatinangor",
+      "origin_name": "Cileunyi",
+      "destination_name": "Jatinangor",
+      "length_km": 8.0,
+      "rates": { "I": 7500, "II": 11000, "III": 11000, "IV": 14500, "V": 14500 }
+    },
+    {
+      "sort_order": 289,
+      "name": "Cikampek-Palimanan (Cipali)",
+      "origin_name": "Cikopo",
+      "destination_name": "Palimanan",
+      "length_km": 116.0,
+      "rates": { "I": 132000, "II": 217500, "III": 217500, "IV": 273000, "V": 273000 }
+    },
+    {
+      "sort_order": 290,
+      "name": "Cipali · Cikopo → Palimanan",
+      "origin_name": "Cikopo",
+      "destination_name": "Palimanan",
+      "length_km": 116.0,
+      "rates": { "I": 132000, "II": 217500, "III": 217500, "IV": 273000, "V": 273000 }
+    }
+  ]
+}

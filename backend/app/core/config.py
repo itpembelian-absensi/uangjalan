@@ -42,6 +42,11 @@ class Settings(BaseSettings):
 
     google_maps_api_key: str | None = None
 
+    # OSRM routing (default: server publik project-osrm.org)
+    osrm_base_url: str = "https://router.project-osrm.org/route/v1/driving"
+    osrm_http_timeout: int = 30
+    osrm_max_retries: int = 2
+
     # DB tools are available by default; set MODE=production to hide them
     mode: str = "development"
     db_tools_backup_dir: str = "/tmp/db_backups"

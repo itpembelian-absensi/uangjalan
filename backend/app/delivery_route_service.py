@@ -17,6 +17,7 @@ from app.models import (
     Vehicle,
     VehicleType,
 )
+from app.route_fee_service import apply_route_fees_from_payload
 from app.sale_lock import MSG_ROUTE_FINANCE_PAID, sale_finance_locked
 from app.schemas import DeliveryRouteStopItem
 
@@ -122,6 +123,7 @@ def sync_sale_from_route(db: Session, route: DeliveryRoute) -> Sale:
         if route.driver_id is not None:
             sale.driver_id = route.driver_id
         sale.remarks = route.remarks
+        apply_route_fees_from_payload(db, sale, route.vehicle_type_id, route)
         db.execute(delete(SaleDetail).where(SaleDetail.sale_id == sale.id))
     else:
         now = datetime.now()
@@ -149,6 +151,7 @@ def sync_sale_from_route(db: Session, route: DeliveryRoute) -> Sale:
             remarks=route.remarks,
             extra_uang_jalan=0,
         )
+        apply_route_fees_from_payload(db, sale, route.vehicle_type_id, route)
         db.add(sale)
         db.flush()
 

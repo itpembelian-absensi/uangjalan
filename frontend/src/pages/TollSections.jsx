@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { Plus, Trash2, Edit2, RefreshCw, ArrowUp, ArrowDown, ArrowUpDown, Download, Upload } from 'lucide-react';
+import { Plus, Trash2, Edit2, RefreshCw, ArrowUp, ArrowDown, ArrowUpDown, Download, Upload, Search } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiFetch } from '../api';
 import {
@@ -62,6 +62,7 @@ const TollSections = () => {
   const [syncInfo, setSyncInfo] = useState(null);
   const [page, setPage] = useState(1);
   const [filterNetwork, setFilterNetwork] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [sortCol, setSortCol] = useState('sort_order');
   const [sortDir, setSortDir] = useState('asc');
   const [importing, setImporting] = useState(false);
@@ -213,10 +214,27 @@ const TollSections = () => {
     return [...set].sort((a, b) => a.localeCompare(b));
   }, [sections]);
 
+  const matchesSearch = (row, term) => {
+    if (!term) return true;
+    const haystack = [
+      row.name,
+      row.network,
+      row.origin_name,
+      row.destination_name,
+      routeLabel(row),
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+    return haystack.includes(term);
+  };
+
   const sortedSections = useMemo(() => {
-    const filtered = filterNetwork
-      ? sections.filter((s) => (s.network || '').trim() === filterNetwork)
-      : sections;
+    const term = searchTerm.trim().toLowerCase();
+    const filtered = sections.filter((s) => {
+      if (filterNetwork && (s.network || '').trim() !== filterNetwork) return false;
+      return matchesSearch(s, term);
+    });
 
     const cmp = (a, b) => {
       let va, vb;
@@ -249,7 +267,7 @@ const TollSections = () => {
       const result = cmp(a, b);
       return sortDir === 'asc' ? result : -result;
     });
-  }, [sections, filterNetwork, sortCol, sortDir]);
+  }, [sections, filterNetwork, searchTerm, sortCol, sortDir]);
 
   const totalPages = Math.max(1, Math.ceil(sortedSections.length / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
@@ -260,7 +278,7 @@ const TollSections = () => {
 
   useEffect(() => {
     setPage(1);
-  }, [sections.length, filterNetwork]);
+  }, [sections.length, filterNetwork, searchTerm]);
 
   const paginatedSections = useMemo(() => {
     const start = (safePage - 1) * PAGE_SIZE;
@@ -411,24 +429,54 @@ const TollSections = () => {
           marginBottom: '0.5rem',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <label htmlFor="filter-network" className="form-label" style={{ marginBottom: 0, whiteSpace: 'nowrap' }}>
-            Jaringan
-          </label>
-          <select
-            id="filter-network"
-            className="form-input"
-            value={filterNetwork}
-            onChange={(e) => setFilterNetwork(e.target.value)}
-            style={{ minWidth: '180px', marginBottom: 0 }}
-          >
-            <option value="">Semua jaringan</option>
-            {networkOptions.map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '0.75rem', flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <label htmlFor="filter-network" className="form-label" style={{ marginBottom: 0, whiteSpace: 'nowrap' }}>
+              Jaringan
+            </label>
+            <select
+              id="filter-network"
+              className="form-input"
+              value={filterNetwork}
+              onChange={(e) => {
+                setFilterNetwork(e.target.value);
+                setPage(1);
+              }}
+              style={{ minWidth: '180px', marginBottom: 0 }}
+            >
+              <option value="">Semua jaringan</option>
+              {networkOptions.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div style={{ position: 'relative', flex: 1, minWidth: '220px', maxWidth: '360px' }}>
+            <Search
+              size={18}
+              style={{
+                position: 'absolute',
+                left: '0.75rem',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                color: 'var(--text-secondary)',
+                pointerEvents: 'none',
+              }}
+            />
+            <input
+              id="search-ruas-tol"
+              type="search"
+              className="form-input"
+              placeholder="Cari ruas tol, asal/tujuan..."
+              style={{ paddingLeft: '2.5rem', marginBottom: 0, width: '100%' }}
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setPage(1);
+              }}
+            />
+          </div>
         </div>
         <TablePager
           page={safePage}
@@ -517,7 +565,9 @@ const TollSections = () => {
                   colSpan={(canWrite ? 6 : 5) + tableGolonganGroups.length}
                   style={{ textAlign: 'center', opacity: 0.5, padding: '2rem' }}
                 >
-                  Belum ada ruas tol
+                  {sections.length === 0
+                    ? 'Belum ada ruas tol'
+                    : 'Tidak ada ruas tol yang cocok dengan pencarian'}
                 </td>
               </tr>
             )}

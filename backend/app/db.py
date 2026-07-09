@@ -33,6 +33,15 @@ def ensure_schema() -> None:
         conn.execute(
             text(
                 """
+                ALTER TABLE sales
+                ADD COLUMN IF NOT EXISTS include_uang_pelabuhan BOOLEAN NOT NULL DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS uang_pelabuhan NUMERIC(14,2) NOT NULL DEFAULT 0
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
                 ALTER TABLE customers
                 ADD COLUMN IF NOT EXISTS latitude NUMERIC(10,7),
                 ADD COLUMN IF NOT EXISTS longitude NUMERIC(10,7),
@@ -701,6 +710,16 @@ def ensure_schema() -> None:
         conn.execute(
             text(
                 """
+                ALTER TABLE delivery_routes
+                ADD COLUMN IF NOT EXISTS include_uang_pelabuhan BOOLEAN NOT NULL DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS uang_pelabuhan NUMERIC(14,2) NOT NULL DEFAULT 0
+                """
+            )
+        )
+
+        conn.execute(
+            text(
+                """
                 ALTER TABLE drivers
                 ADD COLUMN IF NOT EXISTS bank_name TEXT,
                 ADD COLUMN IF NOT EXISTS bank_account TEXT
@@ -744,6 +763,210 @@ def ensure_schema() -> None:
                 """
                 ALTER TABLE vehicle_types
                 DROP COLUMN IF EXISTS uang_mel
+                """
+            )
+        )
+
+        # --- Migrasi Master Uang Pelabuhan ---
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS uang_pelabuhan_master (
+                  id BIGSERIAL PRIMARY KEY,
+                  name TEXT NOT NULL UNIQUE,
+                  amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+                  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                )
+                """
+            )
+        )
+
+        conn.execute(
+            text(
+                """
+                DO $$
+                BEGIN
+                  IF NOT EXISTS (
+                    SELECT 1 FROM information_schema.columns
+                    WHERE table_name = 'vehicle_types' AND column_name = 'uang_pelabuhan_id'
+                  ) THEN
+                    ALTER TABLE vehicle_types
+                    ADD COLUMN uang_pelabuhan_id BIGINT REFERENCES uang_pelabuhan_master(id) ON DELETE SET NULL;
+                  END IF;
+                END $$;
+                """
+            )
+        )
+
+        conn.execute(
+            text(
+                """
+                INSERT INTO uang_pelabuhan_master (name, amount)
+                SELECT v.name, v.amount
+                FROM (VALUES
+                  ('Grand Max', 30000),
+                  ('Engkle', 30000),
+                  ('Double', 30000),
+                  ('Fuso', 33000),
+                  ('Tronton', 33000)
+                ) AS v(name, amount)
+                WHERE NOT EXISTS (SELECT 1 FROM uang_pelabuhan_master LIMIT 1)
+                ON CONFLICT (name) DO NOTHING
+                """
+            )
+        )
+
+        conn.execute(
+            text(
+                """
+                INSERT INTO uang_pelabuhan_master (name, amount)
+                VALUES ('Grand Max', 30000)
+                ON CONFLICT (name) DO NOTHING
+                """
+            )
+        )
+
+        conn.execute(
+            text(
+                """
+                UPDATE vehicle_types vt
+                SET uang_pelabuhan_id = up.id
+                FROM uang_pelabuhan_master up
+                WHERE vt.uang_pelabuhan_id IS NULL
+                  AND up.name = 'Grand Max'
+                  AND lower(replace(replace(vt.name, ' ', ''), '-', '')) LIKE '%grandmax%'
+                """
+            )
+        )
+
+        conn.execute(
+            text(
+                """
+                UPDATE vehicle_types vt
+                SET uang_pelabuhan_id = up.id
+                FROM uang_pelabuhan_master up
+                WHERE vt.uang_pelabuhan_id IS NULL
+                  AND up.name = 'Tronton'
+                  AND lower(replace(replace(vt.name, ' ', ''), '-', '')) LIKE '%tronton%'
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                UPDATE vehicle_types vt
+                SET uang_pelabuhan_id = up.id
+                FROM uang_pelabuhan_master up
+                WHERE vt.uang_pelabuhan_id IS NULL
+                  AND up.name = 'Fuso'
+                  AND lower(replace(replace(vt.name, ' ', ''), '-', '')) LIKE '%fuso%'
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                UPDATE vehicle_types vt
+                SET uang_pelabuhan_id = up.id
+                FROM uang_pelabuhan_master up
+                WHERE vt.uang_pelabuhan_id IS NULL
+                  AND up.name = 'Double'
+                  AND lower(replace(replace(vt.name, ' ', ''), '-', '')) LIKE '%double%'
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                UPDATE vehicle_types vt
+                SET uang_pelabuhan_id = up.id
+                FROM uang_pelabuhan_master up
+                WHERE vt.uang_pelabuhan_id IS NULL
+                  AND up.name = 'Engkle'
+                  AND (
+                    lower(replace(replace(vt.name, ' ', ''), '-', '')) LIKE '%engkle%'
+                    OR lower(replace(replace(vt.name, ' ', ''), '-', '')) LIKE '%engkel%'
+                  )
+                """
+            )
+        )
+
+        # --- Master Biaya Rute (PJR, Forklift, Parkir) ---
+        conn.execute(
+            text(
+                """
+                CREATE TABLE IF NOT EXISTS route_fee_master (
+                  id BIGSERIAL PRIMARY KEY,
+                  fee_type TEXT NOT NULL,
+                  name TEXT NOT NULL,
+                  amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+                  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                  UNIQUE (fee_type, name)
+                )
+                """
+            )
+        )
+
+        conn.execute(
+            text(
+                """
+                ALTER TABLE delivery_routes
+                ADD COLUMN IF NOT EXISTS include_pjr BOOLEAN NOT NULL DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS pjr NUMERIC(14,2) NOT NULL DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS include_forklift_bongkaran BOOLEAN NOT NULL DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS forklift_bongkaran NUMERIC(14,2) NOT NULL DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS include_parkir_liar BOOLEAN NOT NULL DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS parkir_liar NUMERIC(14,2) NOT NULL DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS include_parkir_kawasan BOOLEAN NOT NULL DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS parkir_kawasan NUMERIC(14,2) NOT NULL DEFAULT 0
+                """
+            )
+        )
+
+        conn.execute(
+            text(
+                """
+                ALTER TABLE sales
+                ADD COLUMN IF NOT EXISTS include_pjr BOOLEAN NOT NULL DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS pjr NUMERIC(14,2) NOT NULL DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS include_forklift_bongkaran BOOLEAN NOT NULL DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS forklift_bongkaran NUMERIC(14,2) NOT NULL DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS include_parkir_liar BOOLEAN NOT NULL DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS parkir_liar NUMERIC(14,2) NOT NULL DEFAULT 0,
+                ADD COLUMN IF NOT EXISTS include_parkir_kawasan BOOLEAN NOT NULL DEFAULT FALSE,
+                ADD COLUMN IF NOT EXISTS parkir_kawasan NUMERIC(14,2) NOT NULL DEFAULT 0
+                """
+            )
+        )
+
+        conn.execute(
+            text(
+                """
+                INSERT INTO route_fee_master (fee_type, name, amount)
+                SELECT v.fee_type, v.name, v.amount
+                FROM (VALUES
+                  ('pjr', 'Grand Max', 30000),
+                  ('pjr', 'Engkle', 30000),
+                  ('pjr', 'Double', 30000),
+                  ('pjr', 'Fuso', 60000),
+                  ('pjr', 'Tronton', 60000),
+                  ('forklift_bongkaran', 'Grand Max', 10000),
+                  ('forklift_bongkaran', 'Engkle', 10000),
+                  ('forklift_bongkaran', 'Double', 30000),
+                  ('forklift_bongkaran', 'Fuso', 30000),
+                  ('forklift_bongkaran', 'Tronton', 30000),
+                  ('parkir_liar', 'Grand Max', 5000),
+                  ('parkir_liar', 'Engkle', 5000),
+                  ('parkir_liar', 'Double', 5000),
+                  ('parkir_liar', 'Fuso', 10000),
+                  ('parkir_liar', 'Tronton', 10000),
+                  ('parkir_kawasan', 'Grand Max', 10000),
+                  ('parkir_kawasan', 'Engkle', 10000),
+                  ('parkir_kawasan', 'Double', 10000),
+                  ('parkir_kawasan', 'Fuso', 20000),
+                  ('parkir_kawasan', 'Tronton', 20000)
+                ) AS v(fee_type, name, amount)
+                ON CONFLICT (fee_type, name) DO NOTHING
                 """
             )
         )

@@ -32,6 +32,12 @@ _LEGACY_GATE_COORDINATES: dict[str, tuple[float, float]] = {
     "cibubur": (-6.365784, 106.895049),
     "bogor": (-6.597505, 106.817689),
     "ciawi": (-6.631068, 106.839146),
+    "padalarang": (-6.834167, 107.472222),
+    "cileunyi": (-6.944722, 107.638889),
+    "pasteur": (-6.887500, 107.583333),
+    "cikopo": (-6.474000, 107.477000),
+    "cisumdawuutama": (-7.037000, 107.857000),
+    "paseh": (-7.102000, 107.812000),
 }
 
 
@@ -76,6 +82,10 @@ SECTION_ROUTE_HINTS: list[tuple[list[str], list[str]]] = [
     (["bekasicawang", "bckm"], ["bekasi", "cawang", "kampungmelayu"]),
     (["cimanggis", "cibitung"], ["cimanggis", "cibitung", "jatikarya"]),
     (["merak", "tangerang"], ["merak", "tangerang"]),
+    (["cipularang", "purwakarta", "padalarang"], ["cipularang", "padalarang", "purwakarta"]),
+    (["padaleunyi", "purbaleunyi", "padalarangcileunyi"], ["padaleunyi", "purbaleunyi", "cileunyi", "pasteur"]),
+    (["cisumdawu", "sumedang"], ["cisumdawu", "sumedang", "jatinangor", "paseh"]),
+    (["cipali", "cikopo", "palimanan"], ["cipali", "cikopo", "palimanan"]),
     (["bakauheni", "terbanggi", "sumatera"], ["bakauheni", "terbanggi", "sumatera"]),
     (["ferry", "penyeberangan", "kapal"], ["ferry", "penyeberangan", "merakbakauheni"]),
 ]
@@ -1048,6 +1058,353 @@ def build_manual_toll_breakdown(
 
 def gate_coordinate_lookup(name: str) -> tuple[float, float] | None:
     return _load_gate_coordinates().get(_normalize_gate_name(name))
+
+
+def _find_gate_for_segment_side(
+    gates: list[dict],
+    code: str | None,
+    name: str | None,
+) -> dict | None:
+    if code:
+        code_norm = code.strip().upper()
+        for gate in gates:
+            if (gate.get("code") or "").strip().upper() == code_norm:
+                return gate
+    if not name:
+        return None
+    name_norm = _normalize_gate_name(name)
+    for gate in gates:
+        gate_norm = _normalize_gate_name(gate.get("name") or "")
+        if gate_norm == name_norm:
+            return gate
+    for gate in gates:
+        gate_norm = _normalize_gate_name(gate.get("name") or "")
+        if name_norm in gate_norm or gate_norm in name_norm:
+            return gate
+    coords = gate_coordinate_lookup(name)
+    if coords:
+        return {"name": name, "latitude": coords[0], "longitude": coords[1]}
+    return None
+
+
+def _append_waypoint(
+    points: list[tuple[float, float]],
+    lat: float,
+    lng: float,
+) -> None:
+    if points:
+        prev_lat, prev_lng = points[-1]
+        if abs(prev_lat - lat) < 1e-5 and abs(prev_lng - lng) < 1e-5:
+            return
+    points.append((lat, lng))
+
+
+def _trip_progress_fraction(
+    origin_lat: float,
+    origin_lng: float,
+    dest_lat: float,
+    dest_lng: float,
+    lat: float,
+    lng: float,
+) -> float:
+    """Posisi relatif sepanjang garis asal→tujuan. >1 berarti melewati tujuan."""
+    od_lat = dest_lat - origin_lat
+    od_lng = dest_lng - origin_lng
+    op_lat = lat - origin_lat
+    op_lng = lng - origin_lng
+    denom = od_lat * od_lat + od_lng * od_lng
+    if denom <= 1e-12:
+        return 0.0
+    return (op_lat * od_lat + op_lng * od_lng) / denom
+
+
+def trim_waypoints_before_destination(
+    waypoints: list[tuple[float, float]],
+    origin_lat: float,
+    origin_lng: float,
+    dest_lat: float,
+    dest_lng: float,
+    *,
+    max_fraction: float = 1.03,
+) -> list[tuple[float, float]]:
+    """Buang titik lintasan (dan semua titik setelahnya) yang melewati koordinat tujuan."""
+    if not waypoints:
+        return waypoints
+    trimmed: list[tuple[float, float]] = []
+    for wp_lat, wp_lng in waypoints:
+        frac = _trip_progress_fraction(origin_lat, origin_lng, dest_lat, dest_lng, wp_lat, wp_lng)
+        if frac <= max_fraction:
+            trimmed.append((wp_lat, wp_lng))
+        else:
+            break
+    return trimmed
+
+
+def _segment_routing_text(
+    segment: dict,
+    sections_by_id: dict[int, dict] | None = None,
+) -> str:
+    parts = [
+        segment.get("section_name") or "",
+        segment.get("entry_gate_name") or "",
+        segment.get("exit_gate_name") or "",
+    ]
+    section_id = segment.get("section_id")
+    if sections_by_id and section_id is not None:
+        master = sections_by_id.get(int(section_id)) or {}
+        parts.append(master.get("name") or "")
+        parts.append(master.get("origin_name") or "")
+        parts.append(master.get("destination_name") or "")
+    return _normalize_toll_text(" ".join(parts))
+
+
+def _coords_for_anchor_name(
+    anchor: str,
+    gates: list[dict],
+) -> tuple[float, float] | None:
+    gate = _find_gate_for_segment_side(gates, None, anchor)
+    if gate:
+        return _gate_coordinates(gate)
+    return gate_coordinate_lookup(anchor)
+
+
+def _corridor_type_key(
+    segment: dict,
+    sections_by_id: dict[int, dict] | None,
+    dest_lat: float,
+    dest_lng: float,
+) -> str | None:
+    text = _segment_routing_text(segment, sections_by_id)
+    if any(k in text for k in ("priok", "pelabuhan", "aksestanjung", "tanjungpriok")):
+        return "priok"
+    if any(k in text for k in ("ctc", "tomang", "cawangtomangpluit")) or (
+        "cawang" in text and "pluit" in text
+    ):
+        return "ctc"
+    if any(
+        k in text
+        for k in ("jorr", "cilincing", "cibungtcilincing", "pulogebang", "cakung", "rorotan")
+    ):
+        from app.route_profiles import destination_corridor
+
+        return "jorr_east" if destination_corridor(dest_lat, dest_lng) == "east" else "jorr_west"
+    if "jakartacikampek" in text:
+        return "japek"
+    if any(k in text for k in ("cipularang", "purwakarta")) or (
+        "cikampek" in text and "padalarang" in text
+    ):
+        return "cipularang"
+    if any(k in text for k in ("padaleunyi", "purbaleunyi")) or (
+        "padalarang" in text and "cileunyi" in text
+    ):
+        return "padaleunyi"
+    if "cisumdawu" in text:
+        return "cisumdawu"
+    if any(k in text for k in ("soedijatmo", "sedyatmo")):
+        return "soedijatmo"
+    return None
+
+
+def _corridor_waypoint_names(
+    segment: dict,
+    sections_by_id: dict[int, dict] | None,
+    dest_lat: float,
+    dest_lng: float,
+) -> list[str] | None:
+    """
+    Override urutan titik lintasan per koridor.
+    Gerbang tarif BPJT (mis. Cawang→Pluit) sering tidak cukup untuk memaksa
+    jalur peta lewat koridor sebenarnya (mis. Tanjung Priok di utara).
+    """
+    text = _segment_routing_text(segment, sections_by_id)
+    if any(k in text for k in ("priok", "pelabuhan", "aksestanjung", "tanjungpriok")):
+        return ["aksestanjungpriuk", "cawang"]
+    if any(k in text for k in ("ctc", "tomang", "cawangtomangpluit")) or (
+        "cawang" in text and "pluit" in text
+    ):
+        entry = (segment.get("entry_gate_name") or segment.get("entry_gate_code") or "").strip()
+        exit_ = (segment.get("exit_gate_name") or segment.get("exit_gate_code") or "").strip()
+        if entry and exit_:
+            return [entry, exit_]
+        return ["cawang", "pluit"]
+    if any(
+        k in text
+        for k in ("jorr", "cilincing", "cibungtcilincing", "pulogebang", "cakung", "rorotan")
+    ):
+        from app.route_profiles import destination_corridor
+
+        if destination_corridor(dest_lat, dest_lng) == "east":
+            return ["rorotan", "pulogebang", "cilincing"]
+        return ["penjaringan", "kebonjeruk", "rorotan"]
+    if any(k in text for k in ("cipularang", "purwakarta")) or (
+        "cikampek" in text and "padalarang" in text
+    ):
+        return ["cikampek", "dawuan", "padalarang"]
+    if any(k in text for k in ("padaleunyi", "purbaleunyi")) or (
+        "padalarang" in text and "cileunyi" in text
+    ):
+        return ["padalarang", "pasteur", "cileunyi"]
+    if "cisumdawu" in text:
+        return ["cileunyi", "paseh", "cisumdawuutama"]
+    return None
+
+
+def _gate_names_in_travel_order(
+    segment: dict,
+    gates: list[dict],
+    origin_lat: float,
+    origin_lng: float,
+    dest_lat: float,
+    dest_lng: float,
+    sections_by_id: dict[int, dict] | None,
+) -> list[str]:
+    """Urutkan gerbang sepanjang arah perjalanan asal→tujuan."""
+    progress = lambda lat, lng: _trip_progress_fraction(
+        origin_lat, origin_lng, dest_lat, dest_lng, lat, lng
+    )
+    fixed = _corridor_waypoint_names(segment, sections_by_id, dest_lat, dest_lng)
+    if fixed:
+        candidates = list(fixed)
+    else:
+        candidates = []
+        seen: set[str] = set()
+        for code_key, name_key in (
+            ("entry_gate_code", "entry_gate_name"),
+            ("exit_gate_code", "exit_gate_name"),
+        ):
+            for val in (segment.get(name_key), segment.get(code_key)):
+                if not val:
+                    continue
+                label = str(val).strip()
+                norm = _normalize_gate_name(label)
+                if not norm or norm in seen:
+                    continue
+                seen.add(norm)
+                candidates.append(label)
+
+    scored: list[tuple[float, str]] = []
+    for name in candidates:
+        coords = _coords_for_anchor_name(name, gates)
+        if coords:
+            scored.append((progress(coords[0], coords[1]), name))
+    scored.sort(key=lambda row: row[0])
+    return [name for _, name in scored]
+
+
+def toll_segment_map_geometry(segment: dict, gates: list[dict]) -> list[list[float]]:
+    """Garis ruas tol di peta: gerbang masuk → gerbang keluar."""
+    geometry: list[list[float]] = []
+    for code_key, name_key in (
+        ("entry_gate_code", "entry_gate_name"),
+        ("exit_gate_code", "exit_gate_name"),
+    ):
+        gate = _find_gate_for_segment_side(
+            gates,
+            segment.get(code_key),
+            segment.get(name_key),
+        )
+        if not gate:
+            continue
+        coords = _gate_coordinates(gate)
+        if not coords:
+            continue
+        lat, lng = coords
+        if geometry and abs(geometry[-1][0] - lat) < 1e-5 and abs(geometry[-1][1] - lng) < 1e-5:
+            continue
+        geometry.append([lat, lng])
+    return geometry
+
+
+def filter_monotonic_waypoints(
+    waypoints: list[tuple[float, float]],
+    origin_lat: float,
+    origin_lng: float,
+    dest_lat: float,
+    dest_lng: float,
+) -> list[tuple[float, float]]:
+    """Buang titik yang mundur atau terlalu jauh dari arah asal→tujuan."""
+    if not waypoints:
+        return waypoints
+    sorted_wps = sorted(
+        waypoints,
+        key=lambda c: _trip_progress_fraction(origin_lat, origin_lng, dest_lat, dest_lng, c[0], c[1]),
+    )
+    filtered: list[tuple[float, float]] = []
+    last_frac = -0.05
+    for lat, lng in sorted_wps:
+        frac = _trip_progress_fraction(origin_lat, origin_lng, dest_lat, dest_lng, lat, lng)
+        if frac < -0.02 or frac > 1.05:
+            continue
+        if frac <= last_frac + 0.015:
+            continue
+        filtered.append((lat, lng))
+        last_frac = frac
+    return filtered
+
+
+def waypoints_from_toll_segments(
+    segments: list[dict],
+    gates: list[dict],
+    origin_lat: float,
+    origin_lng: float,
+    dest_lat: float,
+    dest_lng: float,
+    sections: list[dict] | None = None,
+) -> list[tuple[float, float]]:
+    """Titik lintasan OSRM — per ruas tol, urut sepanjang asal→tujuan."""
+    sections_by_id = {
+        int(s["id"]): s for s in (sections or []) if s.get("id") is not None
+    }
+    progress = lambda lat, lng: _trip_progress_fraction(
+        origin_lat, origin_lng, dest_lat, dest_lng, lat, lng
+    )
+    corridor_seen: set[str] = set()
+    groups: list[list[tuple[float, float]]] = []
+
+    for segment in segments:
+        ctype = _corridor_type_key(segment, sections_by_id, dest_lat, dest_lng)
+        if ctype and ctype in corridor_seen:
+            continue
+        if ctype:
+            corridor_seen.add(ctype)
+
+        names = _gate_names_in_travel_order(
+            segment,
+            gates,
+            origin_lat,
+            origin_lng,
+            dest_lat,
+            dest_lng,
+            sections_by_id,
+        )
+        group: list[tuple[float, float]] = []
+        for name in names:
+            coords = _coords_for_anchor_name(name, gates)
+            if coords:
+                group.append(coords)
+        if group:
+            groups.append(group)
+
+    groups.sort(key=lambda g: progress(g[0][0], g[0][1]))
+    points: list[tuple[float, float]] = []
+    for group in groups:
+        for lat, lng in group:
+            _append_waypoint(points, lat, lng)
+
+    points = filter_monotonic_waypoints(
+        trim_waypoints_before_destination(
+            points,
+            origin_lat,
+            origin_lng,
+            dest_lat,
+            dest_lng,
+        ),
+        origin_lat,
+        origin_lng,
+        dest_lat,
+        dest_lng,
+    )
+    return points
 
 
 def refresh_gate_coordinates(db) -> dict:

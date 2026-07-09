@@ -318,6 +318,10 @@ const Customers = () => {
   const [routeTrigger, setRouteTrigger] = useState(0);
   const [tollSections, setTollSections] = useState([]);
   const [tollManualLoading, setTollManualLoading] = useState(false);
+  const [manualTollOverride, setManualTollOverride] = useState(false);
+  const persistedTollBreakdownRef = useRef(null);
+  const corridorDebounceRef = useRef(null);
+  const corridorFetchSeqRef = useRef(0);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editId, setEditId] = useState(null);
@@ -364,42 +368,91 @@ const Customers = () => {
     }
   };
 
-  const fetchManualSegment = async (sectionId) => {
-    const result = await apiFetch('/api/routing/toll-breakdown/manual', {
+  const fetchManualBreakdownFast = async (sectionIds) => {
+    return apiFetch('/api/routing/toll-breakdown/manual', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ section_ids: [sectionId] }),
+      body: JSON.stringify({ section_ids: sectionIds }),
     });
-    const segment = result.segments?.[0];
-    if (!segment) throw new Error('Ruas tol tidak ditemukan di master.');
-    return { ...segment, section_id: sectionId };
+  };
+
+  const fetchRouteWithSections = async (sectionIds, { forceAuto = false } = {}) => {
+    const lat = parseFloat(form.latitude);
+    const lng = parseFloat(form.longitude);
+    if (Number.isNaN(lat) || Number.isNaN(lng)) return null;
+
+    const body = {
+      latitude: lat,
+      longitude: lng,
+      name: form.name || 'Customer',
+      force_toll: forceToll,
+      route_profile: 'auto',
+    };
+    if (editId) body.customer_id = editId;
+    if (!forceAuto && sectionIds?.length) {
+      body.route_profile = 'manual';
+      body.section_ids = sectionIds;
+    }
+
+    return apiFetch('/api/routing/process', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  };
+
+  const applyManualTollUpdate = async (sectionIds) => {
+    const seq = ++corridorFetchSeqRef.current;
+    const prev = routeInfo;
+    setManualTollOverride(true);
+    setRouteError('');
+
+    const manual = await fetchManualBreakdownFast(sectionIds);
+    if (seq !== corridorFetchSeqRef.current) return;
+
+    const breakdown = manual.segments || [];
+    const tollByVehicle = tollByVehicleFromSegments(breakdown, vehicleTypes, prev?.distance_km);
+    persistedTollBreakdownRef.current = breakdown;
+    setRouteInfo({
+      ...prev,
+      toll_breakdown: breakdown,
+      toll_by_vehicle: tollByVehicle,
+      toll_idr: tollByVehicle[0]?.toll_idr ?? manual.toll_idr,
+      toll_source: 'manual',
+      toll_is_estimate: false,
+      toll_note: manual.toll_note || prev?.toll_note,
+      route_profile: 'manual',
+    });
+
+    if (corridorDebounceRef.current) clearTimeout(corridorDebounceRef.current);
+    corridorDebounceRef.current = setTimeout(async () => {
+      if (seq !== corridorFetchSeqRef.current) return;
+      setRouteLoading(true);
+      try {
+        const result = await fetchRouteWithSections(sectionIds);
+        if (seq !== corridorFetchSeqRef.current) return;
+        if (result?.toll_breakdown?.length) {
+          persistedTollBreakdownRef.current = result.toll_breakdown;
+        }
+        setRouteInfo(result);
+      } catch (err) {
+        if (seq === corridorFetchSeqRef.current) setRouteError(err.message);
+      } finally {
+        if (seq === corridorFetchSeqRef.current) setRouteLoading(false);
+      }
+    }, 400);
   };
 
   const replaceTollSegmentAt = async (idx, sectionId) => {
     setTollManualLoading(true);
     setRouteError('');
     try {
-      const newSegment = await fetchManualSegment(sectionId);
-      setRouteInfo((prev) => {
-        if (!prev?.toll_breakdown?.length) return prev;
-        const breakdown = prev.toll_breakdown.map((row, i) => (i === idx ? newSegment : row));
-        const tollByVehicle = tollByVehicleFromSegments(
-          breakdown,
-          vehicleTypes,
-          prev.distance_km
-        );
-        const oneWay = breakdown.reduce((sum, row) => sum + (Number(row.one_way_idr) || 0), 0);
-        return {
-          ...prev,
-          toll_breakdown: breakdown,
-          toll_idr: tollByVehicle[0]?.toll_idr ?? Math.round(oneWay * 2),
-          toll_source: 'manual',
-          toll_is_estimate: false,
-          toll_note:
-            'Tarif ruas tol dipilih manual dari master BPJT. Total pulang-pergi dikali 2.',
-          toll_by_vehicle: tollByVehicle,
-        };
-      });
+      const prev = routeInfo;
+      if (!prev?.toll_breakdown?.length) return;
+      const sectionIds = prev.toll_breakdown
+        .map((row, i) => (i === idx ? sectionId : row.section_id))
+        .filter(Boolean);
+      await applyManualTollUpdate(sectionIds);
     } catch (err) {
       setRouteError(err.message);
     } finally {
@@ -416,27 +469,12 @@ const Customers = () => {
     setTollManualLoading(true);
     setRouteError('');
     try {
-      const newSegment = await fetchManualSegment(sectionId);
-      setRouteInfo((prev) => {
-        if (!prev) return prev;
-        const breakdown = [...(prev.toll_breakdown || []), newSegment];
-        const tollByVehicle = tollByVehicleFromSegments(
-          breakdown,
-          vehicleTypes,
-          prev.distance_km
-        );
-        const oneWay = breakdown.reduce((sum, row) => sum + (Number(row.one_way_idr) || 0), 0);
-        return {
-          ...prev,
-          toll_breakdown: breakdown,
-          toll_idr: tollByVehicle[0]?.toll_idr ?? Math.round(oneWay * 2),
-          toll_source: 'manual',
-          toll_is_estimate: false,
-          toll_note:
-            'Tarif ruas tol dipilih manual dari master BPJT. Total pulang-pergi dikali 2.',
-          toll_by_vehicle: tollByVehicle,
-        };
-      });
+      const prev = routeInfo;
+      if (!prev) return;
+      const sectionIds = [...(prev.toll_breakdown || []), { section_id: sectionId }]
+        .map((row) => row.section_id)
+        .filter(Boolean);
+      await applyManualTollUpdate(sectionIds);
     } catch (err) {
       setRouteError(err.message);
     } finally {
@@ -444,27 +482,22 @@ const Customers = () => {
     }
   };
 
-  const removeTollSegmentAt = (idx) => {
-    setRouteInfo((prev) => {
-      if (!prev?.toll_breakdown || prev.toll_breakdown.length <= 1) return prev;
-      const breakdown = prev.toll_breakdown.filter((_, i) => i !== idx);
-      const tollByVehicle = tollByVehicleFromSegments(
-        breakdown,
-        vehicleTypes,
-        prev.distance_km
-      );
-      const oneWay = breakdown.reduce((sum, row) => sum + (Number(row.one_way_idr) || 0), 0);
-      return {
-        ...prev,
-        toll_breakdown: breakdown,
-        toll_idr: tollByVehicle[0]?.toll_idr ?? Math.round(oneWay * 2),
-        toll_source: 'manual',
-        toll_is_estimate: false,
-        toll_note:
-          'Tarif ruas tol dipilih manual dari master BPJT. Total pulang-pergi dikali 2.',
-        toll_by_vehicle: tollByVehicle,
-      };
-    });
+  const removeTollSegmentAt = async (idx) => {
+    const prev = routeInfo;
+    if (!prev?.toll_breakdown || prev.toll_breakdown.length <= 1) return;
+    const sectionIds = prev.toll_breakdown
+      .filter((_, i) => i !== idx)
+      .map((row) => row.section_id)
+      .filter(Boolean);
+    setTollManualLoading(true);
+    setRouteError('');
+    try {
+      await applyManualTollUpdate(sectionIds);
+    } catch (err) {
+      setRouteError(err.message);
+    } finally {
+      setTollManualLoading(false);
+    }
   };
 
   const fetchVehicleTypes = async () => {
@@ -488,6 +521,10 @@ const Customers = () => {
         setRouteInfo(null);
         setRouteError('');
         setRouteTrigger(0);
+        setManualTollOverride(false);
+        persistedTollBreakdownRef.current = null;
+        corridorFetchSeqRef.current += 1;
+        if (corridorDebounceRef.current) clearTimeout(corridorDebounceRef.current);
       }
     };
     window.addEventListener('popstate', handlePopState);
@@ -495,7 +532,9 @@ const Customers = () => {
   }, [isModalOpen]);
 
   useEffect(() => {
-    if (isModalOpen) fetchTollSections();
+    if (isModalOpen) {
+      fetchTollSections();
+    }
   }, [isModalOpen]);
 
   const openModal = async (customer = null) => {
@@ -506,6 +545,10 @@ const Customers = () => {
       try {
         const full = await apiFetch(`/api/customers/${customer.id}`);
         setForceToll(full.force_toll || false);
+        persistedTollBreakdownRef.current = (full.custom_toll_breakdown || []).length
+          ? full.custom_toll_breakdown
+          : null;
+        setManualTollOverride(Boolean(persistedTollBreakdownRef.current?.length));
         setForm({
           code: full.code || '',
           name: full.name || '',
@@ -530,6 +573,8 @@ const Customers = () => {
     } else {
       setEditId(null);
       setForceToll(false);
+      persistedTollBreakdownRef.current = null;
+      setManualTollOverride(false);
       setForm({
         code: '',
         name: '',
@@ -588,6 +633,10 @@ const Customers = () => {
       setIsModalOpen(false);
       setRouteInfo(null);
       setRouteError('');
+      setManualTollOverride(false);
+      persistedTollBreakdownRef.current = null;
+      corridorFetchSeqRef.current += 1;
+      if (corridorDebounceRef.current) clearTimeout(corridorDebounceRef.current);
     }
   };
 
@@ -627,7 +676,7 @@ const Customers = () => {
     }
   };
 
-  const fetchRouteInfo = async () => {
+  const fetchRouteInfo = async ({ forceAuto = false } = {}) => {
     if (
       !form.latitude ||
       !form.longitude ||
@@ -641,19 +690,23 @@ const Customers = () => {
     setRouteLoading(true);
     setRouteError('');
     try {
-      const body = {
-        latitude: parseFloat(form.latitude),
-        longitude: parseFloat(form.longitude),
-        name: form.name || 'Customer',
-        force_toll: forceToll,
-      };
-      if (editId) body.customer_id = editId;
+      if (forceAuto) {
+        persistedTollBreakdownRef.current = null;
+      }
 
-      const result = await apiFetch('/api/routing/process', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
+      const sectionIds = forceAuto
+        ? null
+        : persistedTollBreakdownRef.current?.map((row) => row.section_id).filter(Boolean);
+
+      const result = await fetchRouteWithSections(sectionIds, { forceAuto });
+      if (forceAuto) {
+        setManualTollOverride(false);
+      } else if (sectionIds?.length) {
+        setManualTollOverride(true);
+        if (result?.toll_breakdown?.length) {
+          persistedTollBreakdownRef.current = result.toll_breakdown;
+        }
+      }
       setRouteInfo(result);
     } catch (err) {
       setRouteInfo(null);
@@ -661,6 +714,13 @@ const Customers = () => {
     } finally {
       setRouteLoading(false);
     }
+  };
+
+  const refillRouteFromMap = () => {
+    corridorFetchSeqRef.current += 1;
+    if (corridorDebounceRef.current) clearTimeout(corridorDebounceRef.current);
+    persistedTollBreakdownRef.current = null;
+    fetchRouteInfo({ forceAuto: true });
   };
 
   useEffect(() => {
@@ -671,7 +731,7 @@ const Customers = () => {
     }
     const timer = setTimeout(() => {
       fetchRouteInfo();
-    }, 600);
+    }, 1200);
     return () => clearTimeout(timer);
   }, [form.latitude, form.longitude, isModalOpen, form.name, forceToll, routeTrigger]);
 
@@ -1528,6 +1588,56 @@ const Customers = () => {
 
                     {routeInfo && (
                       <>
+                        <div className="form-group" style={{ marginBottom: '1rem' }}>
+                          <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '0.35rem' }}>
+                            Skema Rute / Koridor Tol
+                          </label>
+                          <div
+                            className="form-input"
+                            style={{
+                              background: 'rgba(255,255,255,0.6)',
+                              color: 'var(--text-secondary)',
+                            }}
+                          >
+                            Otomatis (rute tercepat OSRM)
+                          </div>
+                          <small style={{ color: 'var(--text-secondary)', fontSize: '0.78rem', display: 'block', marginTop: '0.35rem' }}>
+                            Rute tercepat dari OSRM. Alternatif tol lebih murah dipakai hanya jika tidak muter jauh. Ruas tol di bawah tetap bisa diubah manual.
+                          </small>
+                        </div>
+
+                        {manualTollOverride && routeInfo.route_via_toll_gates && (
+                          <div
+                            style={{
+                              marginBottom: '0.75rem',
+                              padding: '0.65rem 0.85rem',
+                              borderRadius: '8px',
+                              border: '1px solid #fde68a',
+                              background: '#fffbeb',
+                              fontSize: '0.85rem',
+                              color: '#92400e',
+                            }}
+                          >
+                            Jarak & garis biru mengikuti koridor ruas tol yang dipilih. Garis oranye = ruas tol di tabel.
+                          </div>
+                        )}
+
+                        {manualTollOverride && !routeInfo.route_via_toll_gates && (
+                          <div
+                            style={{
+                              marginBottom: '0.75rem',
+                              padding: '0.65rem 0.85rem',
+                              borderRadius: '8px',
+                              border: '1px solid #fde68a',
+                              background: '#fffbeb',
+                              fontSize: '0.85rem',
+                              color: '#92400e',
+                            }}
+                          >
+                            Ruas tol manual aktif. Koordinat gerbang belum lengkap — jarak masih dari rute OSRM langsung.
+                          </div>
+                        )}
+
                         {routeInfo.route_selection === 'tol_termurah' && (
                           <div
                             style={{
@@ -1592,13 +1702,14 @@ const Customers = () => {
                         </div>
 
                         <LocationPickerMap
-                          key={`${form.latitude}-${form.longitude}-${routeInfo?.geometry?.length || 0}`}
+                          key={`${form.latitude}-${form.longitude}-${routeInfo?.geometry?.length || 0}-${routeInfo?.route_profile || 'auto'}`}
                           latitude={form.latitude}
                           longitude={form.longitude}
                           onLocationChange={(lat, lng) => setForm({ ...form, latitude: String(lat), longitude: String(lng) })}
                           origin={routeInfo?.origin || null}
                           geometry={routeInfo?.geometry || []}
                           tollRoads={routeInfo?.toll_roads || []}
+                          showTollPolylines
                           height="calc(100vh - 520px)"
                         />
 
@@ -1606,13 +1717,13 @@ const Customers = () => {
                           segments={routeInfo.toll_breakdown}
                           tollSource={routeInfo.toll_source}
                           tollNote={routeInfo.toll_note}
-                          editable
+                          editable={canWrite}
                           tollSections={tollSections}
                           tollLoading={tollManualLoading}
                           onSegmentReplace={replaceTollSegmentAt}
                           onSegmentAdd={addTollSegment}
                           onSegmentRemove={removeTollSegmentAt}
-                          onFillFromMap={fetchRouteInfo}
+                          onFillFromMap={refillRouteFromMap}
                         />
 
                         <TollEstimateTable

@@ -6,6 +6,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from functools import lru_cache
 
 from fastapi import HTTPException
 
@@ -15,12 +16,17 @@ from app.toll_gate_service import (
     breakdown_from_route_sections_only,
     estimate_toll_bpjt_breakdown,
     estimate_toll_bpjt_gates,
+    haversine_km,
 )
 
 USER_AGENT = "UangPengiriman/1.0 (https://github.com/uangpengiriman)"
-OSRM_BASE = "https://router.project-osrm.org/route/v1/driving"
 NOMINATIM_BASE = "https://nominatim.openstreetmap.org/search"
 GOOGLE_GEOCODE_BASE = "https://maps.googleapis.com/maps/api/geocode/json"
+
+
+def osrm_base_url() -> str:
+    base = (settings.osrm_base_url or "").strip().rstrip("/")
+    return base or "https://router.project-osrm.org/route/v1/driving"
 
 TOLL_VEHICLE_ORDER = ("grandmax", "engkle", "double", "fuso", "tronton")
 
@@ -316,16 +322,18 @@ def estimate_tolls_by_vehicle(
     return sorted(results, key=lambda item: item["vehicle_type_name"].lower())
 
 
-def _http_get_json(url: str, headers: dict | None = None, _max_retries: int = 3) -> object:
+def _http_get_json(url: str, headers: dict | None = None, _max_retries: int | None = None) -> object:
     req_headers = {"User-Agent": USER_AGENT, **(headers or {})}
+    retries = settings.osrm_max_retries if _max_retries is None else _max_retries
+    timeout = settings.osrm_http_timeout
     last_exc: Exception | None = None
-    for attempt in range(_max_retries + 1):
+    for attempt in range(retries + 1):
         req = urllib.request.Request(url, headers=req_headers)
         try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
                 return json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
-            if e.code in (403, 429, 503) and attempt < _max_retries:
+            if e.code in (403, 429, 503) and attempt < retries:
                 delay = min(2 ** attempt, 8)  # 1s, 2s, 4s
                 time.sleep(delay)
                 last_exc = e
@@ -342,8 +350,13 @@ def _http_get_json(url: str, headers: dict | None = None, _max_retries: int = 3)
                 ) from e
             raise HTTPException(status_code=502, detail=f"Layanan peta gagal ({e.code})") from e
         except urllib.error.URLError as e:
+            if attempt < retries:
+                delay = min(2 ** attempt, 8)
+                time.sleep(delay)
+                last_exc = e
+                continue
             raise HTTPException(status_code=502, detail="Tidak dapat terhubung ke layanan peta/rute") from e
-    raise HTTPException(status_code=502, detail=f"Layanan peta gagal setelah {_max_retries} percobaan") from last_exc
+    raise HTTPException(status_code=502, detail=f"Layanan peta gagal setelah {retries} percobaan") from last_exc
 
 
 def _normalize_text(value: str | None) -> str:
@@ -1145,29 +1158,201 @@ def _pick_cheapest_toll_route_index(
     force_toll: bool,
     prefer_cheapest_toll: bool,
 ) -> int:
+    """Pilih alternatif OSRM: default rute tercepat (index 0).
+
+    Mode tol termurah hanya dipakai jika alternatif masih masuk akal (bukan muter jauh)
+    dan hemat tol cukup signifikan dibanding rute tercepat.
+    """
+    if not estimates:
+        return 0
+
+    baseline_idx = 0
+    baseline = estimates[baseline_idx]
+    max_dist = baseline["distance_km"] * 1.15 + 3.0
+    max_dur = baseline["duration_min"] + 20.0
+
     toll_indices = [idx for idx, est in enumerate(estimates) if est["uses_toll"]]
 
-    if prefer_cheapest_toll and toll_indices:
-        return min(
-            toll_indices,
-            key=lambda idx: (
-                estimates[idx]["toll_idr"],
-                estimates[idx]["distance_km"],
-                estimates[idx]["duration_min"],
-            ),
-        )
+    def within_reasonable_detour(idx: int) -> bool:
+        est = estimates[idx]
+        return est["distance_km"] <= max_dist and est["duration_min"] <= max_dur
 
-    if force_toll and toll_indices:
-        return min(
-            toll_indices,
-            key=lambda idx: (
-                estimates[idx]["toll_idr"],
-                estimates[idx]["distance_km"],
-                estimates[idx]["duration_min"],
-            ),
-        )
+    def toll_sort_key(idx: int) -> tuple:
+        est = estimates[idx]
+        return (est["toll_idr"], est["distance_km"], est["duration_min"])
 
-    return 0
+    if force_toll and toll_indices and not baseline["uses_toll"]:
+        pool = [idx for idx in toll_indices if within_reasonable_detour(idx)] or toll_indices
+        return min(pool, key=toll_sort_key)
+
+    if not prefer_cheapest_toll:
+        return baseline_idx
+
+    if not toll_indices or len(toll_indices) <= 1:
+        return baseline_idx
+
+    if not baseline["uses_toll"]:
+        return baseline_idx
+
+    candidates = [idx for idx in toll_indices if within_reasonable_detour(idx)]
+    if not candidates:
+        return baseline_idx
+
+    baseline_toll = float(baseline["toll_idr"] or 0)
+    best_idx = min(candidates, key=toll_sort_key)
+    best_toll = float(estimates[best_idx]["toll_idr"] or 0)
+    min_savings = max(5000.0, baseline_toll * 0.05)
+    if best_idx != baseline_idx and best_toll + min_savings < baseline_toll:
+        return best_idx
+    return baseline_idx
+
+
+def _osrm_leg_fast(
+    origin_lat: float,
+    origin_lng: float,
+    dest_lat: float,
+    dest_lng: float,
+) -> tuple[float, float, list[list[float]]]:
+    """Satu segmen OSRM ringan — tanpa alternatif & tanpa langkah (untuk koridor tol)."""
+    return _osrm_route_fast_impl(
+        round(origin_lat, 4),
+        round(origin_lng, 4),
+        round(dest_lat, 4),
+        round(dest_lng, 4),
+        (),
+    )
+
+
+@lru_cache(maxsize=128)
+def _osrm_route_fast_impl(
+    origin_lat: float,
+    origin_lng: float,
+    dest_lat: float,
+    dest_lng: float,
+    waypoints: tuple[tuple[float, float], ...],
+) -> tuple[float, float, tuple[tuple[float, float], ...]]:
+    """Satu request OSRM (boleh multi-waypoint), cached per koordinat."""
+    parts = [f"{origin_lng},{origin_lat}"]
+    for wp_lat, wp_lng in waypoints:
+        parts.append(f"{wp_lng},{wp_lat}")
+    parts.append(f"{dest_lng},{dest_lat}")
+    coord_str = ";".join(parts)
+    url = (
+        f"{osrm_base_url()}/{coord_str}"
+        f"?overview=full&geometries=geojson&steps=false&alternatives=0"
+    )
+    data = _http_get_json(url)
+    if data.get("code") != "Ok" or not data.get("routes"):
+        raise HTTPException(status_code=400, detail="Rute tidak ditemukan antara gudang dan customer")
+    route = data["routes"][0]
+    distance_km = round(float(route["distance"]) / 1000, 2)
+    duration_min = round(float(route["duration"]) / 60, 1)
+    geometry = tuple(
+        (float(lat), float(lng))
+        for lng, lat in route["geometry"]["coordinates"]
+    )
+    return distance_km, duration_min, geometry
+
+
+def _osrm_route_fast(
+    origin_lat: float,
+    origin_lng: float,
+    dest_lat: float,
+    dest_lng: float,
+    waypoints: list[tuple[float, float]] | None = None,
+) -> tuple[float, float, list[list[float]]]:
+    wp_key = tuple(
+        (round(lat, 4), round(lng, 4)) for lat, lng in (waypoints or [])
+    )
+    distance_km, duration_min, geometry = _osrm_route_fast_impl(
+        round(origin_lat, 4),
+        round(origin_lng, 4),
+        round(dest_lat, 4),
+        round(dest_lng, 4),
+        wp_key,
+    )
+    return distance_km, duration_min, [[lat, lng] for lat, lng in geometry]
+
+
+def calculate_route_chained(
+    origin_lat: float,
+    origin_lng: float,
+    dest_lat: float,
+    dest_lng: float,
+    waypoints: list[tuple[float, float]],
+    sections: list[dict] | None = None,
+    force_toll: bool = False,
+    gate_context: dict | None = None,
+) -> tuple[dict, bool]:
+    """Koridor tol: satu request OSRM multi-waypoint (bukan N request berurutan)."""
+    if not waypoints:
+        route = calculate_route(
+            origin_lat,
+            origin_lng,
+            dest_lat,
+            dest_lng,
+            sections=sections,
+            force_toll=force_toll,
+            gate_context=gate_context,
+            prefer_cheapest_toll=False,
+            waypoints=None,
+        )
+        return route, False
+
+    direct_hav = haversine_km(origin_lat, origin_lng, dest_lat, dest_lng)
+    max_km = max(direct_hav * 1.55, direct_hav + 12.0)
+
+    try:
+        corridor_dist, corridor_dur, corridor_geom = _osrm_route_fast(
+            origin_lat,
+            origin_lng,
+            dest_lat,
+            dest_lng,
+            waypoints,
+        )
+    except HTTPException:
+        corridor_dist, corridor_dur, corridor_geom = _osrm_route_fast(
+            origin_lat, origin_lng, dest_lat, dest_lng, None
+        )
+        return {
+            "distance_km": corridor_dist,
+            "duration_min": corridor_dur,
+            "geometry": corridor_geom,
+            "toll_roads": [],
+            "toll_idr": 0.0,
+            "toll_is_estimate": True,
+            "toll_note": "",
+            "toll_source": "none",
+            "toll_breakdown": [],
+        }, False
+
+    if corridor_dist > max_km:
+        direct_dist, direct_dur, direct_geom = _osrm_route_fast(
+            origin_lat, origin_lng, dest_lat, dest_lng, None
+        )
+        return {
+            "distance_km": direct_dist,
+            "duration_min": direct_dur,
+            "geometry": direct_geom,
+            "toll_roads": [],
+            "toll_idr": 0.0,
+            "toll_is_estimate": True,
+            "toll_note": "",
+            "toll_source": "none",
+            "toll_breakdown": [],
+        }, False
+
+    return {
+        "distance_km": corridor_dist,
+        "duration_min": corridor_dur,
+        "geometry": corridor_geom,
+        "toll_roads": [],
+        "toll_idr": 0.0,
+        "toll_is_estimate": True,
+        "toll_note": "",
+        "toll_source": "none",
+        "toll_breakdown": [],
+    }, True
 
 
 def calculate_route(
@@ -1179,8 +1364,19 @@ def calculate_route(
     force_toll: bool = False,
     gate_context: dict | None = None,
     prefer_cheapest_toll: bool = False,
+    waypoints: list[tuple[float, float]] | None = None,
 ) -> dict:
-    url = f"{OSRM_BASE}/{origin_lng},{origin_lat};{dest_lng},{dest_lat}?overview=full&geometries=geojson&steps=true&alternatives=3"
+    coord_parts = [f"{origin_lng},{origin_lat}"]
+    if waypoints:
+        for wp_lat, wp_lng in waypoints:
+            coord_parts.append(f"{wp_lng},{wp_lat}")
+    coord_parts.append(f"{dest_lng},{dest_lat}")
+    coord_str = ";".join(coord_parts)
+    alt_count = 1 if waypoints or not prefer_cheapest_toll else 3
+    url = (
+        f"{osrm_base_url()}/{coord_str}?overview=full&geometries=geojson&steps=true"
+        f"&alternatives={alt_count}"
+    )
     data = _http_get_json(url)
     if data.get("code") != "Ok" or not data.get("routes"):
         raise HTTPException(status_code=400, detail="Rute tidak ditemukan antara gudang dan customer")
@@ -1216,7 +1412,7 @@ def calculate_route(
     result["route_selection"] = None
     result["toll_savings_idr"] = None
 
-    if len(toll_indices) > 1:
+    if len(toll_indices) > 1 and selected_idx != 0:
         default_toll = estimates[0]["toll_idr"] if estimates[0]["uses_toll"] else None
         selected_toll = estimates[selected_idx]["toll_idr"]
         result["route_selection"] = "tol_termurah"

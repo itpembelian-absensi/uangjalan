@@ -24,6 +24,9 @@ import TollGolongan from './pages/TollGolongan';
 import TollGates from './pages/TollGates';
 import Bbm from './pages/Bbm';
 import UangMel from './pages/UangMel';
+import UangPelabuhan from './pages/UangPelabuhan';
+import RouteFeeMaster from './pages/RouteFeeMaster';
+import { ROUTE_FEE_DEFS } from './utils/routeFeeConfig';
 import Users from './pages/Users';
 import AccessMatrix from './pages/AccessMatrix';
 import DbTools from './pages/DbTools';
@@ -59,6 +62,20 @@ function App() {
                 <Route path="toll-gates" element={<TollGates />} />
                 <Route path="bbm" element={<Bbm />} />
                 <Route path="uang-mel" element={<UangMel />} />
+                <Route path="uang-pelabuhan" element={<UangPelabuhan />} />
+                {ROUTE_FEE_DEFS.map((fee) => (
+                  <Route
+                    key={fee.path}
+                    path={fee.path.replace(/^\//, '')}
+                    element={
+                      <RouteFeeMaster
+                        feeType={fee.apiPath}
+                        title={fee.title}
+                        amountLabel={`Nominal ${fee.label} (Rp)`}
+                      />
+                    }
+                  />
+                ))}
                 <Route path="reports" element={<Reports />} />
                 <Route path="users" element={<Users />} />
                 <Route path="access-matrix" element={<AccessMatrix />} />

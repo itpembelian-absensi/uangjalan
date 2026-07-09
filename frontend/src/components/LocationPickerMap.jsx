@@ -42,6 +42,7 @@ const LocationPickerMap = ({
   origin = null,
   geometry = [],
   tollRoads = [],
+  showTollPolylines = true,
 }) => {
   const mapHeight = typeof height === 'number' ? `${height}px` : height;
   const markerRef = useRef(null);
@@ -103,7 +104,8 @@ const LocationPickerMap = ({
           <Polyline positions={geometry} color="#2563eb" weight={4} opacity={0.85} />
         )}
 
-        {tollRoadList.map((road, idx) =>
+        {showTollPolylines
+          && tollRoadList.map((road, idx) =>
           road.geometry?.length > 1 ? (
             <Polyline
               key={`${road.name}-${idx}`}

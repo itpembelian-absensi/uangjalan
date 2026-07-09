@@ -18,6 +18,13 @@ from app.sale_lock import (
 from app.roles import Role
 from app.db import get_db
 from app.money_utils import compute_uang_jalan_totals
+from app.pelabuhan_service import resolve_uang_pelabuhan
+from app.route_fee_service import (
+    ROUTE_FEE_DEFS,
+    apply_route_fees_from_payload,
+    get_route_fee_def,
+    sum_route_fees,
+)
 from app.models import (
     BbmMaster,
     CashDisbursement,
@@ -40,6 +47,8 @@ from app.models import (
     WarehouseSetting,
     AppSetting,
     UangMelMaster,
+    UangPelabuhanMaster,
+    RouteFeeMaster,
 )
 from app.toll_gate_service import (
     TOLL_NOTE_BPJT,
@@ -47,6 +56,14 @@ from app.toll_gate_service import (
     estimate_toll_bpjt_gates,
     refresh_gate_coordinates,
     serialize_gate_fare_context,
+    waypoints_from_toll_segments,
+    toll_segment_map_geometry,
+)
+from app.route_profiles import (
+    list_route_profiles,
+    profile_adaptation_note,
+    resolve_effective_profile_key,
+    resolve_profile_section_ids,
 )
 from app.bpjt_import_service import import_jabodetabek_all, import_jabodetabek_gate_matrices
 from app.delivery_route_service import (
@@ -67,6 +84,7 @@ from app.routing_service import (
     VEHICLE_TOLL_CLASS,
     _match_toll_vehicle_key,
     calculate_route,
+    calculate_route_chained,
     collapse_sections_for_routing,
     estimate_tolls_by_vehicle,
     geocode_address,
@@ -95,6 +113,10 @@ from app.schemas import (
     BbmOut,
     UangMelCreate,
     UangMelOut,
+    UangPelabuhanCreate,
+    UangPelabuhanOut,
+    RouteFeeCreate,
+    RouteFeeOut,
     VehicleCreate,
     VehicleOut,
     VehicleTypeCreate,
@@ -113,8 +135,11 @@ from app.schemas import (
     WarehouseUpdate,
     RouteProcessRequest,
     RouteProcessOut,
+    RouteProfileOut,
     ManualTollBreakdownRequest,
     ManualTollBreakdownOut,
+    RouteRecalculateRequest,
+    RouteRecalculateOut,
     RoutePoint,
     VehicleTollEstimate,
     GeocodeRequest,
@@ -158,6 +183,182 @@ def _load_active_toll_sections(db: Session) -> list[dict]:
     if not rows:
         return _default_sections_from_settings()
     return collapse_sections_for_routing(serialize_toll_sections(rows))
+
+
+def _toll_by_vehicle_from_manual_segments(
+    custom_segments: list[dict],
+    vehicle_types,
+    distance_km: float,
+) -> list[dict]:
+    toll_by_vehicle_raw = []
+    for vt in vehicle_types:
+        gol_code = vt.toll_golongan.code if vt.toll_golongan else "II"
+        meta = VEHICLE_TOLL_CLASS.get(_match_toll_vehicle_key(vt.name) or "", {})
+        total_one_way = 0.0
+        for seg in custom_segments:
+            rates = seg.get("rates_by_golongan") or {}
+            val = rates.get(gol_code)
+            if val is None:
+                if gol_code == "III":
+                    val = rates.get("II")
+                elif gol_code == "V":
+                    val = rates.get("IV")
+                if val is None:
+                    val = rates.get("II", rates.get("III", rates.get("IV", 0)))
+            total_one_way += float(val or 0)
+        toll = round(total_one_way * 2, 0)
+        if toll > 0:
+            toll = float(((int(toll) + 999) // 1000) * 1000)
+        rate_per_km = round(toll / distance_km, 0) if distance_km else 0.0
+        toll_by_vehicle_raw.append(
+            {
+                "vehicle_type_id": vt.id,
+                "vehicle_type_name": vt.name,
+                "golongan": gol_code,
+                "gandar": meta.get("gandar", "-") if isinstance(meta, dict) else "-",
+                "toll_idr": toll,
+                "rate_per_km": rate_per_km,
+            }
+        )
+    toll_by_vehicle_raw.sort(key=lambda item: item["vehicle_type_name"].lower())
+    return toll_by_vehicle_raw
+
+
+def _resolve_route_section_ids(
+    payload: RouteProcessRequest,
+    customer: Customer | None,
+    sections: list[dict],
+    dest_lat: float,
+    dest_lng: float,
+) -> tuple[list[int], str]:
+    if payload.section_ids:
+        return [int(sid) for sid in payload.section_ids], "manual"
+
+    profile_key = (payload.route_profile or "auto").strip().lower()
+    if profile_key not in ("auto", "manual", ""):
+        effective = resolve_effective_profile_key(profile_key, dest_lat, dest_lng)
+        ids = resolve_profile_section_ids(profile_key, sections, dest_lat, dest_lng)
+        return ids, effective
+
+    if profile_key == "manual":
+        if payload.section_ids:
+            return [int(sid) for sid in payload.section_ids], profile_key
+        if customer is not None and customer.custom_toll_breakdown:
+            try:
+                segments = json.loads(customer.custom_toll_breakdown)
+                ids = [int(s["section_id"]) for s in segments if s.get("section_id")]
+                if ids:
+                    return ids, profile_key
+            except (json.JSONDecodeError, TypeError, ValueError):
+                pass
+    return [], profile_key
+
+
+def _build_corridor_route(
+    *,
+    origin_lat: float,
+    origin_lng: float,
+    dest_lat: float,
+    dest_lng: float,
+    section_ids: list[int],
+    sections: list[dict],
+    gate_context: dict,
+    force_toll: bool,
+    vehicle_types,
+    note_prefix: str | None = None,
+) -> tuple[dict, list[dict]]:
+    gates = gate_context.get("gates") or []
+    manual = build_manual_toll_breakdown(
+        section_ids,
+        sections,
+        gates,
+        gate_context.get("fares") or [],
+        golongan_code="II",
+    )
+    custom_segments = manual["segments"]
+    waypoints = waypoints_from_toll_segments(
+        custom_segments,
+        gates,
+        origin_lat,
+        origin_lng,
+        dest_lat,
+        dest_lng,
+        sections=sections,
+    )
+    route_via_toll_gates = len(waypoints) > 0
+    corridor_used = False
+
+    if route_via_toll_gates:
+        route, corridor_used = calculate_route_chained(
+            origin_lat,
+            origin_lng,
+            dest_lat,
+            dest_lng,
+            waypoints,
+            sections=sections,
+            force_toll=force_toll,
+            gate_context=gate_context,
+        )
+    else:
+        route = calculate_route(
+            origin_lat,
+            origin_lng,
+            dest_lat,
+            dest_lng,
+            sections=sections,
+            force_toll=force_toll,
+            gate_context=gate_context,
+            prefer_cheapest_toll=False,
+            waypoints=None,
+        )
+
+    toll_note = manual.get("toll_note") or (
+        "Tarif ruas tol dipilih manual dari master BPJT. Total pulang-pergi dikali 2."
+    )
+    if note_prefix:
+        toll_note = f"{note_prefix} {toll_note}"
+    if route_via_toll_gates and corridor_used:
+        toll_note = f"Jarak & peta mengikuti koridor gerbang tol. {toll_note}"
+    elif route_via_toll_gates and not corridor_used:
+        route_via_toll_gates = False
+        toll_note = (
+            "Koridor gerbang terlalu muter — jarak & peta memakai rute OSRM langsung. "
+            + toll_note
+        )
+    else:
+        toll_note = (
+            "Koordinat gerbang tol belum lengkap — jarak dari rute langsung. "
+            + toll_note
+        )
+
+    toll_by_vehicle_raw = _toll_by_vehicle_from_manual_segments(
+        custom_segments,
+        vehicle_types,
+        route["distance_km"],
+    )
+    toll_idr = toll_by_vehicle_raw[0]["toll_idr"] if toll_by_vehicle_raw else manual["toll_idr"]
+
+    route["toll_breakdown"] = custom_segments
+    route["toll_idr"] = toll_idr
+    route["toll_is_estimate"] = False
+    route["toll_note"] = toll_note
+    route["toll_source"] = "manual"
+    route["route_via_toll_gates"] = route_via_toll_gates
+    route["route_selection"] = None
+    route["alternatives_compared"] = 0
+    route["toll_savings_idr"] = None
+    route["toll_roads"] = []
+    for seg in custom_segments:
+        seg_geom = toll_segment_map_geometry(seg, gates)
+        route["toll_roads"].append(
+            {
+                "name": seg.get("section_name") or "Ruas tol",
+                "latitude": seg_geom[0][0] if seg_geom else None,
+                "longitude": seg_geom[0][1] if seg_geom else None,
+                "geometry": seg_geom,
+            }
+        )
+    return route, toll_by_vehicle_raw
 
 
 def _load_toll_sections_query():
@@ -311,10 +512,11 @@ def _validate_gate_fare(db: Session, entry_gate_id: int, exit_gate_id: int, golo
     return entry, exit_gate
 
 
-def _vehicle_type_out(obj: VehicleType) -> VehicleTypeOut:
+def _vehicle_type_out(obj: VehicleType, db: Session) -> VehicleTypeOut:
     gol = obj.toll_golongan
     bbm = obj.bbm
     uang_mel = obj.uang_mel
+    pelabuhan_name, pelabuhan_amount = resolve_uang_pelabuhan(db, obj)
     return VehicleTypeOut(
         id=obj.id,
         name=obj.name,
@@ -327,6 +529,9 @@ def _vehicle_type_out(obj: VehicleType) -> VehicleTypeOut:
         uang_mel_id=obj.uang_mel_id,
         uang_mel_name=uang_mel.name if uang_mel else None,
         uang_mel_amount=float(uang_mel.amount) if uang_mel else 0,
+        uang_pelabuhan_id=obj.uang_pelabuhan_id,
+        uang_pelabuhan_name=pelabuhan_name,
+        uang_pelabuhan_amount=pelabuhan_amount,
         km_per_liter=float(obj.km_per_liter) if obj.km_per_liter is not None else None,
         created_at=obj.created_at,
     )
@@ -351,6 +556,13 @@ def _validate_uang_mel_id(db: Session, uang_mel_id: int | None) -> None:
         return
     if not db.get(UangMelMaster, uang_mel_id):
         raise HTTPException(status_code=400, detail="Master Uang Mel tidak ditemukan")
+
+
+def _validate_uang_pelabuhan_id(db: Session, uang_pelabuhan_id: int | None) -> None:
+    if uang_pelabuhan_id is None:
+        return
+    if not db.get(UangPelabuhanMaster, uang_pelabuhan_id):
+        raise HTTPException(status_code=400, detail="Master Uang Pelabuhan tidak ditemukan")
 
 
 def _vehicle_out(obj: Vehicle) -> VehicleOut:
@@ -988,6 +1200,120 @@ def delete_uang_mel(mel_id: int, db: Session = Depends(get_db)):
     db.commit()
 
 
+@router.get("/uang-pelabuhan", response_model=list[UangPelabuhanOut])
+def list_uang_pelabuhan(db: Session = Depends(get_db)):
+    return db.scalars(
+        select(UangPelabuhanMaster).order_by(UangPelabuhanMaster.name.asc())
+    ).all()
+
+
+@router.post("/uang-pelabuhan", response_model=UangPelabuhanOut, status_code=201)
+def create_uang_pelabuhan(payload: UangPelabuhanCreate, db: Session = Depends(get_db)):
+    obj = UangPelabuhanMaster(name=payload.name.strip(), amount=payload.amount)
+    db.add(obj)
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise _unique_violation_to_409(e) from e
+    db.refresh(obj)
+    return obj
+
+
+@router.put("/uang-pelabuhan/{pelabuhan_id}", response_model=UangPelabuhanOut)
+def update_uang_pelabuhan(
+    pelabuhan_id: int, payload: UangPelabuhanCreate, db: Session = Depends(get_db)
+):
+    obj = db.get(UangPelabuhanMaster, pelabuhan_id)
+    if not obj:
+        raise HTTPException(status_code=404, detail="Master Uang Pelabuhan tidak ditemukan")
+    obj.name = payload.name.strip()
+    obj.amount = payload.amount
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise _unique_violation_to_409(e) from e
+    db.refresh(obj)
+    return obj
+
+
+@router.delete("/uang-pelabuhan/{pelabuhan_id}", status_code=204)
+def delete_uang_pelabuhan(pelabuhan_id: int, db: Session = Depends(get_db)):
+    obj = db.get(UangPelabuhanMaster, pelabuhan_id)
+    if not obj:
+        raise HTTPException(status_code=404, detail="Master Uang Pelabuhan tidak ditemukan")
+    in_use = db.scalar(
+        select(func.count())
+        .select_from(VehicleType)
+        .where(VehicleType.uang_pelabuhan_id == pelabuhan_id)
+    )
+    if in_use:
+        raise HTTPException(
+            status_code=409,
+            detail="Uang Pelabuhan masih dipakai jenis kendaraan. Ubah jenis kendaraan tersebut dulu.",
+        )
+    db.delete(obj)
+    db.commit()
+
+
+@router.get("/route-fees/{fee_type}", response_model=list[RouteFeeOut])
+def list_route_fees(fee_type: str, db: Session = Depends(get_db)):
+    try:
+        get_route_fee_def(fee_type)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    return db.scalars(
+        select(RouteFeeMaster)
+        .where(RouteFeeMaster.fee_type == fee_type)
+        .order_by(RouteFeeMaster.name.asc())
+    ).all()
+
+
+@router.post("/route-fees/{fee_type}", response_model=RouteFeeOut, status_code=201)
+def create_route_fee(fee_type: str, payload: RouteFeeCreate, db: Session = Depends(get_db)):
+    try:
+        get_route_fee_def(fee_type)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    obj = RouteFeeMaster(fee_type=fee_type, name=payload.name.strip(), amount=payload.amount)
+    db.add(obj)
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise _unique_violation_to_409(e) from e
+    db.refresh(obj)
+    return obj
+
+
+@router.put("/route-fees/{fee_type}/{fee_id}", response_model=RouteFeeOut)
+def update_route_fee(
+    fee_type: str, fee_id: int, payload: RouteFeeCreate, db: Session = Depends(get_db)
+):
+    obj = db.get(RouteFeeMaster, fee_id)
+    if not obj or obj.fee_type != fee_type:
+        raise HTTPException(status_code=404, detail="Master biaya rute tidak ditemukan")
+    obj.name = payload.name.strip()
+    obj.amount = payload.amount
+    try:
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise _unique_violation_to_409(e) from e
+    db.refresh(obj)
+    return obj
+
+
+@router.delete("/route-fees/{fee_type}/{fee_id}", status_code=204)
+def delete_route_fee(fee_type: str, fee_id: int, db: Session = Depends(get_db)):
+    obj = db.get(RouteFeeMaster, fee_id)
+    if not obj or obj.fee_type != fee_type:
+        raise HTTPException(status_code=404, detail="Master biaya rute tidak ditemukan")
+    db.delete(obj)
+    db.commit()
+
+
 def _load_vehicle_types_query():
     return (
         select(VehicleType)
@@ -995,6 +1321,7 @@ def _load_vehicle_types_query():
             selectinload(VehicleType.toll_golongan),
             selectinload(VehicleType.bbm),
             selectinload(VehicleType.uang_mel),
+            selectinload(VehicleType.uang_pelabuhan),
         )
         .order_by(VehicleType.name.asc())
     )
@@ -1003,7 +1330,7 @@ def _load_vehicle_types_query():
 @router.get("/vehicle-types", response_model=list[VehicleTypeOut])
 def list_vehicle_types(db: Session = Depends(get_db)):
     rows = db.scalars(_load_vehicle_types_query()).all()
-    return [_vehicle_type_out(row) for row in rows]
+    return [_vehicle_type_out(row, db) for row in rows]
 
 
 @router.post("/vehicle-types", response_model=VehicleTypeOut, status_code=201)
@@ -1011,11 +1338,13 @@ def create_vehicle_type(payload: VehicleTypeCreate, db: Session = Depends(get_db
     _validate_toll_golongan_id(db, payload.toll_golongan_id)
     _validate_bbm_id(db, payload.bbm_id)
     _validate_uang_mel_id(db, payload.uang_mel_id)
+    _validate_uang_pelabuhan_id(db, payload.uang_pelabuhan_id)
     obj = VehicleType(
         name=payload.name.strip(),
         toll_golongan_id=payload.toll_golongan_id,
         bbm_id=payload.bbm_id,
         uang_mel_id=payload.uang_mel_id,
+        uang_pelabuhan_id=payload.uang_pelabuhan_id,
         km_per_liter=payload.km_per_liter,
     )
     db.add(obj)
@@ -1026,7 +1355,7 @@ def create_vehicle_type(payload: VehicleTypeCreate, db: Session = Depends(get_db
         raise _unique_violation_to_409(e)
     db.refresh(obj)
     obj = db.scalar(_load_vehicle_types_query().where(VehicleType.id == obj.id))
-    return _vehicle_type_out(obj)
+    return _vehicle_type_out(obj, db)
 
 
 @router.put("/vehicle-types/{type_id}", response_model=VehicleTypeOut)
@@ -1039,10 +1368,12 @@ def update_vehicle_type(
     _validate_toll_golongan_id(db, payload.toll_golongan_id)
     _validate_bbm_id(db, payload.bbm_id)
     _validate_uang_mel_id(db, payload.uang_mel_id)
+    _validate_uang_pelabuhan_id(db, payload.uang_pelabuhan_id)
     obj.name = payload.name.strip()
     obj.toll_golongan_id = payload.toll_golongan_id
     obj.bbm_id = payload.bbm_id
     obj.uang_mel_id = payload.uang_mel_id
+    obj.uang_pelabuhan_id = payload.uang_pelabuhan_id
     obj.km_per_liter = payload.km_per_liter
     try:
         db.commit()
@@ -1050,7 +1381,7 @@ def update_vehicle_type(
         db.rollback()
         raise _unique_violation_to_409(e)
     obj = db.scalar(_load_vehicle_types_query().where(VehicleType.id == type_id))
-    return _vehicle_type_out(obj)
+    return _vehicle_type_out(obj, db)
 
 
 @router.delete("/vehicle-types/{type_id}", status_code=204)
@@ -1312,9 +1643,10 @@ def report_sales(
         amounts = [d["amount"] for d in detail_rows if d["amount"] > 0]
         max_nominal = max(amounts) if amounts else 0
         extra = float(s.extra_uang_jalan or 0)
+        route_fees = sum_route_fees(s)
         multi = len(detail_rows) > 1
         base_uang_jalan = max_nominal if multi else (detail_rows[0]["amount"] if detail_rows else 0)
-        totals = compute_uang_jalan_totals(base_uang_jalan, extra)
+        totals = compute_uang_jalan_totals(base_uang_jalan, extra, route_fees)
 
         results.append({
             "id": s.id,
@@ -1328,6 +1660,9 @@ def report_sales(
             "vehicle_type": ", ".join(set(d["vehicle_type_name"] for d in detail_rows)),
             "uang_jalan": base_uang_jalan,
             "extra_uang_jalan": extra,
+            "include_uang_pelabuhan": bool(s.include_uang_pelabuhan),
+            "uang_pelabuhan": float(s.uang_pelabuhan or 0) if s.include_uang_pelabuhan else 0.0,
+            "route_fees_total": route_fees,
             "subtotal_uang_jalan": totals["subtotal"],
             "rounding_uang_jalan": totals["rounding"],
             "total_uang_jalan": totals["total"],
@@ -1420,6 +1755,16 @@ def _serialize_sale(db: Session, obj: Sale) -> SaleOut:
         route_no=route_no,
         remarks=obj.remarks,
         extra_uang_jalan=float(obj.extra_uang_jalan or 0),
+        include_uang_pelabuhan=bool(obj.include_uang_pelabuhan),
+        uang_pelabuhan=float(obj.uang_pelabuhan or 0),
+        include_pjr=bool(obj.include_pjr),
+        pjr=float(obj.pjr or 0),
+        include_forklift_bongkaran=bool(obj.include_forklift_bongkaran),
+        forklift_bongkaran=float(obj.forklift_bongkaran or 0),
+        include_parkir_liar=bool(obj.include_parkir_liar),
+        parkir_liar=float(obj.parkir_liar or 0),
+        include_parkir_kawasan=bool(obj.include_parkir_kawasan),
+        parkir_kawasan=float(obj.parkir_kawasan or 0),
         details=details,
         is_finance_paid=sale_finance_locked(obj),
         finance_paid_at=obj.finance_paid_at,
@@ -1481,6 +1826,16 @@ def _serialize_delivery_route(db: Session, route: DeliveryRoute) -> DeliveryRout
         driver_phone=driver.phone if driver else None,
         remarks=route.remarks,
         ritase=route.ritpiase,
+        include_uang_pelabuhan=bool(route.include_uang_pelabuhan),
+        uang_pelabuhan=float(route.uang_pelabuhan or 0),
+        include_pjr=bool(route.include_pjr),
+        pjr=float(route.pjr or 0),
+        include_forklift_bongkaran=bool(route.include_forklift_bongkaran),
+        forklift_bongkaran=float(route.forklift_bongkaran or 0),
+        include_parkir_liar=bool(route.include_parkir_liar),
+        parkir_liar=float(route.parkir_liar or 0),
+        include_parkir_kawasan=bool(route.include_parkir_kawasan),
+        parkir_kawasan=float(route.parkir_kawasan or 0),
         stops=stops_out,
         sale_id=sale.id if sale else None,
         sale_no=sale.sale_no if sale else None,
@@ -1878,6 +2233,7 @@ def create_delivery_route(payload: DeliveryRouteCreate, db: Session = Depends(ge
         remarks=payload.remarks,
         ritpiase=payload.ritase,
     )
+    apply_route_fees_from_payload(db, obj, payload.vehicle_type_id, payload)
     db.add(obj)
     db.flush()
     replace_route_stops(db, obj, payload.stops)
@@ -1904,9 +2260,15 @@ def update_delivery_route(
     obj.vehicle_type_id = payload.vehicle_type_id
     obj.remarks = payload.remarks
     obj.ritpiase = payload.ritase
+    apply_route_fees_from_payload(db, obj, payload.vehicle_type_id, payload)
     if payload.route_no:
         obj.route_no = payload.route_no
     replace_route_stops(db, obj, payload.stops)
+    sale = route_sale(db, route_id)
+    if sale and not sale_finance_locked(sale):
+        from app.delivery_route_service import sync_sale_from_route
+
+        sync_sale_from_route(db, obj)
     try:
         db.commit()
     except Exception as e:
@@ -2013,8 +2375,23 @@ def geocode_customer(customer_id: int, db: Session = Depends(get_db)):
     return _serialize_customer(db, obj)
 
 
+def _sanitize_route_profile_for_user(
+    payload: RouteProcessRequest,
+    user: User,
+    customer: Customer | None = None,
+) -> RouteProcessRequest:
+    """Default otomatis OSRM; ruas tol manual tetap dipakai jika section_ids dikirim."""
+    if payload.section_ids:
+        return payload.model_copy(update={"route_profile": "manual"})
+    return payload.model_copy(update={"route_profile": "auto", "section_ids": None})
+
+
 @router.post("/routing/process", response_model=RouteProcessOut)
-def process_route(payload: RouteProcessRequest, db: Session = Depends(get_db)):
+def process_route(
+    payload: RouteProcessRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_api_access),
+):
     warehouse = _get_or_create_warehouse(db)
 
     try:
@@ -2066,30 +2443,103 @@ def process_route(payload: RouteProcessRequest, db: Session = Depends(get_db)):
         warehouse.longitude = origin_lng
         db.commit()
 
+    payload = _sanitize_route_profile_for_user(payload, current_user, customer)
+
     sections = _load_active_toll_sections(db)
     gate_context = _load_toll_gate_fare_context(db)
-    route = calculate_route(
-        origin_lat,
-        origin_lng,
-        dest_lat,
-        dest_lng,
-        sections=sections,
-        force_toll=payload.force_toll,
-        gate_context=gate_context,
-        prefer_cheapest_toll=payload.prefer_cheapest_toll is not False,
+    vehicle_types = db.scalars(_load_vehicle_types_query()).all()
+
+    section_ids, profile_key = _resolve_route_section_ids(
+        payload, customer, sections, dest_lat, dest_lng
+    )
+    requested_profile = (payload.route_profile or "auto").strip().lower()
+    profile_label = next(
+        (p["label"] for p in list_route_profiles() if p["key"] == profile_key),
+        None,
     )
 
-    is_custom_breakdown = False
-    if customer is not None and customer.custom_toll_breakdown:
-        if (customer.latitude and dest_lat == float(customer.latitude) and
-            customer.longitude and dest_lng == float(customer.longitude) and
-            payload.force_toll == customer.force_toll):
-            custom_segments = json.loads(customer.custom_toll_breakdown)
-            if custom_segments:
-                route["toll_breakdown"] = custom_segments
-                route["toll_source"] = "manual"
-                route["toll_is_estimate"] = False
-                is_custom_breakdown = True
+    if section_ids:
+        adapt_note = profile_adaptation_note(requested_profile, dest_lat, dest_lng)
+        note_prefix = adapt_note or (f"Skema: {profile_label}." if profile_label else None)
+        route, toll_by_vehicle_raw = _build_corridor_route(
+            origin_lat=origin_lat,
+            origin_lng=origin_lng,
+            dest_lat=dest_lat,
+            dest_lng=dest_lng,
+            section_ids=section_ids,
+            sections=sections,
+            gate_context=gate_context,
+            force_toll=bool(payload.force_toll),
+            vehicle_types=vehicle_types,
+            note_prefix=note_prefix,
+        )
+        route["route_profile"] = profile_key
+    else:
+        route = calculate_route(
+            origin_lat,
+            origin_lng,
+            dest_lat,
+            dest_lng,
+            sections=sections,
+            force_toll=payload.force_toll,
+            gate_context=gate_context,
+            prefer_cheapest_toll=bool(payload.prefer_cheapest_toll),
+        )
+        route["route_profile"] = profile_key if profile_key not in ("auto", "") else None
+        route["route_via_toll_gates"] = False
+
+        if gate_context.get("fares") and not route["toll_is_estimate"]:
+            toll_by_vehicle_raw = []
+            for vt in vehicle_types:
+                gol_code = vt.toll_golongan.code if vt.toll_golongan else "II"
+                meta = VEHICLE_TOLL_CLASS.get(
+                    _match_toll_vehicle_key(vt.name) or "", {}
+                )
+                bpjt = estimate_toll_bpjt_gates(
+                    origin_lat,
+                    origin_lng,
+                    dest_lat,
+                    dest_lng,
+                    gate_context["gates"],
+                    gate_context["fares"],
+                    gol_code,
+                    distance_km=route["distance_km"],
+                    route_toll_roads=route.get("toll_roads") or [],
+                    sections=sections,
+                )
+                toll = round(bpjt[0] * 2, 0) if bpjt else route["toll_idr"]
+                if toll > 0:
+                    toll = float(((int(toll) + 999) // 1000) * 1000)
+                rate_per_km = round(toll / route["distance_km"], 0) if route["distance_km"] else 0.0
+                toll_by_vehicle_raw.append(
+                    {
+                        "vehicle_type_id": vt.id,
+                        "vehicle_type_name": vt.name,
+                        "golongan": gol_code,
+                        "gandar": meta.get("gandar", "-") if isinstance(meta, dict) else "-",
+                        "toll_idr": toll,
+                        "rate_per_km": rate_per_km,
+                    }
+                )
+            toll_by_vehicle_raw.sort(key=lambda item: item["vehicle_type_name"].lower())
+        else:
+            toll_by_vehicle_raw = estimate_tolls_by_vehicle(
+                route["distance_km"],
+                [
+                    (
+                        vt.id,
+                        vt.name,
+                        vt.toll_golongan.code if vt.toll_golongan else None,
+                        vt.toll_golongan.name if vt.toll_golongan else None,
+                    )
+                    for vt in vehicle_types
+                ],
+                base_toll_idr=route["toll_idr"],
+                toll_is_estimate=route["toll_is_estimate"],
+                sections=sections,
+            )
+        if toll_by_vehicle_raw:
+            route["toll_idr"] = toll_by_vehicle_raw[0]["toll_idr"]
 
     if customer is not None:
         customer_name = customer.name
@@ -2101,90 +2551,6 @@ def process_route(payload: RouteProcessRequest, db: Session = Depends(get_db)):
         dest_address = None
 
     origin_address = ", ".join(p for p in [warehouse.address, warehouse.city] if p)
-
-    vehicle_types = db.scalars(_load_vehicle_types_query()).all()
-    
-    if is_custom_breakdown:
-        custom_segments = route["toll_breakdown"]
-        toll_by_vehicle_raw = []
-        for vt in vehicle_types:
-            gol_code = vt.toll_golongan.code if vt.toll_golongan else "II"
-            meta = VEHICLE_TOLL_CLASS.get(_match_toll_vehicle_key(vt.name) or "", {})
-            total_one_way = 0.0
-            for seg in custom_segments:
-                rates = seg.get("rates_by_golongan") or {}
-                val = rates.get(gol_code)
-                if val is None:
-                    if gol_code == "III": val = rates.get("II")
-                    elif gol_code == "V": val = rates.get("IV")
-                    if val is None:
-                        val = rates.get("II", rates.get("III", rates.get("IV", 0)))
-                total_one_way += float(val or 0)
-            toll = round(total_one_way * 2, 0)
-            if toll > 0:
-                toll = float(((int(toll) + 999) // 1000) * 1000)
-            rate_per_km = round(toll / route["distance_km"], 0) if route.get("distance_km") else 0.0
-            toll_by_vehicle_raw.append({
-                "vehicle_type_id": vt.id,
-                "vehicle_type_name": vt.name,
-                "golongan": gol_code,
-                "gandar": meta.get("gandar", "-") if isinstance(meta, dict) else "-",
-                "toll_idr": toll,
-                "rate_per_km": rate_per_km,
-            })
-        toll_by_vehicle_raw.sort(key=lambda item: item["vehicle_type_name"].lower())
-    elif gate_context.get("fares") and not route["toll_is_estimate"]:
-        toll_by_vehicle_raw = []
-        for vt in vehicle_types:
-            gol_code = vt.toll_golongan.code if vt.toll_golongan else "II"
-            meta = VEHICLE_TOLL_CLASS.get(
-                _match_toll_vehicle_key(vt.name) or "", {}
-            )
-            bpjt = estimate_toll_bpjt_gates(
-                origin_lat,
-                origin_lng,
-                dest_lat,
-                dest_lng,
-                gate_context["gates"],
-                gate_context["fares"],
-                gol_code,
-                distance_km=route["distance_km"],
-                route_toll_roads=route.get("toll_roads") or [],
-                sections=sections,
-            )
-            toll = round(bpjt[0] * 2, 0) if bpjt else route["toll_idr"]
-            if toll > 0:
-                toll = float(((int(toll) + 999) // 1000) * 1000)
-            rate_per_km = round(toll / route["distance_km"], 0) if route["distance_km"] else 0.0
-            toll_by_vehicle_raw.append(
-                {
-                    "vehicle_type_id": vt.id,
-                    "vehicle_type_name": vt.name,
-                    "golongan": gol_code,
-                    "gandar": meta.get("gandar", "-") if isinstance(meta, dict) else "-",
-                    "toll_idr": toll,
-                    "rate_per_km": rate_per_km,
-                }
-            )
-        toll_by_vehicle_raw.sort(key=lambda item: item["vehicle_type_name"].lower())
-    else:
-        toll_by_vehicle_raw = estimate_tolls_by_vehicle(
-            route["distance_km"],
-            [
-                (
-                    vt.id,
-                    vt.name,
-                    vt.toll_golongan.code if vt.toll_golongan else None,
-                    vt.toll_golongan.name if vt.toll_golongan else None,
-                )
-                for vt in vehicle_types
-            ],
-            base_toll_idr=route["toll_idr"],
-            toll_is_estimate=route["toll_is_estimate"],
-            sections=sections,
-        )
-    if toll_by_vehicle_raw:
-        route["toll_idr"] = toll_by_vehicle_raw[0]["toll_idr"]
 
     return RouteProcessOut(
         customer_id=customer_id,
@@ -2206,8 +2572,17 @@ def process_route(payload: RouteProcessRequest, db: Session = Depends(get_db)):
     )
 
 
+@router.get("/routing/route-profiles", response_model=list[RouteProfileOut])
+def get_route_profiles():
+    return [RouteProfileOut(**item) for item in list_route_profiles()]
+
+
 @router.post("/routing/toll-breakdown/manual", response_model=ManualTollBreakdownOut)
-def manual_toll_breakdown(payload: ManualTollBreakdownRequest, db: Session = Depends(get_db)):
+def manual_toll_breakdown(
+    payload: ManualTollBreakdownRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_api_access),
+):
     sections = _load_active_toll_sections(db)
     gate_context = _load_toll_gate_fare_context(db)
     result = build_manual_toll_breakdown(
@@ -2218,6 +2593,65 @@ def manual_toll_breakdown(payload: ManualTollBreakdownRequest, db: Session = Dep
         golongan_code="II",
     )
     return ManualTollBreakdownOut(**result)
+
+
+@router.post("/routing/recalculate-with-sections", response_model=RouteRecalculateOut)
+def recalculate_route_with_sections(
+    payload: RouteRecalculateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_api_access),
+):
+    warehouse = _get_or_create_warehouse(db)
+    try:
+        origin_lat, origin_lng = (
+            (float(warehouse.latitude), float(warehouse.longitude))
+            if warehouse.latitude is not None and warehouse.longitude is not None
+            else geocode_address(
+                warehouse.address,
+                warehouse.kelurahan,
+                warehouse.kecamatan,
+                warehouse.city,
+                warehouse.name,
+            )
+        )
+    except HTTPException:
+        raise HTTPException(
+            status_code=400,
+            detail="Koordinat gudang belum diatur. Isi alamat gudang di menu Gudang.",
+        )
+
+    dest_lat = float(payload.latitude)
+    dest_lng = float(payload.longitude)
+    sections = _load_active_toll_sections(db)
+    gate_context = _load_toll_gate_fare_context(db)
+    vehicle_types = db.scalars(_load_vehicle_types_query()).all()
+
+    route, toll_by_vehicle_raw = _build_corridor_route(
+        origin_lat=origin_lat,
+        origin_lng=origin_lng,
+        dest_lat=dest_lat,
+        dest_lng=dest_lng,
+        section_ids=payload.section_ids,
+        sections=sections,
+        gate_context=gate_context,
+        force_toll=bool(payload.force_toll),
+        vehicle_types=vehicle_types,
+    )
+
+    return RouteRecalculateOut(
+        distance_km=route["distance_km"],
+        duration_min=route["duration_min"],
+        geometry=route.get("geometry") or [],
+        toll_roads=route.get("toll_roads") or [],
+        toll_breakdown=route["toll_breakdown"],
+        toll_idr=route["toll_idr"],
+        toll_is_estimate=route["toll_is_estimate"],
+        toll_note=route["toll_note"],
+        toll_source=route["toll_source"],
+        toll_by_vehicle=[VehicleTollEstimate(**item) for item in toll_by_vehicle_raw],
+        route_via_toll_gates=route.get("route_via_toll_gates", False),
+        route_profile="manual",
+    )
 
 
 @router.get("/toll-golongan", response_model=list[TollGolonganOut])

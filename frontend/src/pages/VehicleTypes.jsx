@@ -141,16 +141,48 @@ const UangMelSelect = ({ value, onChange, id, uangMelList = [] }) => (
   </div>
 );
 
+const UangPelabuhanSelect = ({ value, onChange, id, uangPelabuhanList = [] }) => (
+  <div className="form-group">
+    <label className="form-label" htmlFor={id}>
+      Master Uang Pelabuhan
+    </label>
+    <select
+      id={id}
+      className="form-input"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    >
+      <option value="">-- Pilih Uang Pelabuhan --</option>
+      {uangPelabuhanList.map((u) => (
+        <option key={u.id} value={String(u.id)}>
+          {u.name} — {formatIDR(u.amount)}
+        </option>
+      ))}
+    </select>
+    {uangPelabuhanList.length === 0 && (
+      <small style={{ color: 'var(--text-secondary)' }}>
+        Belum ada Uang Pelabuhan. Atur di{' '}
+        <Link to="/uang-pelabuhan" style={{ color: '#4f46e5' }}>
+          Master Uang Pelabuhan
+        </Link>
+        .
+      </small>
+    )}
+  </div>
+);
+
 const VehicleTypes = () => {
   const canWrite = useCrudWrite();
   const [types, setTypes] = useState([]);
   const [golonganList, setGolonganList] = useState([]);
   const [bbmList, setBbmList] = useState([]);
   const [uangMelList, setUangMelList] = useState([]);
+  const [uangPelabuhanList, setUangPelabuhanList] = useState([]);
   const [name, setName] = useState('');
   const [tollGolonganId, setTollGolonganId] = useState('');
   const [bbmId, setBbmId] = useState('');
   const [uangMelId, setUangMelId] = useState('');
+  const [uangPelabuhanId, setUangPelabuhanId] = useState('');
   const [kmPerLiter, setKmPerLiter] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -160,6 +192,7 @@ const VehicleTypes = () => {
   const [editTollGolonganId, setEditTollGolonganId] = useState('');
   const [editBbmId, setEditBbmId] = useState('');
   const [editUangMelId, setEditUangMelId] = useState('');
+  const [editUangPelabuhanId, setEditUangPelabuhanId] = useState('');
   const [editKmPerLiter, setEditKmPerLiter] = useState('');
 
   const parseKmPerLiter = (value) => {
@@ -208,10 +241,20 @@ const VehicleTypes = () => {
     }
   };
 
+  const fetchUangPelabuhan = async () => {
+    try {
+      const data = await apiFetch('/api/uang-pelabuhan');
+      setUangPelabuhanList(data);
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
   useEffect(() => {
     fetchGolongan();
     fetchBbm();
     fetchUangMel();
+    fetchUangPelabuhan();
     fetchTypes();
   }, []);
 
@@ -236,6 +279,7 @@ const VehicleTypes = () => {
     toll_golongan_id: values.tollGolonganId ? parseInt(values.tollGolonganId, 10) : null,
     bbm_id: values.bbmId ? parseInt(values.bbmId, 10) : null,
     uang_mel_id: values.uangMelId ? parseInt(values.uangMelId, 10) : null,
+    uang_pelabuhan_id: values.uangPelabuhanId ? parseInt(values.uangPelabuhanId, 10) : null,
     km_per_liter: parseKmPerLiter(values.kmPerLiter),
   });
 
@@ -248,12 +292,13 @@ const VehicleTypes = () => {
       await apiFetch('/api/vehicle-types', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildPayload({ name, tollGolonganId, bbmId, uangMelId, kmPerLiter })),
+        body: JSON.stringify(buildPayload({ name, tollGolonganId, bbmId, uangMelId, uangPelabuhanId, kmPerLiter })),
       });
       setName('');
       setTollGolonganId('');
       setBbmId('');
       setUangMelId('');
+      setUangPelabuhanId('');
       setKmPerLiter('');
       await fetchTypes();
     } catch (err) {
@@ -270,6 +315,7 @@ const VehicleTypes = () => {
     setEditTollGolonganId(type.toll_golongan_id ? String(type.toll_golongan_id) : '');
     setEditBbmId(type.bbm_id ? String(type.bbm_id) : '');
     setEditUangMelId(type.uang_mel_id ? String(type.uang_mel_id) : '');
+    setEditUangPelabuhanId(type.uang_pelabuhan_id ? String(type.uang_pelabuhan_id) : '');
     setEditKmPerLiter(type.km_per_liter != null ? String(type.km_per_liter) : '');
     setIsModalOpen(true);
   };
@@ -281,6 +327,7 @@ const VehicleTypes = () => {
     setEditTollGolonganId('');
     setEditBbmId('');
     setEditUangMelId('');
+    setEditUangPelabuhanId('');
     setEditKmPerLiter('');
   };
 
@@ -299,6 +346,7 @@ const VehicleTypes = () => {
             tollGolonganId: editTollGolonganId,
             bbmId: editBbmId,
             uangMelId: editUangMelId,
+            uangPelabuhanId: editUangPelabuhanId,
             kmPerLiter: editKmPerLiter,
           })
         ),
@@ -329,7 +377,7 @@ const VehicleTypes = () => {
         <div>
           <h1>Jenis Kendaraan</h1>
           <p>
-            Master jenis kendaraan, golongan tol, BBM, efisiensi (km/liter), dan uang mel. Tarif uang jalan diatur per customer di menu Customer.
+            Master jenis kendaraan, golongan tol, BBM, efisiensi (km/liter), uang mel, dan uang pelabuhan. Tarif uang jalan diatur per customer di menu Customer.
           </p>
         </div>
       </div>
@@ -373,6 +421,12 @@ const VehicleTypes = () => {
               />
               <BbmSelect value={bbmId} onChange={setBbmId} id="add_bbm" bbmList={bbmList} />
               <UangMelSelect value={uangMelId} onChange={setUangMelId} id="add_uang_mel" uangMelList={uangMelList} />
+              <UangPelabuhanSelect
+                value={uangPelabuhanId}
+                onChange={setUangPelabuhanId}
+                id="add_uang_pelabuhan"
+                uangPelabuhanList={uangPelabuhanList}
+              />
               <KmPerLiterField value={kmPerLiter} onChange={setKmPerLiter} id="add_km_per_liter" />
               <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={saving}>
                 <Plus size={18} /> {saving ? 'Menyimpan...' : 'Simpan Jenis'}
@@ -393,6 +447,7 @@ const VehicleTypes = () => {
                   <th>BBM</th>
                   <th style={{ textAlign: 'right' }}>Km/Liter</th>
                   <th style={{ textAlign: 'right' }}>Uang Mel</th>
+                  <th style={{ textAlign: 'right' }}>Uang Pelabuhan</th>
                   <CrudActionsHeader canWrite={canWrite} />
                 </tr>
               </thead>
@@ -406,6 +461,11 @@ const VehicleTypes = () => {
                     <td style={{ textAlign: 'right', fontSize: '0.9rem' }}>{formatKmPerLiter(t.km_per_liter)}</td>
                     <td style={{ textAlign: 'right', fontSize: '0.9rem', whiteSpace: 'nowrap' }}>
                       {t.uang_mel_name ? `${t.uang_mel_name} (${formatIDR(t.uang_mel_amount)})` : formatIDR(t.uang_mel_amount || 0)}
+                    </td>
+                    <td style={{ textAlign: 'right', fontSize: '0.9rem', whiteSpace: 'nowrap' }}>
+                      {t.uang_pelabuhan_name
+                        ? `${t.uang_pelabuhan_name} (${formatIDR(t.uang_pelabuhan_amount)})`
+                        : formatIDR(t.uang_pelabuhan_amount || 0)}
                     </td>
                     <CrudActionsCell canWrite={canWrite}>
                       <button
@@ -431,7 +491,7 @@ const VehicleTypes = () => {
                 ))}
                 {types.length === 0 && (
                   <tr>
-                    <td colSpan={canWrite ? 7 : 6} style={{ textAlign: 'center', opacity: 0.5, padding: '2rem' }}>
+                    <td colSpan={canWrite ? 8 : 7} style={{ textAlign: 'center', opacity: 0.5, padding: '2rem' }}>
                       Belum ada data jenis
                     </td>
                   </tr>
@@ -478,6 +538,12 @@ const VehicleTypes = () => {
                   onChange={setEditUangMelId}
                   id="edit_uang_mel"
                   uangMelList={uangMelList}
+                />
+                <UangPelabuhanSelect
+                  value={editUangPelabuhanId}
+                  onChange={setEditUangPelabuhanId}
+                  id="edit_uang_pelabuhan"
+                  uangPelabuhanList={uangPelabuhanList}
                 />
                 <KmPerLiterField
                   value={editKmPerLiter}

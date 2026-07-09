@@ -23,6 +23,26 @@ import {
   mapStopFromApi,
   buildStopItemsPayload,
 } from '../utils/deliveryRouteUtils';
+import {
+  ROUTE_FEE_DEFS,
+  getRouteFeeAmount,
+  getUangPelabuhanAmount,
+  routeFeeFieldsFromApi,
+  routeFeePayloadFromForm,
+} from '../utils/routeFeeConfig';
+
+const formatIDR = (num) =>
+  new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(
+    Number(num) || 0
+  );
+
+const PELABUHAN_TOGGLE = {
+  key: 'uang_pelabuhan',
+  label: 'Uang Pelabuhan',
+  includeKey: 'include_uang_pelabuhan',
+  getAmount: (vehicleTypeId, vehicleTypes, _feeMasters, pelabuhanMasters) =>
+    getUangPelabuhanAmount(vehicleTypeId, vehicleTypes, pelabuhanMasters),
+};
 
 const DeliveryRouteForm = () => {
   const navigate = useNavigate();
@@ -32,6 +52,8 @@ const DeliveryRouteForm = () => {
   const editId = isEdit ? parseInt(routeId, 10) : null;
 
   const [vehicleTypes, setVehicleTypes] = useState([]);
+  const [feeMasters, setFeeMasters] = useState({});
+  const [pelabuhanMasters, setPelabuhanMasters] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [warehouse, setWarehouse] = useState(null);
   const [warehouseLoadError, setWarehouseLoadError] = useState(null);
@@ -74,6 +96,25 @@ const DeliveryRouteForm = () => {
     }
 
     try {
+      const masterEntries = await Promise.all(
+        ROUTE_FEE_DEFS.map(async (fee) => {
+          const data = await apiFetch(`/api/route-fees/${fee.apiPath}`);
+          return [fee.key, Array.isArray(data) ? data : []];
+        })
+      );
+      setFeeMasters(Object.fromEntries(masterEntries));
+    } catch {
+      setFeeMasters({});
+    }
+
+    try {
+      const dataPelabuhan = await apiFetch('/api/uang-pelabuhan');
+      setPelabuhanMasters(Array.isArray(dataPelabuhan) ? dataPelabuhan : []);
+    } catch {
+      setPelabuhanMasters([]);
+    }
+
+    try {
       let dataW = await apiFetch('/api/warehouse');
       if (
         !hasMapCoords(dataW.latitude, dataW.longitude) &&
@@ -106,6 +147,7 @@ const DeliveryRouteForm = () => {
           vehicle_type_id: String(route.vehicle_type_id),
           ritase: String(route.ritase || 1),
           remarks: route.remarks || '',
+          ...routeFeeFieldsFromApi(route),
           stops: route.stops.length
             ? route.stops.sort((a, b) => a.sort_order - b.sort_order).map(mapStopFromApi)
             : [emptyStop()],
@@ -171,6 +213,7 @@ const DeliveryRouteForm = () => {
       vehicle_type_id: parseInt(form.vehicle_type_id, 10),
       ritase: parseInt(form.ritase, 10) || 1,
       remarks: form.remarks || null,
+      ...routeFeePayloadFromForm(form),
       stops: stopsPayload,
     };
 
@@ -278,6 +321,45 @@ const DeliveryRouteForm = () => {
   const warehouseOnMap = points.some((p) => p.isWarehouse);
   const warehouseCoordsMissing =
     warehouse && !hasValidCoords(warehouse.latitude, warehouse.longitude);
+  const pelabuhanAmount = PELABUHAN_TOGGLE.getAmount(
+    form.vehicle_type_id,
+    vehicleTypes,
+    feeMasters,
+    pelabuhanMasters
+  );
+  const canUsePelabuhan = Boolean(form.vehicle_type_id) && pelabuhanAmount > 0;
+
+  const getRouteFeeAmountForForm = (feeKey) =>
+    getRouteFeeAmount(feeKey, form.vehicle_type_id, vehicleTypes, feeMasters);
+
+  const handleVehicleTypeChange = (vehicleTypeId) => {
+    const nextPelabuhanAmount = PELABUHAN_TOGGLE.getAmount(
+      vehicleTypeId,
+      vehicleTypes,
+      feeMasters,
+      pelabuhanMasters
+    );
+    setForm((prev) => {
+      const next = {
+        ...prev,
+        vehicle_type_id: vehicleTypeId,
+        include_uang_pelabuhan: prev.include_uang_pelabuhan && nextPelabuhanAmount > 0,
+      };
+      for (const fee of ROUTE_FEE_DEFS) {
+        const amount = getRouteFeeAmount(fee.key, vehicleTypeId, vehicleTypes, feeMasters);
+        next[`include_${fee.key}`] = amount > 0;
+      }
+      return next;
+    });
+  };
+
+  const handlePelabuhanToggle = (checked) => {
+    setForm((prev) => ({ ...prev, include_uang_pelabuhan: checked }));
+  };
+
+  const handleRouteFeeToggle = (includeKey, checked) => {
+    setForm((prev) => ({ ...prev, [includeKey]: checked }));
+  };
 
   return (
     <div className="page-container">
@@ -360,7 +442,7 @@ const DeliveryRouteForm = () => {
                   className="form-input"
                   required
                   value={form.vehicle_type_id}
-                  onChange={(e) => setForm({ ...form, vehicle_type_id: e.target.value })}
+                  onChange={(e) => handleVehicleTypeChange(e.target.value)}
                 >
                   <option value="">-- Pilih jenis kendaraan --</option>
                   {vehicleTypes.map((vt) => (
@@ -677,7 +759,77 @@ const DeliveryRouteForm = () => {
                   onChange={(e) => setForm({ ...form, remarks: e.target.value })}
                 />
               </div>
-              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <div style={{ flex: '1 1 100%', marginTop: '0.5rem' }}>
+                <h4 style={{ margin: '0 0 0.75rem', fontSize: '0.95rem' }}>Biaya Rute</h4>
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                    gap: '1rem',
+                  }}
+                >
+                  <div className="form-group" style={{ marginBottom: 0 }}>
+                    <label
+                      className="form-label"
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        cursor: canUsePelabuhan ? 'pointer' : 'not-allowed',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={Boolean(form.include_uang_pelabuhan)}
+                        disabled={!canUsePelabuhan}
+                        onChange={(e) => handlePelabuhanToggle(e.target.checked)}
+                      />
+                      <span>{PELABUHAN_TOGGLE.label}</span>
+                    </label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      readOnly
+                      value={form.include_uang_pelabuhan && pelabuhanAmount > 0 ? formatIDR(pelabuhanAmount) : '-'}
+                      style={{ textAlign: 'right', background: '#f8fafc' }}
+                    />
+                  </div>
+                  {ROUTE_FEE_DEFS.map((fee) => {
+                    const includeKey = `include_${fee.key}`;
+                    const amount = getRouteFeeAmountForForm(fee.key);
+                    const canUse = Boolean(form.vehicle_type_id) && amount > 0;
+                    return (
+                      <div key={fee.key} className="form-group" style={{ marginBottom: 0 }}>
+                        <label
+                          className="form-label"
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            cursor: canUse ? 'pointer' : 'not-allowed',
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={Boolean(form[includeKey])}
+                            disabled={!canUse}
+                            onChange={(e) => handleRouteFeeToggle(includeKey, e.target.checked)}
+                          />
+                          <span>{fee.label}</span>
+                        </label>
+                        <input
+                          type="text"
+                          className="form-input"
+                          readOnly
+                          value={form[includeKey] && amount > 0 ? formatIDR(amount) : '-'}
+                          style={{ textAlign: 'right', background: '#f8fafc' }}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', width: '100%' }}>
                 <button type="submit" className="btn btn-primary" disabled={saving}>
                   {saving ? 'Menyimpan...' : isEdit ? 'Simpan Perubahan' : 'Simpan Rute'}
                 </button>

@@ -9,6 +9,7 @@ import * as XLSX from 'xlsx';
 import DeliveryRouteReportTab from './DeliveryRouteReportTab';
 import TablePager from '../components/TablePager';
 import { computeUangJalanTotals } from '../utils/saleExport';
+import { sumRouteFees } from '../utils/routeFeeConfig';
 
 const formatIDR = (val) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(
@@ -24,7 +25,12 @@ const enrichSaleReportRow = (s) => {
   if (s.rounding_uang_jalan != null && s.subtotal_uang_jalan != null) {
     return s;
   }
-  const { subtotal, rounding, total } = computeUangJalanTotals(s.uang_jalan, s.extra_uang_jalan);
+  const routeFees = sumRouteFees(s);
+  const { subtotal, rounding, total } = computeUangJalanTotals(
+    s.uang_jalan,
+    s.extra_uang_jalan,
+    routeFees
+  );
   return {
     ...s,
     subtotal_uang_jalan: subtotal,

@@ -421,6 +421,42 @@
       "latitude": -6.126,
       "longitude": 106.655,
       "source": "manual:Prof Soedijatmo"
+    },
+    "padalarang": {
+      "name": "Padalarang",
+      "latitude": -6.834167,
+      "longitude": 107.472222,
+      "source": "manual:Cipularang Padalarang"
+    },
+    "cileunyi": {
+      "name": "Cileunyi",
+      "latitude": -6.944722,
+      "longitude": 107.638889,
+      "source": "manual:Padaleunyi Cileunyi"
+    },
+    "pasteur": {
+      "name": "Pasteur",
+      "latitude": -6.8875,
+      "longitude": 107.583333,
+      "source": "manual:Padaleunyi Pasteur"
+    },
+    "cikopo": {
+      "name": "Cikopo",
+      "latitude": -6.474,
+      "longitude": 107.477,
+      "source": "manual:Cipali Cikopo"
+    },
+    "cisumdawuutama": {
+      "name": "Cisumdawu Utama",
+      "latitude": -7.037,
+      "longitude": 107.857,
+      "source": "manual:Cisumdawu"
+    },
+    "paseh": {
+      "name": "Paseh",
+      "latitude": -7.102,
+      "longitude": 107.812,
+      "source": "manual:Cisumdawu Paseh"
     }
   }
 }

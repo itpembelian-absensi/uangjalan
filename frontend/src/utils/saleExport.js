@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
+import { sumRouteFees, getActiveRouteFeeLines } from './routeFeeConfig';
 
 const formatIDR = (num) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(
@@ -17,8 +18,9 @@ const formatDateId = (dateString) => {
 };
 
 /** Pembulatan ke atas ke ribuan terdekat. */
-export function computeUangJalanTotals(baseAmount, extraAmount = 0) {
-  const subtotal = (Number(baseAmount) || 0) + (Number(extraAmount) || 0);
+export function computeUangJalanTotals(baseAmount, extraAmount = 0, routeFeesAmount = 0) {
+  const subtotal =
+    (Number(baseAmount) || 0) + (Number(extraAmount) || 0) + (Number(routeFeesAmount) || 0);
   if (subtotal <= 0) {
     return { subtotal: 0, rounding: 0, total: 0 };
   }
@@ -54,9 +56,11 @@ export function buildSaleDocument(form, { vehicles, drivers, customers }) {
   const amounts = detailRows.map((d) => d.amount).filter((n) => n > 0);
   const maxNominal = amounts.length > 0 ? Math.max(...amounts) : 0;
   const extraAmount = parseFloat(String(form.extra_uang_jalan).replace(/[^\d]/g, '')) || 0;
+  const routeFeesAmount = sumRouteFees(form);
+  const routeFeeLines = getActiveRouteFeeLines(form);
   const multiCustomer = filledDetails.length > 1;
-  const uangJalan = multiCustomer ? maxNominal : detailRows[0]?.amount || 0;
-  const { rounding, total: totalUangJalan } = computeUangJalanTotals(uangJalan, extraAmount);
+  const baseUangJalan = multiCustomer ? maxNominal : detailRows[0]?.amount || 0;
+  const { rounding, total: totalUangJalan } = computeUangJalanTotals(baseUangJalan, extraAmount, routeFeesAmount);
 
   const driverBankInfo = [driver?.bank_name, driver?.bank_account].filter(Boolean).join(' ');
   const driverDisplay = driver ? (driverBankInfo ? `${driver.name} (Rek: ${driverBankInfo})` : driver.name) : '-';
@@ -71,7 +75,9 @@ export function buildSaleDocument(form, { vehicles, drivers, customers }) {
     vehicleTypeHeader,
     customerNames,
     details: detailRows,
-    uangJalan,
+    uangJalan: baseUangJalan,
+    routeFeesTotal: routeFeesAmount,
+    routeFeeLines,
     extraUangJalan: extraAmount,
     roundingUangJalan: rounding,
     totalUangJalan,
@@ -99,9 +105,11 @@ export function buildSaleDocumentFromSaleOut(sale) {
   const amounts = detailRows.map((d) => d.amount).filter((n) => n > 0);
   const maxNominal = amounts.length > 0 ? Math.max(...amounts) : 0;
   const extraAmount = parseFloat(sale.extra_uang_jalan) || 0;
+  const routeFeesAmount = sumRouteFees(sale);
+  const routeFeeLines = getActiveRouteFeeLines(sale);
   const multiCustomer = detailRows.length > 1;
-  const uangJalan = multiCustomer ? maxNominal : detailRows[0]?.amount || 0;
-  const { rounding, total: totalUangJalan } = computeUangJalanTotals(uangJalan, extraAmount);
+  const baseUangJalan = multiCustomer ? maxNominal : detailRows[0]?.amount || 0;
+  const { rounding, total: totalUangJalan } = computeUangJalanTotals(baseUangJalan, extraAmount, routeFeesAmount);
 
   const driverBankInfo = [sale.driver_bank_name, sale.driver_bank_account].filter(Boolean).join(' ');
   const driverDisplay = sale.driver_name ? (driverBankInfo ? `${sale.driver_name} (Rek: ${driverBankInfo})` : sale.driver_name) : '-';
@@ -116,7 +124,9 @@ export function buildSaleDocumentFromSaleOut(sale) {
     vehicleTypeHeader,
     customerNames,
     details: detailRows,
-    uangJalan,
+    uangJalan: baseUangJalan,
+    routeFeesTotal: routeFeesAmount,
+    routeFeeLines,
     extraUangJalan: extraAmount,
     roundingUangJalan: rounding,
     totalUangJalan,
@@ -132,19 +142,29 @@ function enrichSaleRow(sale) {
   const amounts = details.map((d) => parseFloat(d.amount) || 0).filter((n) => n > 0);
   const maxNominal = amounts.length > 0 ? Math.max(...amounts) : 0;
   const extra = parseFloat(sale.extra_uang_jalan) || 0;
+  const routeFees = sumRouteFees(sale);
   const multi = details.length > 1;
   const base = multi ? maxNominal : (amounts[0] || 0);
-  const { rounding, total } = computeUangJalanTotals(base, extra);
+  const { rounding, total } = computeUangJalanTotals(base, extra, routeFees);
   const customerNames = details.map((d) => d.customer_name || '-').join(', ');
   const vehicleTypes = [...new Set(details.map((d) => d.vehicle_type_name || '-'))].join(', ');
   const driverBankInfo = [sale.driver_bank_name, sale.driver_bank_account].filter(Boolean).join(' ');
-  return { ...sale, _base: base, _extra: extra, _rounding: rounding, _total: total, _customers: customerNames, _vehicleType: vehicleTypes, _driverBankInfo: driverBankInfo };
+  return {
+    ...sale,
+    _base: base,
+    _extra: extra,
+    _routeFees: routeFees,
+    _rounding: rounding,
+    _total: total,
+    _customers: customerNames,
+    _vehicleType: vehicleTypes,
+    _driverBankInfo: driverBankInfo,
+  };
 }
 
 export function printBulkSales(sales, { fromLabel, toLabel } = {}) {
   const enriched = sales.map(enrichSaleRow);
   const totalBase = enriched.reduce((s, r) => s + r._base, 0);
-  const totalExtra = enriched.reduce((s, r) => s + r._extra, 0);
   const totalRounding = enriched.reduce((s, r) => s + r._rounding, 0);
   const totalAll = enriched.reduce((s, r) => s + r._total, 0);
   const period = fromLabel && toLabel ? `Periode: ${fromLabel} – ${toLabel}` : '';
@@ -159,6 +179,7 @@ export function printBulkSales(sales, { fromLabel, toLabel } = {}) {
       <td>${s._customers}</td>
       <td style="text-align:center">${s._vehicleType}</td>
       <td class="num">${formatIDR(s._base)}</td>
+      <td class="num">${formatIDR(s._routeFees)}</td>
       <td class="num">${formatIDR(s._extra)}</td>
       <td class="num">${formatIDR(s._rounding)}</td>
       <td class="num" style="font-weight:600">${formatIDR(s._total)}</td>
@@ -183,9 +204,9 @@ export function printBulkSales(sales, { fromLabel, toLabel } = {}) {
     <h1>Daftar Uang Jalan</h1>
     <p class="meta">${period} | Dicetak: ${new Date().toLocaleString('id-ID')}</p>
     <table>
-      <thead><tr><th>No</th><th>Tanggal</th><th>No. Transaksi</th><th>Kendaraan</th><th>Sopir</th><th>Customer</th><th>Jenis</th><th class="num">Uang Jalan</th><th class="num">Tambahan</th><th class="num">Pembulatan</th><th class="num">Total</th></tr></thead>
+      <thead><tr><th>No</th><th>Tanggal</th><th>No. Transaksi</th><th>Kendaraan</th><th>Sopir</th><th>Customer</th><th>Jenis</th><th class="num">Uang Jalan</th><th class="num">Biaya Rute</th><th class="num">Tambahan</th><th class="num">Pembulatan</th><th class="num">Total</th></tr></thead>
       <tbody>${tableRows}</tbody>
-      <tfoot><tr><td colspan="7" class="num">TOTAL</td><td class="num">${formatIDR(totalBase)}</td><td class="num">${formatIDR(totalExtra)}</td><td class="num">${formatIDR(totalRounding)}</td><td class="num">${formatIDR(totalAll)}</td></tr></tfoot>
+      <tfoot><tr><td colspan="7" class="num">TOTAL</td><td class="num">${formatIDR(totalBase)}</td><td class="num">${formatIDR(enriched.reduce((s, r) => s + r._routeFees, 0))}</td><td class="num">${formatIDR(enriched.reduce((s, r) => s + r._extra, 0))}</td><td class="num">${formatIDR(totalRounding)}</td><td class="num">${formatIDR(totalAll)}</td></tr></tfoot>
     </table>
   </body></html>`);
   printWindow.document.close();
@@ -195,7 +216,6 @@ export function printBulkSales(sales, { fromLabel, toLabel } = {}) {
 export function exportBulkSalesPdf(sales, { fromLabel, toLabel } = {}) {
   const enriched = sales.map(enrichSaleRow);
   const totalBase = enriched.reduce((s, r) => s + r._base, 0);
-  const totalExtra = enriched.reduce((s, r) => s + r._extra, 0);
   const totalRounding = enriched.reduce((s, r) => s + r._rounding, 0);
   const totalAll = enriched.reduce((s, r) => s + r._total, 0);
   const period = fromLabel && toLabel ? `${fromLabel} – ${toLabel}` : '';
@@ -211,15 +231,16 @@ export function exportBulkSalesPdf(sales, { fromLabel, toLabel } = {}) {
 
   autoTable(pdf, {
     startY: 26,
-    head: [['No', 'Tanggal', 'No. Transaksi', 'Kendaraan', 'Sopir', 'Customer', 'Jenis', 'Uang Jalan', 'Tambahan', 'Pembulatan', 'Total']],
+    head: [['No', 'Tanggal', 'No. Transaksi', 'Kendaraan', 'Sopir', 'Customer', 'Jenis', 'Uang Jalan', 'Biaya Rute', 'Tambahan', 'Pembulatan', 'Total']],
     body: enriched.map((s, i) => [
       i + 1, formatDateId(s.date), s.sale_no, s.vehicle_plate || '-', s._driverBankInfo ? `${s.driver_name || '-'}\nRek: ${s._driverBankInfo}` : s.driver_name || '-',
-      s._customers, s._vehicleType, formatIDR(s._base), formatIDR(s._extra), formatIDR(s._rounding), formatIDR(s._total),
+      s._customers, s._vehicleType, formatIDR(s._base), formatIDR(s._routeFees), formatIDR(s._extra), formatIDR(s._rounding), formatIDR(s._total),
     ]),
     foot: [[
       { content: 'TOTAL', colSpan: 7, styles: { halign: 'right', fontStyle: 'bold' } },
       { content: formatIDR(totalBase), styles: { halign: 'right', fontStyle: 'bold' } },
-      { content: formatIDR(totalExtra), styles: { halign: 'right', fontStyle: 'bold' } },
+      { content: formatIDR(enriched.reduce((s, r) => s + r._routeFees, 0)), styles: { halign: 'right', fontStyle: 'bold' } },
+      { content: formatIDR(enriched.reduce((s, r) => s + r._extra, 0)), styles: { halign: 'right', fontStyle: 'bold' } },
       { content: formatIDR(totalRounding), styles: { halign: 'right', fontStyle: 'bold' } },
       { content: formatIDR(totalAll), styles: { halign: 'right', fontStyle: 'bold' } },
     ]],
@@ -235,7 +256,6 @@ export function exportBulkSalesPdf(sales, { fromLabel, toLabel } = {}) {
 export function exportBulkSalesExcel(sales, { fromLabel, toLabel } = {}) {
   const enriched = sales.map(enrichSaleRow);
   const totalBase = enriched.reduce((s, r) => s + r._base, 0);
-  const totalExtra = enriched.reduce((s, r) => s + r._extra, 0);
   const totalRounding = enriched.reduce((s, r) => s + r._rounding, 0);
   const totalAll = enriched.reduce((s, r) => s + r._total, 0);
   const period = fromLabel && toLabel ? `${fromLabel} – ${toLabel}` : '';
@@ -244,19 +264,19 @@ export function exportBulkSalesExcel(sales, { fromLabel, toLabel } = {}) {
     ['Daftar Uang Jalan'],
     [period ? `Periode: ${period}` : `Dicetak: ${new Date().toLocaleString('id-ID')}`],
     [],
-    ['No', 'Tanggal', 'No. Transaksi', 'Kendaraan', 'Sopir', 'Customer', 'Jenis Kendaraan', 'Uang Jalan', 'Tambahan', 'Pembulatan', 'Total'],
+    ['No', 'Tanggal', 'No. Transaksi', 'Kendaraan', 'Sopir', 'Customer', 'Jenis Kendaraan', 'Uang Jalan', 'Biaya Rute', 'Tambahan', 'Pembulatan', 'Total'],
     ...enriched.map((s, i) => [
       i + 1, formatDateId(s.date), s.sale_no, s.vehicle_plate || '-', s._driverBankInfo ? `${s.driver_name || '-'} (Rek: ${s._driverBankInfo})` : s.driver_name || '-',
-      s._customers, s._vehicleType, s._base, s._extra, s._rounding, s._total,
+      s._customers, s._vehicleType, s._base, s._routeFees, s._extra, s._rounding, s._total,
     ]),
     [],
-    ['', '', '', '', '', '', 'TOTAL', totalBase, totalExtra, totalRounding, totalAll],
+    ['', '', '', '', '', '', 'TOTAL', totalBase, enriched.reduce((s, r) => s + r._routeFees, 0), enriched.reduce((s, r) => s + r._extra, 0), totalRounding, totalAll],
   ];
 
   const ws = XLSX.utils.aoa_to_sheet(rows);
   ws['!cols'] = [
     { wch: 5 }, { wch: 16 }, { wch: 22 }, { wch: 14 }, { wch: 16 },
-    { wch: 30 }, { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 18 },
+    { wch: 30 }, { wch: 16 }, { wch: 16 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 18 },
   ];
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Uang Jalan');
@@ -304,28 +324,44 @@ function signatureExcelRows() {
   ];
 }
 
-export function printSaleDocument(doc) {
-  const printWindow = window.open('', '_blank', 'width=900,height=700');
-  if (!printWindow) {
-    alert('Popup diblokir browser. Izinkan popup untuk print.');
-    return;
+function buildSummaryRows(doc) {
+  const rows = [
+    [{ content: 'Uang Jalan', styles: { fontStyle: 'bold' } }, { content: formatIDR(doc.uangJalan), styles: { fontStyle: 'bold', halign: 'right' } }],
+  ];
+  if ((doc.routeFeesTotal || 0) > 0) {
+    rows.push(['Biaya Rute', { content: formatIDR(doc.routeFeesTotal), styles: { halign: 'right' } }]);
+    for (const line of doc.routeFeeLines || []) {
+      rows.push([`  ${line.label}`, { content: formatIDR(line.amount), styles: { halign: 'right', textColor: 100 } }]);
+    }
   }
+  rows.push(
+    ['Uang Jalan Tambahan', { content: formatIDR(doc.extraUangJalan), styles: { halign: 'right' } }],
+    ['Pembulatan (Ke Atas Ribuan)', { content: formatIDR(doc.roundingUangJalan), styles: { halign: 'right' } }],
+    [{ content: 'Total Uang Jalan', styles: { fontStyle: 'bold' } }, { content: formatIDR(doc.totalUangJalan), styles: { fontStyle: 'bold', halign: 'right', fontSize: 11 } }],
+  );
+  return rows;
+}
 
-  // Customer list (numbered)
-  const customerListHtml = doc.customerNames
-    .map((name, i) => `<tr><td style="text-align:center">${i + 1}</td><td>${name}</td></tr>`)
+function buildSummaryHtml(doc) {
+  const routeFeeRows = (doc.routeFeeLines || [])
+    .map((line) => `<tr><td style="padding-left:16px;color:#64748b">${line.label}</td><td style="text-align:right;color:#64748b">${formatIDR(line.amount)}</td></tr>`)
     .join('');
-
-  // Summary section
-  const summaryHtml = `
+  const biayaRuteRow = (doc.routeFeesTotal || 0) > 0
+    ? `<tr>
+          <td><strong>Biaya Rute</strong></td>
+          <td style="text-align:right"><strong>${formatIDR(doc.routeFeesTotal)}</strong></td>
+        </tr>${routeFeeRows}`
+    : '';
+  return `
     <table class="data" style="margin-top:16px;">
       <tbody>
         <tr>
           <td style="width:60%"><strong>Uang Jalan</strong></td>
           <td style="text-align:right"><strong>${formatIDR(doc.uangJalan)}</strong></td>
         </tr>
+        ${biayaRuteRow}
         <tr>
-          <td>Uang Jalan Tambahan (Tol, Parkir, Dll)</td>
+          <td>Uang Jalan Tambahan</td>
           <td style="text-align:right">${formatIDR(doc.extraUangJalan)}</td>
         </tr>
         <tr>
@@ -338,6 +374,19 @@ export function printSaleDocument(doc) {
         </tr>
       </tbody>
     </table>`;
+}
+
+export function printSaleDocument(doc) {
+  const printWindow = window.open('', '_blank', 'width=900,height=700');
+  if (!printWindow) {
+    alert('Popup diblokir browser. Izinkan popup untuk print.');
+    return;
+  }
+
+  // Customer list (numbered)
+  const customerListHtml = doc.customerNames
+    .map((name, i) => `<tr><td style="text-align:center">${i + 1}</td><td>${name}</td></tr>`)
+    .join('');
 
   printWindow.document.write(`
     <!DOCTYPE html>
@@ -376,7 +425,7 @@ export function printSaleDocument(doc) {
         <thead><tr><th style="width:40px;text-align:center">No</th><th>Customer</th></tr></thead>
         <tbody>${customerListHtml || '<tr><td colspan="2">Belum ada data customer</td></tr>'}</tbody>
       </table>
-      ${summaryHtml}
+      ${buildSummaryHtml(doc)}
       ${signaturePrintHtml}
     </body></html>
   `);
@@ -429,12 +478,7 @@ export function exportSalePdf(doc) {
   });
 
   // Summary table
-  const summaryBody = [
-    [{ content: 'Uang Jalan', styles: { fontStyle: 'bold' } }, { content: formatIDR(doc.uangJalan), styles: { fontStyle: 'bold', halign: 'right' } }],
-    ['Uang Jalan Tambahan (Tol, Parkir, Dll)', { content: formatIDR(doc.extraUangJalan), styles: { halign: 'right' } }],
-    ['Pembulatan (Ke Atas Ribuan)', { content: formatIDR(doc.roundingUangJalan), styles: { halign: 'right' } }],
-    [{ content: 'Total Uang Jalan', styles: { fontStyle: 'bold' } }, { content: formatIDR(doc.totalUangJalan), styles: { fontStyle: 'bold', halign: 'right', fontSize: 11 } }],
-  ];
+  const summaryBody = buildSummaryRows(doc);
 
   autoTable(pdf, {
     startY: pdf.lastAutoTable.finalY + 6,
@@ -466,7 +510,13 @@ export function exportSaleExcel(doc) {
     ...doc.customerNames.map((name, i) => [i + 1, name]),
     [],
     ['Uang Jalan', '', doc.uangJalan],
-    ['Uang Jalan Tambahan (Tol, Parkir, Dll)', '', doc.extraUangJalan],
+    ...((doc.routeFeesTotal || 0) > 0
+      ? [
+          ['Biaya Rute', '', doc.routeFeesTotal],
+          ...(doc.routeFeeLines || []).map((line) => [`  ${line.label}`, '', line.amount]),
+        ]
+      : []),
+    ['Uang Jalan Tambahan', '', doc.extraUangJalan],
     ['Pembulatan (Ke Atas Ribuan)', '', doc.roundingUangJalan],
     ['Total Uang Jalan', '', doc.totalUangJalan],
   ];

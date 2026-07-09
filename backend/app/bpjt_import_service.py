@@ -19,6 +19,7 @@ DATA_FILE = DATA_DIR / "bpjt_jabodetabek.json"
 GATES_FILE = DATA_DIR / "bpjt_jabodetabek_gates.json"
 EXTRA_PACK_FILES = [
     DATA_DIR / "bpjt_trans_jawa_japek.json",
+    DATA_DIR / "bpjt_trans_jawa_bandung_tasik.json",
 ]
 LEGACY_SECTION_NAMES = {
     "japek (jakarta–cikampek)",

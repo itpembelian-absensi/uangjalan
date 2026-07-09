@@ -1,3 +1,5 @@
+import { defaultRouteFeeFormFields } from './routeFeeConfig';
+
 export const formatRouteDate = (dateString) => {
   if (!dateString) return '';
   return new Date(dateString).toLocaleDateString('id-ID', {
@@ -80,6 +82,7 @@ export const defaultRouteForm = () => ({
   vehicle_type_id: '',
   ritase: '1',
   remarks: '',
+  ...defaultRouteFeeFormFields(),
   stops: [emptyStop()],
 });
 

@@ -149,11 +149,43 @@ class UangMelOut(BaseModel):
         from_attributes = True
 
 
+class UangPelabuhanCreate(BaseModel):
+    name: str = Field(min_length=1)
+    amount: float = Field(ge=0)
+
+
+class UangPelabuhanOut(BaseModel):
+    id: int
+    name: str
+    amount: float
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class RouteFeeCreate(BaseModel):
+    name: str = Field(min_length=1)
+    amount: float = Field(ge=0)
+
+
+class RouteFeeOut(BaseModel):
+    id: int
+    fee_type: str
+    name: str
+    amount: float
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class VehicleTypeCreate(BaseModel):
     name: str = Field(min_length=1)
     toll_golongan_id: int | None = None
     bbm_id: int | None = None
     uang_mel_id: int | None = None
+    uang_pelabuhan_id: int | None = None
     km_per_liter: float | None = Field(default=None, gt=0)
 
 
@@ -169,6 +201,9 @@ class VehicleTypeOut(BaseModel):
     uang_mel_id: int | None = None
     uang_mel_name: str | None = None
     uang_mel_amount: float = 0
+    uang_pelabuhan_id: int | None = None
+    uang_pelabuhan_name: str | None = None
+    uang_pelabuhan_amount: float = 0
     km_per_liter: float | None = None
     created_at: datetime
 
@@ -302,6 +337,11 @@ class DeliveryRouteCreate(BaseModel):
     vehicle_type_id: int
     remarks: str | None = None
     ritase: int = Field(default=1, ge=1, le=10)
+    include_uang_pelabuhan: bool = False
+    include_pjr: bool = False
+    include_forklift_bongkaran: bool = False
+    include_parkir_liar: bool = False
+    include_parkir_kawasan: bool = False
     stops: list[DeliveryRouteStopItem] = Field(default_factory=list, min_length=1)
 
 
@@ -333,6 +373,16 @@ class DeliveryRouteOut(BaseModel):
     driver_phone: str | None = None
     remarks: str | None = None
     ritase: int = 1
+    include_uang_pelabuhan: bool = False
+    uang_pelabuhan: float = 0
+    include_pjr: bool = False
+    pjr: float = 0
+    include_forklift_bongkaran: bool = False
+    forklift_bongkaran: float = 0
+    include_parkir_liar: bool = False
+    parkir_liar: float = 0
+    include_parkir_kawasan: bool = False
+    parkir_kawasan: float = 0
     stops: list[DeliveryRouteStopOut] = Field(default_factory=list)
     sale_id: int | None = None
     sale_no: str | None = None
@@ -438,6 +488,16 @@ class SaleOut(BaseModel):
     route_no: str | None = None
     remarks: str | None = None
     extra_uang_jalan: float = Field(ge=0, default=0)
+    include_uang_pelabuhan: bool = False
+    uang_pelabuhan: float = Field(ge=0, default=0)
+    include_pjr: bool = False
+    pjr: float = Field(ge=0, default=0)
+    include_forklift_bongkaran: bool = False
+    forklift_bongkaran: float = Field(ge=0, default=0)
+    include_parkir_liar: bool = False
+    parkir_liar: float = Field(ge=0, default=0)
+    include_parkir_kawasan: bool = False
+    parkir_kawasan: float = Field(ge=0, default=0)
     details: list[SaleDetailOut] = Field(default_factory=list)
     is_finance_paid: bool = False
     finance_paid_at: datetime | None = None
@@ -445,6 +505,10 @@ class SaleOut(BaseModel):
     is_void: bool = False
     void_reason: str | None = None
     created_at: datetime
+
+    class Config:
+        from_attributes = True
+
 
 class SaleVoid(BaseModel):
     void_reason: str = Field(..., min_length=3)
@@ -484,6 +548,14 @@ class RouteProcessRequest(BaseModel):
     name: str | None = None
     force_toll: bool | None = False
     prefer_cheapest_toll: bool | None = False
+    route_profile: str | None = "auto"
+    section_ids: list[int] | None = None
+
+
+class RouteProfileOut(BaseModel):
+    key: str
+    label: str
+    description: str | None = None
 
 
 class RoutePoint(BaseModel):
@@ -542,6 +614,8 @@ class RouteProcessOut(BaseModel):
     route_selection: str | None = None
     alternatives_compared: int = 0
     toll_savings_idr: float | None = None
+    route_profile: str | None = None
+    route_via_toll_gates: bool = False
 
 
 class ManualTollBreakdownRequest(BaseModel):
@@ -555,6 +629,28 @@ class ManualTollBreakdownOut(BaseModel):
     toll_source: str = "manual"
     toll_is_estimate: bool = False
     toll_note: str | None = None
+
+
+class RouteRecalculateRequest(BaseModel):
+    latitude: float
+    longitude: float
+    section_ids: list[int] = Field(min_length=1)
+    force_toll: bool | None = False
+
+
+class RouteRecalculateOut(BaseModel):
+    distance_km: float
+    duration_min: float
+    geometry: list[list[float]] = Field(default_factory=list)
+    toll_roads: list[RouteTollRoadOut] = Field(default_factory=list)
+    toll_breakdown: list[RouteTollSegmentOut] = Field(default_factory=list)
+    toll_idr: float
+    toll_is_estimate: bool
+    toll_note: str | None = None
+    toll_source: str = "manual"
+    toll_by_vehicle: list[VehicleTollEstimate] = Field(default_factory=list)
+    route_via_toll_gates: bool = False
+    route_profile: str | None = None
 
 
 class GeocodeRequest(BaseModel):

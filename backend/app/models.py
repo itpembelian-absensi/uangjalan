@@ -283,6 +283,31 @@ class UangMelMaster(Base):
     )
 
 
+class UangPelabuhanMaster(Base):
+    __tablename__ = "uang_pelabuhan_master"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
+    amount: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class RouteFeeMaster(Base):
+    __tablename__ = "route_fee_master"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    fee_type: Mapped[str] = mapped_column(Text, nullable=False)
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    amount: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (UniqueConstraint("fee_type", "name", name="uq_route_fee_type_name"),)
+
+
 class VehicleType(Base):
     __tablename__ = "vehicle_types"
 
@@ -297,6 +322,9 @@ class VehicleType(Base):
     uang_mel_id: Mapped[int | None] = mapped_column(
         ForeignKey("uang_mel_master.id", ondelete="SET NULL"), nullable=True
     )
+    uang_pelabuhan_id: Mapped[int | None] = mapped_column(
+        ForeignKey("uang_pelabuhan_master.id", ondelete="SET NULL"), nullable=True
+    )
     km_per_liter: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -305,6 +333,7 @@ class VehicleType(Base):
     toll_golongan: Mapped["TollGolongan | None"] = relationship()
     bbm: Mapped["BbmMaster | None"] = relationship()
     uang_mel: Mapped["UangMelMaster | None"] = relationship()
+    uang_pelabuhan: Mapped["UangPelabuhanMaster | None"] = relationship()
 
 
 class Vehicle(Base):
@@ -380,6 +409,24 @@ class DeliveryRoute(Base):
     )
     remarks: Mapped[str | None] = mapped_column(Text, nullable=True)
     ritpiase: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+    include_uang_pelabuhan: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
+    uang_pelabuhan: Mapped[float] = mapped_column(
+        Numeric(14, 2), nullable=False, server_default="0"
+    )
+    include_pjr: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    pjr: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, server_default="0")
+    include_forklift_bongkaran: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
+    forklift_bongkaran: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, server_default="0")
+    include_parkir_liar: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    parkir_liar: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, server_default="0")
+    include_parkir_kawasan: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
+    parkir_kawasan: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, server_default="0")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -472,6 +519,24 @@ class Sale(Base):
     extra_uang_jalan: Mapped[float] = mapped_column(
         Numeric(14, 2), nullable=False, server_default="0"
     )
+    include_uang_pelabuhan: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
+    uang_pelabuhan: Mapped[float] = mapped_column(
+        Numeric(14, 2), nullable=False, server_default="0"
+    )
+    include_pjr: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    pjr: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, server_default="0")
+    include_forklift_bongkaran: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
+    forklift_bongkaran: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, server_default="0")
+    include_parkir_liar: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    parkir_liar: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, server_default="0")
+    include_parkir_kawasan: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default="false"
+    )
+    parkir_kawasan: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, server_default="0")
     finance_paid_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

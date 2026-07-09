@@ -36,6 +36,12 @@ import {
   exportBulkSalesPdf,
   exportBulkSalesExcel,
 } from '../utils/saleExport';
+import {
+  sumRouteFees,
+  getActiveRouteFeeLines,
+  defaultRouteFeeFormFields,
+  routeFeeAmountsFromApi,
+} from '../utils/routeFeeConfig';
 import RouteResultModal from '../components/RouteResultModal';
 import MultiPointMap from '../components/MultiPointMap';
 
@@ -46,6 +52,27 @@ const formatIDR = (num) =>
 
 const formatAmount = (num) =>
   new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(Number(num) || 0);
+
+const RouteFeeBreakdown = ({ lines, style }) => (
+  <div
+    style={{
+      display: 'grid',
+      gridTemplateColumns: '1fr auto 4.25rem',
+      columnGap: '0.35rem',
+      rowGap: '0.15rem',
+      fontVariantNumeric: 'tabular-nums',
+      ...style,
+    }}
+  >
+    {lines.map((line) => (
+      <React.Fragment key={line.label}>
+        <span>{line.label}</span>
+        <span>Rp</span>
+        <span style={{ textAlign: 'right' }}>{formatAmount(line.amount)}</span>
+      </React.Fragment>
+    ))}
+  </div>
+);
 
 const parseAmountInput = (val) => {
   if (val === '' || val == null) return '';
@@ -86,9 +113,10 @@ const saleDetailTotal = (sale) => {
   const amounts = (sale.details || []).map((d) => parseFloat(d.amount) || 0).filter((n) => n > 0);
   const maxNom = amounts.length > 0 ? Math.max(...amounts) : 0;
   const extraAmt = parseFloat(sale.extra_uang_jalan) || 0;
+  const routeFeesAmt = sumRouteFees(sale);
   const multi = (sale.details || []).length > 1;
   const baseUJ = multi ? maxNom : (amounts[0] || 0);
-  const { total } = computeUangJalanTotals(baseUJ, extraAmt);
+  const { total } = computeUangJalanTotals(baseUJ, extraAmt, routeFeesAmt);
   return total;
 };
 
@@ -213,6 +241,7 @@ const Sales = () => {
     driver_id: '',
     remarks: '',
     extra_uang_jalan: '',
+    ...defaultRouteFeeFormFields(),
     details: [],
   });
 
@@ -402,6 +431,7 @@ const Sales = () => {
       driver_id: sale.driver_id ? String(sale.driver_id) : '',
       remarks: sale.remarks || '',
       extra_uang_jalan: sale.extra_uang_jalan ? String(sale.extra_uang_jalan) : '',
+      ...routeFeeAmountsFromApi(sale),
       is_finance_paid: sale.is_finance_paid,
       details: sale.details.map((d) => {
         let vehicleTypeId =
@@ -555,11 +585,6 @@ const Sales = () => {
     } finally {
       setRouteLoading(false);
     }
-  };
-
-  const applyTollToForm = (tollAmount) => {
-    setForm((prev) => ({ ...prev, extra_uang_jalan: String(tollAmount) }));
-    setRouteResult(null);
   };
 
   const handleSort = useCallback(
@@ -736,9 +761,15 @@ const Sales = () => {
                   const amounts = (s.details || []).map((d) => parseFloat(d.amount) || 0).filter((n) => n > 0);
                   const maxNom = amounts.length > 0 ? Math.max(...amounts) : 0;
                   const extraAmt = parseFloat(s.extra_uang_jalan) || 0;
+                  const routeFeesAmt = sumRouteFees(s);
+                  const routeFeeLines = getActiveRouteFeeLines(s);
                   const multi = (s.details || []).length > 1;
                   const baseUJ = multi ? maxNom : (amounts[0] || 0);
-                  const { rounding: roundingUJ, total: totalUJ } = computeUangJalanTotals(baseUJ, extraAmt);
+                  const { rounding: roundingUJ, total: totalUJ } = computeUangJalanTotals(
+                    baseUJ,
+                    extraAmt,
+                    routeFeesAmt
+                  );
 
                   return (
                     <React.Fragment key={s.id}>
@@ -947,8 +978,22 @@ const Sales = () => {
                                 <span style={{ color: 'var(--text-secondary)' }}>Uang Jalan</span>
                                 <span style={{ fontWeight: 600, color: 'var(--accent-color)' }}>{formatIDR(baseUJ)}</span>
                               </div>
+                              {routeFeesAmt > 0 && (
+                                <div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                    <span style={{ color: 'var(--text-secondary)' }}>Biaya Rute</span>
+                                    <span style={{ fontWeight: 600 }}>{formatIDR(routeFeesAmt)}</span>
+                                  </div>
+                                  {routeFeeLines.length > 0 && (
+                                    <RouteFeeBreakdown
+                                      lines={routeFeeLines}
+                                      style={{ marginTop: '0.25rem', fontSize: '0.75rem', color: 'var(--text-secondary)' }}
+                                    />
+                                  )}
+                                </div>
+                              )}
                               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                <span style={{ color: 'var(--text-secondary)' }}>Tambahan (Tol, Parkir, dll)</span>
+                                <span style={{ color: 'var(--text-secondary)' }}>Uang Jalan Tambahan</span>
                                 <span>{formatIDR(extraAmt)}</span>
                               </div>
                               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -1240,16 +1285,27 @@ const Sales = () => {
                       });
                     }
 
-                    const { customerCount, maxNominal } = getMaxNominal(form.details);
+                    const { customerCount } = getMaxNominal(form.details);
                     const showMap = selectedCustomerPoints.length > 1;
                     const showTotals = customerCount > 0;
 
                     if (!showMap && !showTotals) return null;
 
+                    const filledDetails = form.details.filter((d) => d.customer_id);
+                    const amounts = filledDetails
+                      .map((d) => amountToNumber(d.amount))
+                      .filter((n) => n > 0);
+                    const multiCustomer = filledDetails.length > 1;
+                    const baseUangJalan = multiCustomer
+                      ? (amounts.length > 0 ? Math.max(...amounts) : 0)
+                      : (amounts[0] || 0);
                     const extraAmount = amountToNumber(form.extra_uang_jalan);
+                    const routeFeesAmount = sumRouteFees(form);
+                    const routeFeeLines = getActiveRouteFeeLines(form);
                     const { rounding: roundingAmount, total: totalUangJalan } = computeUangJalanTotals(
-                      maxNominal,
-                      extraAmount
+                      baseUangJalan,
+                      extraAmount,
+                      routeFeesAmount
                     );
 
                     return (
@@ -1303,7 +1359,7 @@ const Sales = () => {
                                   type="text"
                                   className="form-input"
                                   readOnly
-                                  value={formatIDR(maxNominal)}
+                                  value={formatIDR(baseUangJalan)}
                                   style={{
                                     fontWeight: 600,
                                     color: 'var(--accent-color)',
@@ -1313,13 +1369,42 @@ const Sales = () => {
                                 />
                               </div>
                               <div className="form-group" style={{ marginBottom: 0 }}>
-                                <label className="form-label">Uang Jalan Tambahan (Tol, Parkir, dll)</label>
+                                <label className="form-label">Biaya Rute</label>
+                                <input
+                                  type="text"
+                                  className="form-input"
+                                  readOnly
+                                  value={formatIDR(routeFeesAmount)}
+                                  style={{
+                                    fontWeight: 600,
+                                    textAlign: 'right',
+                                    background: '#f8fafc',
+                                  }}
+                                />
+                                {routeFeeLines.length > 0 ? (
+                                  <RouteFeeBreakdown
+                                    lines={routeFeeLines}
+                                    style={{
+                                      marginTop: '0.35rem',
+                                      fontSize: '0.78rem',
+                                      color: 'var(--text-secondary)',
+                                    }}
+                                  />
+                                ) : (
+                                  <small style={{ color: 'var(--text-secondary)' }}>
+                                    Dari Rute Pengiriman (Uang Pelabuhan, PJR, Forklift Bongkaran, Parkir Liar, Parkir Kawasan).
+                                  </small>
+                                )}
+                              </div>
+                              <div className="form-group" style={{ marginBottom: 0 }}>
+                                <label className="form-label">Uang Jalan Tambahan</label>
                                 <input
                                   type="text"
                                   inputMode="numeric"
                                   className="form-input"
                                   style={{ textAlign: 'right' }}
                                   disabled={form.is_finance_paid}
+                                  placeholder="0"
                                   value={form.extra_uang_jalan === '' ? '' : formatAmount(form.extra_uang_jalan)}
                                   onChange={(e) =>
                                     setForm({ ...form, extra_uang_jalan: parseAmountInput(e.target.value) })
@@ -1405,7 +1490,6 @@ const Sales = () => {
       <RouteResultModal
         result={routeResult}
         onClose={() => setRouteResult(null)}
-        onApplyToll={applyTollToForm}
       />
       {/* Void Modal */}
       {voidModal.open && (
