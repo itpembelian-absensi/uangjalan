@@ -610,6 +610,30 @@ def ensure_schema() -> None:
                 """
             )
         )
+        # Finance: full edit access for vehicle-related master menus
+        conn.execute(
+            text(
+                """
+                UPDATE role_menu_access
+                SET access_level = 'full'
+                WHERE role = 'finance'
+                  AND menu_id IN (
+                    'vehicle_brands',
+                    'vehicle_types',
+                    'bbm',
+                    'toll_golongan',
+                    'toll_gates',
+                    'master_uang_mel',
+                    'master_uang_pelabuhan',
+                    'master_pjr',
+                    'master_forklift_bongkaran',
+                    'master_parkir_liar',
+                    'master_parkir_kawasan'
+                  )
+                  AND access_level <> 'full'
+                """
+            )
+        )
         conn.execute(
             text(
                 """

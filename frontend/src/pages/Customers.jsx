@@ -105,8 +105,16 @@ const compareCustomers = (a, b, key, dir) => {
       return sign * (a.is_active ? -1 : 1);
     }
     case 'is_locked_finance': {
-      if (!!a.is_locked_finance === !!b.is_locked_finance) return 0;
-      return sign * (a.is_locked_finance ? -1 : 1);
+      // Final (2) > Marketing (1) > Open (0) — match badge priority in the LOCK column
+      const lockRank = (c) => (c.is_locked_finance ? 2 : c.is_locked_marketing ? 1 : 0);
+      const diff = lockRank(a) - lockRank(b);
+      if (diff === 0) {
+        return String(a.code || '').localeCompare(String(b.code || ''), 'id', {
+          numeric: true,
+          sensitivity: 'base',
+        });
+      }
+      return sign * (diff > 0 ? -1 : 1);
     }
     default:
       return 0;
