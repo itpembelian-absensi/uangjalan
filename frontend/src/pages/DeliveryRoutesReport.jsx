@@ -221,13 +221,13 @@ const DeliveryRoutesReport = () => {
           <table className="glass-table" style={{ fontSize: '0.85rem' }}>
             <thead>
               <tr>
-                <th>No</th>
-                <th>Tanggal</th>
-                <th>No. Rute</th>
-                <th>Rit</th>
+                <th style={{ width: '48px', textAlign: 'center', whiteSpace: 'nowrap' }}>No</th>
+                <th style={{ minWidth: '110px', whiteSpace: 'nowrap' }}>Tanggal</th>
+                <th style={{ whiteSpace: 'nowrap' }}>No. Rute</th>
+                <th style={{ minWidth: '72px', textAlign: 'center', whiteSpace: 'nowrap' }}>Rit</th>
                 <th>Jenis Kendaraan</th>
                 <th>No. Transaksi</th>
-                <th>Jml Cust</th>
+                <th style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>Jml Cust</th>
                 <th>Customer</th>
                 <th>Keterangan</th>
               </tr>
@@ -235,22 +235,26 @@ const DeliveryRoutesReport = () => {
             <tbody>
               {reportRoutes.length === 0 ? (
                 <tr>
-                  <td colSpan="8" style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-secondary)' }}>
+                  <td colSpan="9" style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--text-secondary)' }}>
                     {loading ? 'Memuat laporan...' : 'Tidak ada data pada periode ini'}
                   </td>
                 </tr>
               ) : (
                 reportRoutes.map((r, i) => (
                   <tr key={r.id}>
-                    <td>{i + 1}</td>
-                    <td>{formatReportDate(r.date)}</td>
-                    <td style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{r.route_no}</td>
-                    <td><span className="badge badge-blue">Rit {r.ritase || 1}</span></td>
+                    <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>{i + 1}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>{formatReportDate(r.date)}</td>
+                    <td style={{ fontFamily: 'monospace', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>{r.route_no}</td>
+                    <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                      <span className="badge badge-blue" style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
+                        Rit {r.ritase || 1}
+                      </span>
+                    </td>
                     <td>{r.vehicle_type_name}</td>
                     <td style={{ whiteSpace: 'pre-line', lineHeight: 1.35 }}>
                       {formatSaleTransactionText(r)}
                     </td>
-                    <td style={{ textAlign: 'center', fontWeight: 600 }}>{r.stop_count}</td>
+                    <td style={{ textAlign: 'center', fontWeight: 600, whiteSpace: 'nowrap' }}>{r.stop_count}</td>
                     <td>{r.customers}</td>
                     <td>{r.remarks || '-'}</td>
                   </tr>
