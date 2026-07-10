@@ -172,6 +172,27 @@ END $$;
 ALTER TABLE vehicle_types DROP COLUMN IF EXISTS uang_mel;
 SQL
 
+  # Finance: full edit access for vehicle-related master menus
+  docker compose exec -T db psql -U postgres -d uang_pengiriman -v ON_ERROR_STOP=0 <<'SQL'
+UPDATE role_menu_access
+SET access_level = 'full'
+WHERE role = 'finance'
+  AND menu_id IN (
+    'vehicle_brands',
+    'vehicle_types',
+    'bbm',
+    'toll_golongan',
+    'toll_gates',
+    'master_uang_mel',
+    'master_uang_pelabuhan',
+    'master_pjr',
+    'master_forklift_bongkaran',
+    'master_parkir_liar',
+    'master_parkir_kawasan'
+  )
+  AND access_level <> 'full';
+SQL
+
   # ---- Seed data: ruas tol Sumatera, ferry, dan FUSO 6 Roda Panjang ----
   docker compose exec -T db psql -U postgres -d uang_pengiriman -v ON_ERROR_STOP=0 < scripts/seed_sumatera.sql
 
