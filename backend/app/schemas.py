@@ -58,6 +58,20 @@ class CustomerBulkImport(BaseModel):
     customers: list[CustomerBulkImportItem]
 
 
+class CustomerUnlockAllOut(BaseModel):
+    unlocked_count: int
+    unlocked_finance_count: int
+    unlocked_marketing_count: int
+    message: str
+
+
+class CustomerLockAllOut(BaseModel):
+    locked_count: int
+    locked_finance_count: int
+    marketing_ensured_count: int
+    message: str
+
+
 class CustomerOut(BaseModel):
     id: int
     code: str | None = None

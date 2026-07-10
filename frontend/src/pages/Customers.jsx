@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Plus, Trash2, Edit2, Search, MapPin, X, FileSpreadsheet, Download, ArrowUp, ArrowDown, ArrowUpDown, Lock, Clock } from 'lucide-react';
+import { Plus, Trash2, Edit2, Search, MapPin, X, FileSpreadsheet, Download, ArrowUp, ArrowDown, ArrowUpDown, Lock, Unlock, Clock } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { apiFetch } from '../api';
 import LocationPickerMap from '../components/LocationPickerMap';
@@ -327,6 +327,9 @@ const Customers = () => {
   const [editId, setEditId] = useState(null);
   const [forceToll, setForceToll] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUnlocking, setIsUnlocking] = useState(false);
+  const [isUnlockingAll, setIsUnlockingAll] = useState(false);
+  const [isLockingAll, setIsLockingAll] = useState(false);
 
   const [form, setForm] = useState({
     code: '',
@@ -907,6 +910,105 @@ const Customers = () => {
     }
   };
 
+  const handleUnlockFinance = async () => {
+    if (!editId) return;
+    if (!window.confirm('Buka kunci Finance (Final) untuk customer ini? Kunci Marketing tidak diubah.')) return;
+    setError('');
+    setIsUnlocking(true);
+    try {
+      const updated = await apiFetch(`/api/customers/${editId}/unlock-finance`, { method: 'POST' });
+      setForm((prev) => ({
+        ...prev,
+        is_locked_finance: false,
+        is_locked_marketing: updated.is_locked_marketing ?? prev.is_locked_marketing,
+      }));
+      setCustomers((prev) =>
+        prev.map((c) =>
+          c.id === editId
+            ? {
+                ...c,
+                is_locked_finance: false,
+                is_locked_marketing: updated.is_locked_marketing ?? c.is_locked_marketing,
+                updated_at: updated.updated_at ?? c.updated_at,
+                updated_by_name: updated.updated_by_name ?? c.updated_by_name,
+              }
+            : c
+        )
+      );
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setIsUnlocking(false);
+    }
+  };
+
+  const handleUnlockAllCustomers = async () => {
+    const lockedCount = customers.filter((c) => c.is_locked_finance).length;
+    if (lockedCount === 0) {
+      alert('Tidak ada Master Customer yang terkunci Finance.');
+      return;
+    }
+    if (
+      !window.confirm(
+        `Buka kunci Finance (Final) untuk SEMUA Master Customer?\n\n${lockedCount} customer terkunci Finance akan dibuka.\nKunci Marketing tidak diubah.\nTindakan ini tidak dapat dibatalkan.`
+      )
+    ) {
+      return;
+    }
+    setError('');
+    setIsUnlockingAll(true);
+    try {
+      const result = await apiFetch('/api/customers/unlock-all', { method: 'POST' });
+      await fetchCustomers();
+      if (isModalOpen && editId) {
+        setForm((prev) => ({
+          ...prev,
+          is_locked_finance: false,
+        }));
+      }
+      alert(result.message || `Berhasil membuka kunci Finance ${result.unlocked_count} customer.`);
+    } catch (err) {
+      setError(err.message);
+      alert(err.message);
+    } finally {
+      setIsUnlockingAll(false);
+    }
+  };
+
+  const handleLockAllCustomers = async () => {
+    const unlockedCount = customers.filter((c) => !c.is_locked_finance).length;
+    if (unlockedCount === 0) {
+      alert('Semua Master Customer sudah terkunci Finance.');
+      return;
+    }
+    if (
+      !window.confirm(
+        `Kunci Finance (Final) untuk SEMUA Master Customer?\n\n${unlockedCount} customer akan dikunci Finance.\nKunci Marketing ikut diaktifkan jika belum aktif.\nTindakan ini tidak dapat dibatalkan.`
+      )
+    ) {
+      return;
+    }
+    setError('');
+    setIsLockingAll(true);
+    try {
+      const result = await apiFetch('/api/customers/lock-all', { method: 'POST' });
+      await fetchCustomers();
+      if (isModalOpen && editId) {
+        setForm((prev) => ({
+          ...prev,
+          is_locked_finance: true,
+          is_locked_marketing: true,
+        }));
+      }
+      alert(result.message || `Berhasil mengunci Finance ${result.locked_count} customer.`);
+    } catch (err) {
+      setError(err.message);
+      alert(err.message);
+    } finally {
+      setIsLockingAll(false);
+    }
+  };
+
   const fileInputRef = useRef(null);
 
   const handleImportExcel = async (e) => {
@@ -1009,7 +1111,7 @@ const Customers = () => {
           </h1>
           <p>Master data customer. Kode customer harus unik; nama boleh sama.</p>
         </div>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           <input
             ref={fileInputRef}
             type="file"
@@ -1017,6 +1119,46 @@ const Customers = () => {
             style={{ display: 'none' }}
             onChange={handleImportExcel}
           />
+          {user?.role === 'admin' && (
+            <>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleLockAllCustomers}
+                disabled={isLockingAll || isUnlockingAll || loadingCustomers}
+                title="Kunci Finance (Final) untuk semua Master Customer"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  color: '#b45309',
+                  borderColor: 'rgba(245, 158, 11, 0.4)',
+                  background: 'rgba(245, 158, 11, 0.08)',
+                }}
+              >
+                <Lock size={18} />
+                {isLockingAll ? 'Mengunci...' : 'Kunci Finance Semua'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleUnlockAllCustomers}
+                disabled={isUnlockingAll || isLockingAll || loadingCustomers}
+                title="Buka kunci Finance (Final) untuk semua Master Customer"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  color: '#dc2626',
+                  borderColor: 'rgba(220, 38, 38, 0.35)',
+                  background: 'rgba(220, 38, 38, 0.06)',
+                }}
+              >
+                <Unlock size={18} />
+                {isUnlockingAll ? 'Membuka...' : 'Buka Kunci Finance Semua'}
+              </button>
+            </>
+          )}
           <button
             className="btn btn-secondary"
             onClick={downloadTemplate}
@@ -1748,7 +1890,7 @@ const Customers = () => {
                 </fieldset>
               </div>
               <div className="modal-footer" style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <input 
                       type="checkbox" 
@@ -1775,6 +1917,28 @@ const Customers = () => {
                       </label>
                     </div>
                   )}
+                  {user?.role === 'admin' && editId && initLockedFinance && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      style={{
+                        padding: '0.4rem 0.75rem',
+                        fontSize: '0.85rem',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                        color: '#dc2626',
+                        borderColor: 'rgba(220, 38, 38, 0.35)',
+                        background: 'rgba(220, 38, 38, 0.06)',
+                      }}
+                      disabled={isUnlocking || isSubmitting || isUnlockingAll || isLockingAll}
+                      onClick={handleUnlockFinance}
+                      title="Buka kunci Finance (Final) — hanya Admin"
+                    >
+                      <Unlock size={14} />
+                      {isUnlocking ? 'Membuka...' : 'Buka Kunci Finance'}
+                    </button>
+                  )}
                 </div>
                 <button type="button" className="btn btn-secondary" onClick={closeModal}>
                   Batal
@@ -1784,7 +1948,7 @@ const Customers = () => {
                     type="submit" 
                     className="btn btn-primary" 
                     style={{ background: '#4f46e5' }}
-                    disabled={geocoding || routeLoading || isSubmitting}
+                    disabled={geocoding || routeLoading || isSubmitting || isUnlocking}
                   >
                     {isSubmitting ? 'Menyimpan...' : (editId ? 'Simpan' : 'Tambah')}
                   </button>

@@ -4,7 +4,7 @@ import json
 from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import delete, exists, func, nulls_last, select
+from sqlalchemy import delete, exists, func, nulls_last, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from app.auth import require_api_access, require_permission
@@ -100,6 +100,8 @@ from app.schemas import (
     CustomerOut,
     CustomerListOut,
     CustomerBulkImport,
+    CustomerUnlockAllOut,
+    CustomerLockAllOut,
     CustomerSummaryRow,
     CustomerTariffItem,
     CustomerTariffOut,
@@ -1004,6 +1006,140 @@ def update_customer(customer_id: int, payload: CustomerCreate, db: Session = Dep
     except Exception as e:
         db.rollback()
         raise _unique_violation_to_409(e)
+    db.refresh(obj)
+    return _serialize_customer(db, obj)
+
+
+@router.post("/customers/unlock-all", response_model=CustomerUnlockAllOut)
+def unlock_all_customers(
+    user: User = Depends(require_permission("customers:write")),
+    db: Session = Depends(get_db),
+):
+    """Buka kunci Finance (Final) untuk SEMUA Master Customer — hanya Admin. Kunci Marketing tidak diubah."""
+    if user.role != Role.ADMIN.value:
+        raise HTTPException(
+            status_code=403,
+            detail="Hanya Admin yang dapat membuka kunci semua Master Customer.",
+        )
+
+    locked_finance_count = db.scalar(
+        select(func.count()).select_from(Customer).where(Customer.is_locked_finance.is_(True))
+    ) or 0
+
+    if locked_finance_count == 0:
+        return CustomerUnlockAllOut(
+            unlocked_count=0,
+            unlocked_finance_count=0,
+            unlocked_marketing_count=0,
+            message="Tidak ada Master Customer yang terkunci Finance.",
+        )
+
+    db.execute(
+        update(Customer)
+        .where(Customer.is_locked_finance.is_(True))
+        .values(
+            is_locked_finance=False,
+            updated_at=func.now(),
+            updated_by_id=user.id,
+        )
+    )
+    db.commit()
+
+    return CustomerUnlockAllOut(
+        unlocked_count=locked_finance_count,
+        unlocked_finance_count=locked_finance_count,
+        unlocked_marketing_count=0,
+        message=f"Berhasil membuka kunci Finance {locked_finance_count} Master Customer.",
+    )
+
+
+@router.post("/customers/lock-all", response_model=CustomerLockAllOut)
+def lock_all_customers(
+    user: User = Depends(require_permission("customers:write")),
+    db: Session = Depends(get_db),
+):
+    """Kunci Finance (Final) untuk SEMUA Master Customer — hanya Admin.
+
+    Kunci Marketing ikut diaktifkan bila belum aktif, karena Kunci Finance
+    mensyaratkan Kunci Marketing.
+    """
+    if user.role != Role.ADMIN.value:
+        raise HTTPException(
+            status_code=403,
+            detail="Hanya Admin yang dapat mengunci semua Master Customer.",
+        )
+
+    unlocked_finance_count = db.scalar(
+        select(func.count()).select_from(Customer).where(Customer.is_locked_finance.is_(False))
+    ) or 0
+    marketing_ensured_count = db.scalar(
+        select(func.count())
+        .select_from(Customer)
+        .where(
+            Customer.is_locked_finance.is_(False),
+            Customer.is_locked_marketing.is_(False),
+        )
+    ) or 0
+
+    if unlocked_finance_count == 0:
+        return CustomerLockAllOut(
+            locked_count=0,
+            locked_finance_count=0,
+            marketing_ensured_count=0,
+            message="Semua Master Customer sudah terkunci Finance.",
+        )
+
+    db.execute(
+        update(Customer)
+        .where(Customer.is_locked_finance.is_(False))
+        .values(
+            is_locked_finance=True,
+            is_locked_marketing=True,
+            updated_at=func.now(),
+            updated_by_id=user.id,
+        )
+    )
+    db.commit()
+
+    return CustomerLockAllOut(
+        locked_count=unlocked_finance_count,
+        locked_finance_count=unlocked_finance_count,
+        marketing_ensured_count=marketing_ensured_count,
+        message=(
+            f"Berhasil mengunci Finance {unlocked_finance_count} Master Customer"
+            + (
+                f" (Kunci Marketing diaktifkan untuk {marketing_ensured_count} customer)."
+                if marketing_ensured_count
+                else "."
+            )
+        ),
+    )
+
+
+@router.post("/customers/{customer_id}/unlock-finance", response_model=CustomerOut)
+def unlock_customer_finance(
+    customer_id: int,
+    user: User = Depends(require_permission("customers:write")),
+    db: Session = Depends(get_db),
+):
+    """Buka kunci Finance (Final) Master Customer — hanya Admin. Kunci Marketing tidak diubah."""
+    if user.role != Role.ADMIN.value:
+        raise HTTPException(
+            status_code=403,
+            detail="Hanya Admin yang dapat membuka kunci Finance Master Customer.",
+        )
+    obj = db.execute(
+        select(Customer).where(Customer.id == customer_id).with_for_update()
+    ).scalar_one_or_none()
+    if not obj:
+        raise HTTPException(status_code=404, detail="Customer tidak ditemukan")
+    if not obj.is_locked_finance:
+        raise HTTPException(status_code=400, detail="Customer tidak dalam status terkunci Finance.")
+
+    obj.is_locked_finance = False
+    obj.updated_at = func.now()
+    obj.updated_by_id = user.id
+    db.commit()
     db.refresh(obj)
     return _serialize_customer(db, obj)
 
