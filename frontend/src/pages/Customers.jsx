@@ -14,6 +14,7 @@ const formatIDR = (val) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
 
 const normTollName = (value) => (value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+const vehicleTollAllowed = (name) => !normTollName(name).includes('viar');
 
 const tollByVehicleFromSegments = (segments, vehicleTypes, distanceKm) => {
   const pickRate = (rates, gol) => {
@@ -27,6 +28,16 @@ const tollByVehicleFromSegments = (segments, vehicleTypes, distanceKm) => {
   return vehicleTypes
     .map((vt) => {
       const gol = vt.toll_golongan?.code || 'II';
+      if (!vehicleTollAllowed(vt.name)) {
+        return {
+          vehicle_type_id: vt.id,
+          vehicle_type_name: vt.name,
+          golongan: gol,
+          gandar: '-',
+          toll_idr: 0,
+          rate_per_km: 0,
+        };
+      }
       const oneWay = (segments || []).reduce((sum, row) => sum + pickRate(row.rates_by_golongan, gol), 0);
       const toll = Math.round(oneWay * 2);
       const rounded = toll > 0 ? Math.ceil(toll / 1000) * 1000 : 0;
@@ -246,7 +257,7 @@ const buildTariffRows = (vehicleTypes, existingTariffs = []) =>
       vehicle_type_id: t.id,
       vehicle_type_name: t.name,
       bbm: found?.bbm ? String(found.bbm) : '',
-      tol: found?.tol ? String(found.tol) : '',
+      tol: vehicleTollAllowed(t.name) && found?.tol ? String(found.tol) : '',
       uang_mel: masterUangMel(t),
       parkir: found?.parkir ? String(found.parkir) : '',
       lain_lain:
@@ -260,11 +271,12 @@ const buildTariffRows = (vehicleTypes, existingTariffs = []) =>
 
 const tariffPayloadRows = (rows) =>
   rows.map((row) => {
-    const total = tariffRowTotal(row);
+    const toll = vehicleTollAllowed(row.vehicle_type_name) ? parseAmount(row.tol) : 0;
+    const total = tariffRowTotal({ ...row, tol });
     return {
       vehicle_type_id: row.vehicle_type_id,
       bbm: parseAmount(row.bbm),
-      tol: parseAmount(row.tol),
+      tol,
       uang_mel: parseAmount(row.uang_mel),
       parkir: parseAmount(row.parkir),
       lain_lain: parseAmount(row.lain_lain),

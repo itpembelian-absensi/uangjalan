@@ -264,6 +264,11 @@ def _normalize_vehicle_key(name: str) -> str:
     return name.lower().replace(" ", "").replace("-", "")
 
 
+def vehicle_toll_allowed(name: str) -> bool:
+    """Viar tidak diperbolehkan melalui jalan tol."""
+    return "viar" not in _normalize_vehicle_key(name)
+
+
 def _match_toll_vehicle_key(name: str) -> str | None:
     normalized = _normalize_vehicle_key(name)
     for key in TOLL_VEHICLE_ORDER:
@@ -288,6 +293,18 @@ def estimate_tolls_by_vehicle(
         meta = VEHICLE_TOLL_CLASS.get(key, {}) if key else {}
 
         resolved_code = golongan_code or meta.get("golongan_code")
+        if not vehicle_toll_allowed(type_name):
+            results.append(
+                {
+                    "vehicle_type_id": type_id,
+                    "vehicle_type_name": type_name,
+                    "golongan": resolved_code or "-",
+                    "gandar": "-",
+                    "toll_idr": 0.0,
+                    "rate_per_km": 0.0,
+                }
+            )
+            continue
         if not resolved_code:
             continue
 

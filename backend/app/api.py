@@ -91,6 +91,7 @@ from app.routing_service import (
     parse_coords_from_share,
     get_toll_reference,
     serialize_toll_sections,
+    vehicle_toll_allowed,
     _default_sections_from_settings,
 )
 from app.schemas import (
@@ -197,17 +198,18 @@ def _toll_by_vehicle_from_manual_segments(
         gol_code = vt.toll_golongan.code if vt.toll_golongan else "II"
         meta = VEHICLE_TOLL_CLASS.get(_match_toll_vehicle_key(vt.name) or "", {})
         total_one_way = 0.0
-        for seg in custom_segments:
-            rates = seg.get("rates_by_golongan") or {}
-            val = rates.get(gol_code)
-            if val is None:
-                if gol_code == "III":
-                    val = rates.get("II")
-                elif gol_code == "V":
-                    val = rates.get("IV")
+        if vehicle_toll_allowed(vt.name):
+            for seg in custom_segments:
+                rates = seg.get("rates_by_golongan") or {}
+                val = rates.get(gol_code)
                 if val is None:
-                    val = rates.get("II", rates.get("III", rates.get("IV", 0)))
-            total_one_way += float(val or 0)
+                    if gol_code == "III":
+                        val = rates.get("II")
+                    elif gol_code == "V":
+                        val = rates.get("IV")
+                    if val is None:
+                        val = rates.get("II", rates.get("III", rates.get("IV", 0)))
+                total_one_way += float(val or 0)
         toll = round(total_one_way * 2, 0)
         if toll > 0:
             toll = float(((int(toll) + 999) // 1000) * 1000)
@@ -655,15 +657,18 @@ def _replace_customer_tariffs(
     )
     db.flush()
     for row in tariffs:
-        if _tariff_uang_jalan(row) <= 0:
+        vehicle_type = db.get(VehicleType, row.vehicle_type_id)
+        toll = row.tol if vehicle_type and vehicle_toll_allowed(vehicle_type.name) else 0
+        component_total = row.bbm + toll + row.uang_mel + row.parkir + row.lain_lain
+        total = component_total if component_total > 0 else row.uang_jalan
+        if total <= 0:
             continue
-        total = _tariff_uang_jalan(row)
         db.add(
             CustomerVehicleTariff(
                 customer_id=customer_id,
                 vehicle_type_id=row.vehicle_type_id,
                 bbm=row.bbm,
-                tol=row.tol,
+                tol=toll,
                 uang_mel=row.uang_mel,
                 parkir=row.parkir,
                 lain_lain=row.lain_lain,
@@ -2631,19 +2636,22 @@ def process_route(
                 meta = VEHICLE_TOLL_CLASS.get(
                     _match_toll_vehicle_key(vt.name) or "", {}
                 )
-                bpjt = estimate_toll_bpjt_gates(
-                    origin_lat,
-                    origin_lng,
-                    dest_lat,
-                    dest_lng,
-                    gate_context["gates"],
-                    gate_context["fares"],
-                    gol_code,
-                    distance_km=route["distance_km"],
-                    route_toll_roads=route.get("toll_roads") or [],
-                    sections=sections,
-                )
-                toll = round(bpjt[0] * 2, 0) if bpjt else route["toll_idr"]
+                if vehicle_toll_allowed(vt.name):
+                    bpjt = estimate_toll_bpjt_gates(
+                        origin_lat,
+                        origin_lng,
+                        dest_lat,
+                        dest_lng,
+                        gate_context["gates"],
+                        gate_context["fares"],
+                        gol_code,
+                        distance_km=route["distance_km"],
+                        route_toll_roads=route.get("toll_roads") or [],
+                        sections=sections,
+                    )
+                    toll = round(bpjt[0] * 2, 0) if bpjt else route["toll_idr"]
+                else:
+                    toll = 0.0
                 if toll > 0:
                     toll = float(((int(toll) + 999) // 1000) * 1000)
                 rate_per_km = round(toll / route["distance_km"], 0) if route["distance_km"] else 0.0

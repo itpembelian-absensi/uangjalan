@@ -397,6 +397,28 @@ def ensure_schema() -> None:
         conn.execute(
             text(
                 """
+                UPDATE customer_vehicle_tariffs cvt
+                SET tol = 0,
+                    uang_jalan = COALESCE(cvt.bbm, 0)
+                      + COALESCE(cvt.uang_mel, 0)
+                      + COALESCE(cvt.parkir, 0)
+                      + COALESCE(cvt.lain_lain, 0)
+                FROM vehicle_types vt
+                WHERE cvt.vehicle_type_id = vt.id
+                  AND LOWER(vt.name) LIKE '%viar%'
+                  AND (
+                    COALESCE(cvt.tol, 0) <> 0
+                    OR cvt.uang_jalan <> COALESCE(cvt.bbm, 0)
+                      + COALESCE(cvt.uang_mel, 0)
+                      + COALESCE(cvt.parkir, 0)
+                      + COALESCE(cvt.lain_lain, 0)
+                  )
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
                 CREATE TABLE IF NOT EXISTS delivery_routes (
                   id BIGSERIAL PRIMARY KEY,
                   route_no TEXT NOT NULL UNIQUE,
