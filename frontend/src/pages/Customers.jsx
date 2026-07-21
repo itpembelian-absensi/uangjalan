@@ -1018,6 +1018,7 @@ const Customers = () => {
       fetchCustomers();
     } catch (err) {
       setError(err.message);
+      alert(err.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -1497,7 +1498,15 @@ const Customers = () => {
                 </button>
               </div>
               <div className="modal-body">
-                <fieldset disabled={(user?.role !== 'admin' && !(user?.role === 'finance' && financeCanUnlock) && initLockedFinance) || (user?.role === 'marketing' && initLockedMarketing)} style={{ border: 'none', padding: 0, margin: 0 }}>
+                <fieldset
+                  disabled={
+                    (user?.role !== 'admin'
+                      && !(user?.role === 'finance' && financeCanUnlock)
+                      && initLockedFinance)
+                    || (user?.role === 'marketing' && form.is_locked_marketing)
+                  }
+                  style={{ border: 'none', padding: 0, margin: 0 }}
+                >
                 {error && (
                   <div
                     style={{
