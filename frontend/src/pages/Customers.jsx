@@ -271,7 +271,7 @@ const buildTariffRows = (vehicleTypes, existingTariffs = []) =>
 
 const tariffPayloadRows = (rows) =>
   rows.map((row) => {
-    const toll = vehicleTollAllowed(row.vehicle_type_name) ? parseAmount(row.tol) : 0;
+    const tol = vehicleTollAllowed(row.vehicle_type_name) ? parseAmount(row.tol) : 0;
     const total = tariffRowTotal({ ...row, tol });
     return {
       vehicle_type_id: row.vehicle_type_id,
@@ -323,7 +323,7 @@ const TariffReadonlyAmount = ({ value }) => (
       fontSize: '0.85rem',
     }}
   >
-    {parseAmount(value) > 0 ? formatNumberDisplay(value) : '-'}
+    {parseAmount(value) > 0 ? formatNumberDisplay(value) : '0'}
   </div>
 );
 
@@ -978,29 +978,29 @@ const Customers = () => {
       return;
     }
 
-    const payload = {
-      code: form.code.trim(),
-      name: form.name.trim(),
-      address: form.address || null,
-      kelurahan: form.kelurahan || null,
-      kecamatan: form.kecamatan || null,
-      city: form.city || null,
-      phone: form.phone || null,
-      email: form.email || null,
-      is_active: form.is_active,
-      is_locked_marketing: form.is_locked_marketing,
-      is_locked_finance: form.is_locked_finance,
-      force_toll: forceToll,
-      latitude: form.latitude ? parseFloat(form.latitude) : null,
-      longitude: form.longitude ? parseFloat(form.longitude) : null,
-      share_location: form.share_location || null,
-      tariffs: tariffPayloadRows(form.tariffs),
-      custom_toll_breakdown: customTollBreakdownPayload(routeInfo, manualTollOverride),
-    };
-
     setError('');
     setIsSubmitting(true);
     try {
+      const payload = {
+        code: form.code.trim(),
+        name: form.name.trim(),
+        address: form.address || null,
+        kelurahan: form.kelurahan || null,
+        kecamatan: form.kecamatan || null,
+        city: form.city || null,
+        phone: form.phone || null,
+        email: form.email || null,
+        is_active: form.is_active,
+        is_locked_marketing: form.is_locked_marketing,
+        is_locked_finance: form.is_locked_finance,
+        force_toll: forceToll,
+        latitude: form.latitude ? parseFloat(form.latitude) : null,
+        longitude: form.longitude ? parseFloat(form.longitude) : null,
+        share_location: form.share_location || null,
+        tariffs: tariffPayloadRows(form.tariffs),
+        custom_toll_breakdown: customTollBreakdownPayload(routeInfo, manualTollOverride),
+      };
+
       if (editId) {
         await apiFetch(`/api/customers/${editId}`, {
           method: 'PUT',
@@ -2082,10 +2082,11 @@ const Customers = () => {
                 </button>
                 {!(user?.role !== 'admin' && !(user?.role === 'finance' && financeCanUnlock) && initLockedFinance) && (
                   <button 
-                    type="submit" 
+                    type="button"
                     className="btn btn-primary" 
                     style={{ background: '#4f46e5' }}
-                    disabled={geocoding || routeLoading || isSubmitting || isUnlocking}
+                    disabled={isSubmitting}
+                    onClick={handleSubmit}
                   >
                     {isSubmitting ? 'Menyimpan...' : (editId ? 'Simpan' : 'Tambah')}
                   </button>

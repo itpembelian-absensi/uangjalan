@@ -1643,6 +1643,8 @@ body.customer-lookup-dragging .customer-lookup-drag-handle {
   flex: 1;
   overflow-y: auto;
   max-height: none;
+  position: relative;
+  z-index: 0;
 }
 
 .modal-content-full form {
@@ -1654,6 +1656,10 @@ body.customer-lookup-dragging .customer-lookup-drag-handle {
 
 .modal-content-full .modal-footer {
   margin-top: auto;
+  position: relative;
+  z-index: 2000;
+  flex-shrink: 0;
+  pointer-events: auto;
 }
 
 /* Print Styles */
