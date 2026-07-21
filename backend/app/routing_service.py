@@ -1045,7 +1045,7 @@ def _estimate_toll_for_osrm_route(
             sections=sections,
         )
 
-    if bpjt_result:
+    if bpjt_result and bpjt_result.get("segments"):
         one_way = bpjt_result["one_way_idr"]
         gate_desc = bpjt_result["description"]
         toll_idr = one_way * 2
@@ -1058,6 +1058,8 @@ def _estimate_toll_for_osrm_route(
         )
         toll_note = f"{TOLL_NOTE_BPJT} {gate_desc}."
     elif google_toll and google_toll > 0:
+        # Referensi Google tetap bisa dipakai saat refresh otomatis
+        # (user bisa kosongkan lagi jika tidak sesuai).
         toll_idr = google_toll * 2
         toll_is_estimate = False
         toll_source = "google"
@@ -1076,68 +1078,68 @@ def _estimate_toll_for_osrm_route(
                 "round_trip_idr": google_toll * 2,
             }
         ]
-    elif google_toll is not None and not force_toll:
+    elif not uses_toll and not force_toll:
         toll_idr = 0.0
         toll_is_estimate = True
         toll_source = "none"
-        toll_note = "Rute dari Google Maps tidak melewati jalan tol."
+        toll_note = (
+            "Rute dari Google Maps tidak melewati jalan tol."
+            if google_toll is not None
+            else "Rute tidak melewati jalan tol."
+        )
+        toll_breakdown = []
     else:
-        if uses_toll or force_toll:
-            if route_toll_items:
-                route_only = breakdown_from_route_sections_only(
-                    route_toll_items, sections, "II"
-                )
-                if route_only:
-                    toll_idr = route_only["one_way_idr"] * 2
-                    toll_is_estimate = True
-                    toll_source = "route"
-                    toll_breakdown = route_only["segments"]
-                    toll_note = (
-                        "Tarif acuan ruas BPJT untuk ruas tol yang dilalui di peta. "
-                        "(Dikali 2 untuk Pulang-Pergi.)"
-                    )
-                else:
-                    toll_idr = 0.0
-                    toll_is_estimate = True
-                    toll_source = "route"
-                    toll_breakdown = [
-                        {
-                            "source": "route",
-                            "section_name": name,
-                            "entry_gate_code": None,
-                            "entry_gate_name": None,
-                            "exit_gate_code": None,
-                            "exit_gate_name": None,
-                            "detail": "Belum terpetakan ke master BPJT",
-                            "weight_pct": None,
-                            "one_way_idr": 0.0,
-                            "round_trip_idr": 0.0,
-                            "rates_by_golongan": {},
-                        }
-                        for name in route_toll_names
-                    ]
-                    toll_note = (
-                        "Ruas tol di peta belum terpetakan ke master BPJT: "
-                        + ", ".join(route_toll_names)
-                        + ". Isi matriks gerbang di menu Gerbang Tol."
-                    )
-            else:
-                section_result = jabodetabek_toll_breakdown(distance_km, "II", sections)
-                toll_idr = section_result["one_way_idr"] * 2
+        # uses_toll atau force_toll, tanpa hasil BPJT/Google yang valid
+        if route_toll_items:
+            route_only = breakdown_from_route_sections_only(
+                route_toll_items, sections, "II"
+            )
+            if route_only:
+                toll_idr = route_only["one_way_idr"] * 2
                 toll_is_estimate = True
-                toll_source = "section"
-                toll_breakdown = section_result["segments"]
-                note_suffix = (
-                    " (Asumsi lewat tol manual, dikali 2 untuk Pulang-Pergi)."
-                    if force_toll
-                    else " (Dikali 2 untuk Pulang-Pergi)."
+                toll_source = "route"
+                toll_breakdown = route_only["segments"]
+                toll_note = (
+                    "Tarif acuan ruas BPJT untuk ruas tol yang dilalui di peta. "
+                    "(Dikali 2 untuk Pulang-Pergi.)"
                 )
-                toll_note = TOLL_NOTE_JABODETABEK + note_suffix
+            else:
+                toll_idr = 0.0
+                toll_is_estimate = True
+                toll_source = "route"
+                toll_breakdown = [
+                    {
+                        "source": "route",
+                        "section_name": name,
+                        "entry_gate_code": None,
+                        "entry_gate_name": None,
+                        "exit_gate_code": None,
+                        "exit_gate_name": None,
+                        "detail": "Belum terpetakan ke master BPJT",
+                        "weight_pct": None,
+                        "one_way_idr": 0.0,
+                        "round_trip_idr": 0.0,
+                        "rates_by_golongan": {},
+                    }
+                    for name in route_toll_names
+                ]
+                toll_note = (
+                    "Ruas tol di peta belum terpetakan ke master BPJT: "
+                    + ", ".join(route_toll_names)
+                    + ". Isi matriks gerbang di menu Gerbang Tol."
+                )
         else:
-            toll_idr = 0.0
+            section_result = jabodetabek_toll_breakdown(distance_km, "II", sections)
+            toll_idr = section_result["one_way_idr"] * 2
             toll_is_estimate = True
-            toll_source = "none"
-            toll_note = "Rute tidak melewati jalan tol."
+            toll_source = "section"
+            toll_breakdown = section_result["segments"]
+            note_suffix = (
+                " (Asumsi lewat tol manual, dikali 2 untuk Pulang-Pergi)."
+                if force_toll
+                else " (Dikali 2 untuk Pulang-Pergi)."
+            )
+            toll_note = TOLL_NOTE_JABODETABEK + note_suffix
 
     return {
         "distance_km": distance_km,
@@ -1283,8 +1285,14 @@ def calculate_route_chained(
     sections: list[dict] | None = None,
     force_toll: bool = False,
     gate_context: dict | None = None,
+    *,
+    prefer_corridor: bool = False,
 ) -> tuple[dict, bool]:
-    """Koridor tol: satu request OSRM multi-waypoint (bukan N request berurutan)."""
+    """Koridor tol: satu request OSRM multi-waypoint (bukan N request berurutan).
+
+    prefer_corridor=True: pakai jalur via gerbang tol meskipun lebih jauh
+    (untuk ruas yang dipilih manual user).
+    """
     if not waypoints:
         route = calculate_route(
             origin_lat,
@@ -1300,7 +1308,11 @@ def calculate_route_chained(
         return route, False
 
     direct_hav = haversine_km(origin_lat, origin_lng, dest_lat, dest_lng)
-    max_km = max(direct_hav * 1.55, direct_hav + 12.0)
+    # Manual: toleransi lebih longgar agar jalur tetap lewat gerbang tol.
+    if prefer_corridor:
+        max_km = max(direct_hav * 3.5, direct_hav + 45.0)
+    else:
+        max_km = max(direct_hav * 1.55, direct_hav + 12.0)
 
     try:
         corridor_dist, corridor_dur, corridor_geom = _osrm_route_fast(
@@ -1326,7 +1338,8 @@ def calculate_route_chained(
             "toll_breakdown": [],
         }, False
 
-    if corridor_dist > max_km:
+    # Ruas manual: tetap pakai koridor gerbang (ikuti jalur tol), jangan fallback lurus.
+    if corridor_dist > max_km and not prefer_corridor:
         direct_dist, direct_dur, direct_geom = _osrm_route_fast(
             origin_lat, origin_lng, dest_lat, dest_lng, None
         )
@@ -1353,6 +1366,45 @@ def calculate_route_chained(
         "toll_source": "none",
         "toll_breakdown": [],
     }, True
+
+
+def build_toll_road_overlays(segments: list[dict], gates: list[dict]) -> list[dict]:
+    """Overlay ruas tol di peta — geometri mengikuti jalan (OSRM), bukan garis lurus."""
+    from app.toll_gate_service import toll_segment_map_geometry
+
+    roads: list[dict] = []
+    for seg in segments:
+        anchors = toll_segment_map_geometry(seg, gates)
+        geom = list(anchors)
+        if len(anchors) >= 2:
+            try:
+                start = anchors[0]
+                end = anchors[-1]
+                middles = anchors[1:-1] if len(anchors) > 2 else None
+                _, _, road = _osrm_route_fast(
+                    start[0],
+                    start[1],
+                    end[0],
+                    end[1],
+                    middles,
+                )
+                if len(road) > 2:
+                    geom = road
+            except HTTPException:
+                pass
+        roads.append(
+            {
+                "name": seg.get("section_name")
+                or (
+                    f"{seg.get('entry_gate_name') or seg.get('entry_gate_code') or '?'} → "
+                    f"{seg.get('exit_gate_name') or seg.get('exit_gate_code') or '?'}"
+                ),
+                "latitude": geom[0][0] if geom else None,
+                "longitude": geom[0][1] if geom else None,
+                "geometry": geom,
+            }
+        )
+    return roads
 
 
 def calculate_route(

@@ -418,6 +418,54 @@ const Customers = () => {
     setManualTollOverride(true);
     setRouteError('');
 
+    // Kosongkan ruas: jangan panggil API manual (min 1 section), jaga override kosong.
+    if (!sectionIds?.length) {
+      const emptyToll = tollByVehicleFromSegments([], vehicleTypes, prev?.distance_km);
+      persistedTollBreakdownRef.current = [];
+      setRouteInfo({
+        ...prev,
+        toll_breakdown: [],
+        toll_by_vehicle: emptyToll,
+        toll_idr: 0,
+        toll_source: 'manual',
+        toll_is_estimate: false,
+        toll_note: 'Ruas tol dikosongkan. Tambah manual, atau klik Refresh otomatis (Google / BPJT).',
+        toll_roads: [],
+        route_profile: 'manual',
+        route_via_toll_gates: false,
+      });
+
+      if (corridorDebounceRef.current) clearTimeout(corridorDebounceRef.current);
+      corridorDebounceRef.current = setTimeout(async () => {
+        if (seq !== corridorFetchSeqRef.current) return;
+        setRouteLoading(true);
+        try {
+          const result = await fetchRouteWithSections(null, { forceAuto: true });
+          if (seq !== corridorFetchSeqRef.current) return;
+          const cleared = tollByVehicleFromSegments([], vehicleTypes, result?.distance_km);
+          persistedTollBreakdownRef.current = [];
+          setManualTollOverride(true);
+          setRouteInfo({
+            ...result,
+            toll_breakdown: [],
+            toll_by_vehicle: cleared,
+            toll_idr: 0,
+            toll_source: 'manual',
+            toll_is_estimate: false,
+            toll_note: 'Ruas tol dikosongkan. Tambah manual, atau klik Refresh otomatis (Google / BPJT).',
+            toll_roads: [],
+            route_profile: 'manual',
+            route_via_toll_gates: false,
+          });
+        } catch (err) {
+          if (seq === corridorFetchSeqRef.current) setRouteError(err.message);
+        } finally {
+          if (seq === corridorFetchSeqRef.current) setRouteLoading(false);
+        }
+      }, 400);
+      return;
+    }
+
     const manual = await fetchManualBreakdownFast(sectionIds);
     if (seq !== corridorFetchSeqRef.current) return;
 
@@ -495,7 +543,7 @@ const Customers = () => {
 
   const removeTollSegmentAt = async (idx) => {
     const prev = routeInfo;
-    if (!prev?.toll_breakdown || prev.toll_breakdown.length <= 1) return;
+    if (!prev?.toll_breakdown?.length) return;
     const sectionIds = prev.toll_breakdown
       .filter((_, i) => i !== idx)
       .map((row) => row.section_id)
@@ -504,6 +552,18 @@ const Customers = () => {
     setRouteError('');
     try {
       await applyManualTollUpdate(sectionIds);
+    } catch (err) {
+      setRouteError(err.message);
+    } finally {
+      setTollManualLoading(false);
+    }
+  };
+
+  const clearAllTollSegments = async () => {
+    setTollManualLoading(true);
+    setRouteError('');
+    try {
+      await applyManualTollUpdate([]);
     } catch (err) {
       setRouteError(err.message);
     } finally {
@@ -556,10 +616,10 @@ const Customers = () => {
       try {
         const full = await apiFetch(`/api/customers/${customer.id}`);
         setForceToll(full.force_toll || false);
-        persistedTollBreakdownRef.current = (full.custom_toll_breakdown || []).length
-          ? full.custom_toll_breakdown
+        persistedTollBreakdownRef.current = full.custom_toll_breakdown != null
+          ? (Array.isArray(full.custom_toll_breakdown) ? full.custom_toll_breakdown : [])
           : null;
-        setManualTollOverride(Boolean(persistedTollBreakdownRef.current?.length));
+        setManualTollOverride(full.custom_toll_breakdown != null);
         setForm({
           code: full.code || '',
           name: full.name || '',
@@ -705,13 +765,35 @@ const Customers = () => {
         persistedTollBreakdownRef.current = null;
       }
 
-      const sectionIds = forceAuto
+      const keepManualEmpty =
+        !forceAuto
+        && Array.isArray(persistedTollBreakdownRef.current)
+        && persistedTollBreakdownRef.current.length === 0;
+
+      const sectionIds = forceAuto || keepManualEmpty
         ? null
         : persistedTollBreakdownRef.current?.map((row) => row.section_id).filter(Boolean);
 
-      const result = await fetchRouteWithSections(sectionIds, { forceAuto });
+      const result = await fetchRouteWithSections(sectionIds, { forceAuto: forceAuto || keepManualEmpty });
       if (forceAuto) {
         setManualTollOverride(false);
+      } else if (keepManualEmpty) {
+        const cleared = tollByVehicleFromSegments([], vehicleTypes, result?.distance_km);
+        persistedTollBreakdownRef.current = [];
+        setManualTollOverride(true);
+        setRouteInfo({
+          ...result,
+          toll_breakdown: [],
+          toll_by_vehicle: cleared,
+          toll_idr: 0,
+          toll_source: 'manual',
+          toll_is_estimate: false,
+          toll_note: 'Ruas tol dikosongkan. Tambah manual, atau klik Refresh otomatis (Google / BPJT).',
+          toll_roads: [],
+          route_profile: 'manual',
+          route_via_toll_gates: false,
+        });
+        return;
       } else if (sectionIds?.length) {
         setManualTollOverride(true);
         if (result?.toll_breakdown?.length) {
@@ -727,11 +809,19 @@ const Customers = () => {
     }
   };
 
-  const refillRouteFromMap = () => {
+  const refillRouteFromMap = async () => {
     corridorFetchSeqRef.current += 1;
     if (corridorDebounceRef.current) clearTimeout(corridorDebounceRef.current);
+    // Lepas kunci kosong manual agar deteksi otomatis (BPJT / Google) aktif lagi
     persistedTollBreakdownRef.current = null;
-    fetchRouteInfo({ forceAuto: true });
+    setManualTollOverride(false);
+    setTollManualLoading(true);
+    setRouteError('');
+    try {
+      await fetchRouteInfo({ forceAuto: true });
+    } finally {
+      setTollManualLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -801,7 +891,12 @@ const Customers = () => {
             latitude: form.latitude ? parseFloat(form.latitude) : null,
             longitude: form.longitude ? parseFloat(form.longitude) : null,
             tariffs: tariffPayloadRows(form.tariffs),
-            custom_toll_breakdown: routeInfo?.toll_breakdown || null,
+            custom_toll_breakdown: (() => {
+              if (!routeInfo) return null;
+              const bd = routeInfo.toll_breakdown || [];
+              if (bd.length) return bd;
+              return manualTollOverride ? [] : null;
+            })(),
           }),
         });
         data = await apiFetch(`/api/customers/${editId}/geocode`, { method: 'POST' });
@@ -880,7 +975,13 @@ const Customers = () => {
       longitude: form.longitude ? parseFloat(form.longitude) : null,
       share_location: form.share_location || null,
       tariffs: tariffPayloadRows(form.tariffs),
-      custom_toll_breakdown: routeInfo?.toll_breakdown || null,
+      custom_toll_breakdown: (() => {
+        if (!routeInfo) return null;
+        const bd = routeInfo.toll_breakdown || [];
+        if (bd.length) return bd;
+        // [] = sengaja dikosongkan manual; null = biarkan dihitung ulang otomatis
+        return manualTollOverride ? [] : null;
+      })(),
     };
 
     setError('');
@@ -1752,7 +1853,7 @@ const Customers = () => {
                             Otomatis (rute tercepat OSRM)
                           </div>
                           <small style={{ color: 'var(--text-secondary)', fontSize: '0.78rem', display: 'block', marginTop: '0.35rem' }}>
-                            Rute tercepat dari OSRM. Alternatif tol lebih murah dipakai hanya jika tidak muter jauh. Ruas tol di bawah tetap bisa diubah manual.
+                            Rute tercepat dari OSRM. Jika tidak lewat tol, ruas tol dikosongkan. Ruas di bawah bisa dikosongkan, dihapus, atau ditambah manual.
                           </small>
                         </div>
 
@@ -1768,7 +1869,7 @@ const Customers = () => {
                               color: '#92400e',
                             }}
                           >
-                            Jarak & garis biru mengikuti koridor ruas tol yang dipilih. Garis oranye = ruas tol di tabel.
+                            Garis biru = rute perjalanan via gerbang tol. Garis oranye = ruas tol mengikuti jalur jalan.
                           </div>
                         )}
 
@@ -1873,6 +1974,7 @@ const Customers = () => {
                           onSegmentReplace={replaceTollSegmentAt}
                           onSegmentAdd={addTollSegment}
                           onSegmentRemove={removeTollSegmentAt}
+                          onClearAll={clearAllTollSegments}
                           onFillFromMap={refillRouteFromMap}
                         />
 

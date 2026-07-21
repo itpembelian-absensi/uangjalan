@@ -325,51 +325,17 @@ function signatureExcelRows() {
 }
 
 function buildSummaryRows(doc) {
-  const rows = [
-    [{ content: 'Uang Jalan', styles: { fontStyle: 'bold' } }, { content: formatIDR(doc.uangJalan), styles: { fontStyle: 'bold', halign: 'right' } }],
-  ];
-  if ((doc.routeFeesTotal || 0) > 0) {
-    rows.push(['Biaya Rute', { content: formatIDR(doc.routeFeesTotal), styles: { halign: 'right' } }]);
-    for (const line of doc.routeFeeLines || []) {
-      rows.push([`  ${line.label}`, { content: formatIDR(line.amount), styles: { halign: 'right', textColor: 100 } }]);
-    }
-  }
-  rows.push(
-    ['Uang Jalan Tambahan', { content: formatIDR(doc.extraUangJalan), styles: { halign: 'right' } }],
-    ['Pembulatan (Ke Atas Ribuan)', { content: formatIDR(doc.roundingUangJalan), styles: { halign: 'right' } }],
+  return [
     [{ content: 'Total Uang Jalan', styles: { fontStyle: 'bold' } }, { content: formatIDR(doc.totalUangJalan), styles: { fontStyle: 'bold', halign: 'right', fontSize: 11 } }],
-  );
-  return rows;
+  ];
 }
 
 function buildSummaryHtml(doc) {
-  const routeFeeRows = (doc.routeFeeLines || [])
-    .map((line) => `<tr><td style="padding-left:16px;color:#64748b">${line.label}</td><td style="text-align:right;color:#64748b">${formatIDR(line.amount)}</td></tr>`)
-    .join('');
-  const biayaRuteRow = (doc.routeFeesTotal || 0) > 0
-    ? `<tr>
-          <td><strong>Biaya Rute</strong></td>
-          <td style="text-align:right"><strong>${formatIDR(doc.routeFeesTotal)}</strong></td>
-        </tr>${routeFeeRows}`
-    : '';
   return `
     <table class="data" style="margin-top:16px;">
       <tbody>
         <tr>
-          <td style="width:60%"><strong>Uang Jalan</strong></td>
-          <td style="text-align:right"><strong>${formatIDR(doc.uangJalan)}</strong></td>
-        </tr>
-        ${biayaRuteRow}
-        <tr>
-          <td>Uang Jalan Tambahan</td>
-          <td style="text-align:right">${formatIDR(doc.extraUangJalan)}</td>
-        </tr>
-        <tr>
-          <td>Pembulatan (Ke Atas Ribuan)</td>
-          <td style="text-align:right">${formatIDR(doc.roundingUangJalan)}</td>
-        </tr>
-        <tr style="border-top:2px solid #333;">
-          <td><strong>Total Uang Jalan</strong></td>
+          <td style="width:60%"><strong>Total Uang Jalan</strong></td>
           <td style="text-align:right;font-size:15px;"><strong>${formatIDR(doc.totalUangJalan)}</strong></td>
         </tr>
       </tbody>
@@ -509,15 +475,6 @@ export function exportSaleExcel(doc) {
     ['No', 'Customer'],
     ...doc.customerNames.map((name, i) => [i + 1, name]),
     [],
-    ['Uang Jalan', '', doc.uangJalan],
-    ...((doc.routeFeesTotal || 0) > 0
-      ? [
-          ['Biaya Rute', '', doc.routeFeesTotal],
-          ...(doc.routeFeeLines || []).map((line) => [`  ${line.label}`, '', line.amount]),
-        ]
-      : []),
-    ['Uang Jalan Tambahan', '', doc.extraUangJalan],
-    ['Pembulatan (Ke Atas Ribuan)', '', doc.roundingUangJalan],
     ['Total Uang Jalan', '', doc.totalUangJalan],
   ];
 

@@ -98,6 +98,7 @@ const RouteTollGateInfo = ({
   onSegmentReplace,
   onSegmentAdd,
   onSegmentRemove,
+  onClearAll,
   onFillFromMap,
   tollLoading = false,
 }) => {
@@ -148,12 +149,92 @@ const RouteTollGateInfo = ({
     onSegmentRemove?.(idx);
   };
 
+  const renderAddControls = () => {
+    if (!editable) return null;
+    return (
+      <div style={{ marginTop: segments?.length ? '0.5rem' : 0, display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        {adding ? (
+          <>
+            <div style={{ minWidth: '260px' }}>
+              <SectionSearchSelect
+                sections={activeSections}
+                value={addPick}
+                compact
+                placeholder="Cari ruas yang akan ditambah…"
+                onChange={(id) => {
+                  setAddPick(String(id));
+                  handleAdd(id);
+                }}
+              />
+            </div>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ fontSize: '0.8rem' }}
+              onClick={() => {
+                setAdding(false);
+                setAddPick('');
+              }}
+            >
+              Batal
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem' }}
+              onClick={() => setAdding(true)}
+              disabled={!activeSections.length || tollLoading}
+            >
+              + Tambah asal → tujuan
+            </button>
+            {segments?.length > 0 && onClearAll && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem' }}
+                onClick={onClearAll}
+                disabled={tollLoading}
+                title="Kosongkan semua ruas tol"
+              >
+                Kosongkan ruas
+              </button>
+            )}
+            {onFillFromMap && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{
+                  fontSize: '0.8rem',
+                  padding: '0.35rem 0.75rem',
+                  ...(segments?.length ? {} : { borderColor: '#93c5fd', background: '#eff6ff', color: '#1d4ed8' }),
+                }}
+                onClick={onFillFromMap}
+                disabled={tollLoading}
+                title="Hitung ulang ruas/tarif otomatis dari rute peta (BPJT atau Google)"
+              >
+                {segments?.length ? 'Isi ulang dari rute peta' : 'Refresh otomatis (Google / BPJT)'}
+              </button>
+            )}
+          </>
+        )}
+        {!activeSections.length && (
+          <small style={{ color: '#b45309', fontSize: '0.75rem' }}>
+            Master ruas tol kosong — jalankan Impor BPJT di menu Master Ruas Tol.
+          </small>
+        )}
+      </div>
+    );
+  };
+
   if (!segments?.length) {
-    if (tollNote && tollSource === 'none') {
-      return (
+    return (
+      <div style={{ marginBottom: '1rem', opacity: tollLoading ? 0.65 : 1 }}>
         <div
           style={{
-            marginBottom: '1rem',
+            marginBottom: editable ? '0.5rem' : 0,
             padding: '0.75rem 1rem',
             borderRadius: '8px',
             border: '1px solid var(--glass-border)',
@@ -162,11 +243,16 @@ const RouteTollGateInfo = ({
             color: 'var(--text-secondary)',
           }}
         >
-          {tollNote}
+          {tollNote || 'Ruas tol kosong — rute tidak melewati tol, atau dikosongkan manual.'}
+          {editable && (
+            <span style={{ display: 'block', marginTop: '0.35rem' }}>
+              Tambah ruas manual, atau klik <strong>Refresh otomatis (Google / BPJT)</strong> untuk isi ulang dari rute.
+            </span>
+          )}
         </div>
-      );
-    }
-    return null;
+        {renderAddControls()}
+      </div>
+    );
   }
 
   const hasManual = segments.some((row) => row.source === 'manual') || tollSource === 'manual';
@@ -316,7 +402,6 @@ const RouteTollGateInfo = ({
                         className="btn btn-secondary"
                         style={{ padding: '0.15rem 0.4rem', fontSize: '0.75rem', lineHeight: 1 }}
                         title="Hapus ruas"
-                        disabled={segments.length <= 1}
                         onClick={() => handleRemove(idx)}
                       >
                         ×
@@ -347,65 +432,7 @@ const RouteTollGateInfo = ({
         </table>
       </div>
 
-      {editable && (
-        <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-          {adding ? (
-            <>
-              <div style={{ minWidth: '260px' }}>
-                <SectionSearchSelect
-                  sections={activeSections}
-                  value={addPick}
-                  compact
-                  placeholder="Cari ruas yang akan ditambah…"
-                  onChange={(id) => {
-                    setAddPick(String(id));
-                    handleAdd(id);
-                  }}
-                />
-              </div>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                style={{ fontSize: '0.8rem' }}
-                onClick={() => {
-                  setAdding(false);
-                  setAddPick('');
-                }}
-              >
-                Batal
-              </button>
-            </>
-          ) : (
-            <>
-              <button
-                type="button"
-                className="btn btn-secondary"
-                style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem' }}
-                onClick={() => setAdding(true)}
-                disabled={!activeSections.length || tollLoading}
-              >
-                + Tambah asal → tujuan
-              </button>
-              {onFillFromMap && (
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem' }}
-                  onClick={onFillFromMap}
-                  disabled={tollLoading}
-                >
-                  Isi ulang dari rute peta
-                </button>
-              )}
-            </>
-          )}
-          {!activeSections.length && (
-            <small style={{ color: '#b45309', fontSize: '0.75rem' }}>
-              Master ruas tol kosong — jalankan Impor BPJT di menu Master Ruas Tol.
-            </small>
-          )}
-        </div>
-      )}
+      {renderAddControls()}
 
       {segments.some((row) => row.source === 'section' && row.weight_pct != null) && (
         <small style={{ display: 'block', marginTop: '0.4rem', color: 'var(--text-secondary)', fontSize: '0.75rem' }}>

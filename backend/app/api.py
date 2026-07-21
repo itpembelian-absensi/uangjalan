@@ -57,7 +57,6 @@ from app.toll_gate_service import (
     refresh_gate_coordinates,
     serialize_gate_fare_context,
     waypoints_from_toll_segments,
-    toll_segment_map_geometry,
 )
 from app.route_profiles import (
     list_route_profiles,
@@ -83,6 +82,7 @@ from app.reports_service import (
 from app.routing_service import (
     VEHICLE_TOLL_CLASS,
     _match_toll_vehicle_key,
+    build_toll_road_overlays,
     calculate_route,
     calculate_route_chained,
     collapse_sections_for_routing,
@@ -300,6 +300,7 @@ def _build_corridor_route(
             sections=sections,
             force_toll=force_toll,
             gate_context=gate_context,
+            prefer_corridor=True,
         )
     else:
         route = calculate_route(
@@ -324,7 +325,7 @@ def _build_corridor_route(
     elif route_via_toll_gates and not corridor_used:
         route_via_toll_gates = False
         toll_note = (
-            "Koridor gerbang terlalu muter — jarak & peta memakai rute OSRM langsung. "
+            "Koridor gerbang gagal dihitung — jarak & peta memakai rute OSRM langsung. "
             + toll_note
         )
     else:
@@ -349,17 +350,8 @@ def _build_corridor_route(
     route["route_selection"] = None
     route["alternatives_compared"] = 0
     route["toll_savings_idr"] = None
-    route["toll_roads"] = []
-    for seg in custom_segments:
-        seg_geom = toll_segment_map_geometry(seg, gates)
-        route["toll_roads"].append(
-            {
-                "name": seg.get("section_name") or "Ruas tol",
-                "latitude": seg_geom[0][0] if seg_geom else None,
-                "longitude": seg_geom[0][1] if seg_geom else None,
-                "geometry": seg_geom,
-            }
-        )
+    # Garis oranye mengikuti jalur jalan (OSRM), bukan lurus gerbang→gerbang
+    route["toll_roads"] = build_toll_road_overlays(custom_segments, gates)
     return route, toll_by_vehicle_raw
 
 
@@ -932,7 +924,11 @@ def create_customer(payload: CustomerCreate, db: Session = Depends(get_db), curr
         latitude=payload.latitude,
         longitude=payload.longitude,
         share_location=payload.share_location,
-        custom_toll_breakdown=json.dumps(payload.custom_toll_breakdown) if payload.custom_toll_breakdown else None,
+        custom_toll_breakdown=(
+            json.dumps(payload.custom_toll_breakdown)
+            if payload.custom_toll_breakdown is not None
+            else None
+        ),
     )
     db.add(obj)
     try:
@@ -997,7 +993,11 @@ def update_customer(customer_id: int, payload: CustomerCreate, db: Session = Dep
     obj.latitude = payload.latitude
     obj.longitude = payload.longitude
     obj.share_location = payload.share_location
-    obj.custom_toll_breakdown = json.dumps(payload.custom_toll_breakdown) if payload.custom_toll_breakdown else None
+    obj.custom_toll_breakdown = (
+        json.dumps(payload.custom_toll_breakdown)
+        if payload.custom_toll_breakdown is not None
+        else None
+    )
 
     try:
         _replace_customer_tariffs(db, obj.id, payload.tariffs)
