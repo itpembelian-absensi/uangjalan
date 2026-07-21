@@ -42,6 +42,20 @@ const tollByVehicleFromSegments = (segments, vehicleTypes, distanceKm) => {
     .sort((a, b) => a.vehicle_type_name.localeCompare(b.vehicle_type_name));
 };
 
+const storedManualTollBreakdown = (value) => {
+  if (!Array.isArray(value)) return null;
+  const hasExplicitManualMarker = value.some((row) => row?._manual_override === true);
+  if (!hasExplicitManualMarker) return null;
+  return value.filter((row) => row?.section_id);
+};
+
+const customTollBreakdownPayload = (routeInfo, manualOverride) => {
+  if (!manualOverride) return null;
+  const rows = routeInfo?.toll_breakdown || [];
+  if (!rows.length) return [{ _manual_override: true }];
+  return rows.map((row) => ({ ...row, _manual_override: true }));
+};
+
 const parseAmount = (value) => {
   if (value === '' || value == null) return 0;
   const cleaned = String(value).replace(/\./g, '').replace(/,/g, '').trim();
@@ -616,10 +630,9 @@ const Customers = () => {
       try {
         const full = await apiFetch(`/api/customers/${customer.id}`);
         setForceToll(full.force_toll || false);
-        persistedTollBreakdownRef.current = full.custom_toll_breakdown != null
-          ? (Array.isArray(full.custom_toll_breakdown) ? full.custom_toll_breakdown : [])
-          : null;
-        setManualTollOverride(full.custom_toll_breakdown != null);
+        const savedManualBreakdown = storedManualTollBreakdown(full.custom_toll_breakdown);
+        persistedTollBreakdownRef.current = savedManualBreakdown;
+        setManualTollOverride(savedManualBreakdown != null);
         setForm({
           code: full.code || '',
           name: full.name || '',
@@ -891,12 +904,7 @@ const Customers = () => {
             latitude: form.latitude ? parseFloat(form.latitude) : null,
             longitude: form.longitude ? parseFloat(form.longitude) : null,
             tariffs: tariffPayloadRows(form.tariffs),
-            custom_toll_breakdown: (() => {
-              if (!routeInfo) return null;
-              const bd = routeInfo.toll_breakdown || [];
-              if (bd.length) return bd;
-              return manualTollOverride ? [] : null;
-            })(),
+            custom_toll_breakdown: customTollBreakdownPayload(routeInfo, manualTollOverride),
           }),
         });
         data = await apiFetch(`/api/customers/${editId}/geocode`, { method: 'POST' });
@@ -975,13 +983,7 @@ const Customers = () => {
       longitude: form.longitude ? parseFloat(form.longitude) : null,
       share_location: form.share_location || null,
       tariffs: tariffPayloadRows(form.tariffs),
-      custom_toll_breakdown: (() => {
-        if (!routeInfo) return null;
-        const bd = routeInfo.toll_breakdown || [];
-        if (bd.length) return bd;
-        // [] = sengaja dikosongkan manual; null = biarkan dihitung ulang otomatis
-        return manualTollOverride ? [] : null;
-      })(),
+      custom_toll_breakdown: customTollBreakdownPayload(routeInfo, manualTollOverride),
     };
 
     setError('');
@@ -1850,10 +1852,14 @@ const Customers = () => {
                               color: 'var(--text-secondary)',
                             }}
                           >
-                            Otomatis (rute tercepat OSRM)
+                            {manualTollOverride
+                              ? 'Manual (ikuti ruas tol yang dipilih)'
+                              : 'Otomatis (rute tercepat OSRM)'}
                           </div>
                           <small style={{ color: 'var(--text-secondary)', fontSize: '0.78rem', display: 'block', marginTop: '0.35rem' }}>
-                            Rute tercepat dari OSRM. Jika tidak lewat tol, ruas tol dikosongkan. Ruas di bawah bisa dikosongkan, dihapus, atau ditambah manual.
+                            {manualTollOverride
+                              ? 'Rute dipaksa mengikuti ruas manual. Klik Isi ulang dari rute peta untuk kembali ke rute otomatis.'
+                              : 'Rute tercepat dari OSRM. Ruas referensi Google/BPJT tidak memaksa rute memutar.'}
                           </small>
                         </div>
 
