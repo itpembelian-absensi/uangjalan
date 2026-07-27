@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { ChevronDown, ChevronRight, Database, LogOut } from 'lucide-react';
+import { ChevronDown, ChevronRight, Database, LogOut, PanelLeftClose } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useAppSettings } from '../context/AppSettingsContext';
 import { MenuIcon } from '../config/menuIcons.jsx';
@@ -83,7 +83,7 @@ function pathInGroup(group, pathname, menuPaths) {
   return children.some((c) => isNavItemActive(c.path, pathname, menuPaths));
 }
 
-const Sidebar = () => {
+const Sidebar = ({ onToggleHide }) => {
   const { user, logout } = useAuth();
   const { settings } = useAppSettings();
   const navigate = useNavigate();
@@ -238,29 +238,35 @@ const Sidebar = () => {
 
   return (
     <aside className="sidebar">
-      <div style={{ padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-        {settings.logo_base64 && (
-          <img 
-            src={settings.logo_base64.startsWith('data:') ? settings.logo_base64 : `data:image/png;base64,${settings.logo_base64}`} 
-            alt="Logo" 
-            style={{ width: '32px', height: '32px', objectFit: 'contain' }} 
-          />
-        )}
-        <div>
-          <h2
-            style={{
-              background: 'var(--accent-gradient)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              fontSize: '1.4rem',
-            }}
-          >
-            {settings.app_name}
-          </h2>
-          {settings.app_subtitle && (
-            <p style={{ fontSize: '0.8rem', opacity: 0.7 }}>{settings.app_subtitle}</p>
+      <div className="sidebar-brand">
+        <div className="sidebar-brand-info">
+          {settings.logo_base64 && (
+            <img
+              src={settings.logo_base64.startsWith('data:') ? settings.logo_base64 : `data:image/png;base64,${settings.logo_base64}`}
+              alt="Logo"
+              className="sidebar-brand-logo"
+            />
           )}
+          <div>
+            <h2 className="sidebar-brand-title">
+              {settings.app_name}
+            </h2>
+            {settings.app_subtitle && (
+              <p className="sidebar-brand-subtitle">{settings.app_subtitle}</p>
+            )}
+          </div>
         </div>
+        {onToggleHide && (
+          <button
+            type="button"
+            className="sidebar-hide-btn"
+            onClick={onToggleHide}
+            aria-label="Sembunyikan sidebar"
+            title="Sembunyikan sidebar"
+          >
+            <PanelLeftClose size={22} />
+          </button>
+        )}
       </div>
 
       {user && (

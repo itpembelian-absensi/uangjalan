@@ -308,6 +308,7 @@ p {
 
 .sidebar {
   width: 260px;
+  flex-shrink: 0;
   background: var(--sidebar-bg);
   border-right: none;
   padding: 1.5rem;
@@ -322,6 +323,106 @@ p {
 
 .sidebar p, .sidebar .sidebar-nav div {
   color: #93c5fd;
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.5rem 0.25rem 0.5rem 1rem;
+}
+
+.sidebar-brand-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.sidebar-brand-logo {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.sidebar-brand-title {
+  background: var(--accent-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-size: 1.4rem;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.sidebar-brand-subtitle {
+  font-size: 0.8rem;
+  opacity: 0.7;
+  margin: 0.15rem 0 0;
+}
+
+.sidebar-hide-btn,
+.sidebar-show-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: var(--transition);
+  flex-shrink: 0;
+}
+
+.sidebar-hide-btn {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.sidebar-hide-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
+.sidebar-show-btn {
+  position: sticky;
+  top: 1rem;
+  z-index: 20;
+  margin-bottom: 1rem;
+  width: 3rem;
+  height: 3rem;
+  min-width: 48px;
+  min-height: 48px;
+  background: var(--sidebar-bg);
+  color: #ffffff;
+  box-shadow: 0 2px 10px rgba(30, 58, 138, 0.4);
+}
+
+.sidebar-show-btn:hover {
+  background: #1e40af;
+}
+
+@media (max-width: 768px) {
+  .sidebar-hide-btn {
+    width: 3rem;
+    height: 3rem;
+    min-width: 48px;
+    min-height: 48px;
+  }
+
+  .sidebar-show-btn {
+    width: 3.25rem;
+    height: 3.25rem;
+    min-width: 52px;
+    min-height: 52px;
+    top: 0.75rem;
+  }
 }
 
 .sidebar-nav {
@@ -1678,7 +1779,7 @@ body.customer-lookup-dragging .customer-lookup-drag-handle {
     color: black;
   }
   
-  .sidebar, .page-header button, .modal-overlay, .no-print, .btn {
+  .sidebar, .sidebar-show-btn, .page-header button, .modal-overlay, .no-print, .btn {
     display: none !important;
   }
   
