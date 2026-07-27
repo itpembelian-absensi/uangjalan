@@ -1,4 +1,4 @@
-export const ROUTE_FEE_VEHICLE_ORDER = ['grandmax', 'tronton', 'fuso', 'double', 'engkle', 'engkel'];
+export const ROUTE_FEE_VEHICLE_ORDER = ['grandmax', 'tronton', 'fuso', 'double', 'engkle', 'engkel', 'viar'];
 
 export const ROUTE_FEE_CATEGORY_LABELS = {
   grandmax: 'Grand Max',
@@ -6,6 +6,7 @@ export const ROUTE_FEE_CATEGORY_LABELS = {
   double: 'Double',
   fuso: 'Fuso',
   tronton: 'Tronton',
+  viar: 'Viar',
 };
 
 export const ROUTE_FEE_DEFS = [
@@ -39,7 +40,7 @@ export const ROUTE_FEE_DEFS = [
     apiPath: 'parkir_kawasan',
     path: '/master-parkir-kawasan',
     title: 'Master Parkir Kawasan',
-    defaults: { grandmax: 10000, engkle: 10000, double: 10000, fuso: 20000, tronton: 20000 },
+    defaults: { grandmax: 10000, engkle: 10000, double: 10000, fuso: 20000, tronton: 20000, viar: 10000 },
   },
 ];
 
@@ -96,12 +97,37 @@ export const getRouteFeeAmount = (feeKey, vehicleTypeId, vehicleTypes, feeMaster
   const feeDef = ROUTE_FEE_DEFS.find((f) => f.key === feeKey);
   if (!feeDef) return 0;
   const vt = (vehicleTypes || []).find((v) => String(v.id) === String(vehicleTypeId));
-  const category = matchRouteFeeCategory(vt?.name);
-  if (!category) return 0;
-  const masterName = ROUTE_FEE_CATEGORY_LABELS[category];
-  const master = (feeMasters[feeKey] || []).find((m) => m.name === masterName);
-  if (master) return Number(master.amount) || 0;
-  return feeDef.defaults[category] || 0;
+  if (!vt) return 0;
+
+  const category = matchRouteFeeCategory(vt.name);
+  if (category) {
+    const masterName = ROUTE_FEE_CATEGORY_LABELS[category];
+    const master = (feeMasters[feeKey] || []).find((m) => m.name === masterName);
+    if (master) return Number(master.amount) || 0;
+    return feeDef.defaults[category] || 0;
+  }
+
+  // Fallback: cocokkan nama master dengan nama jenis kendaraan (mis. "Viar")
+  const vtNorm = String(vt.name || '')
+    .toLowerCase()
+    .replace(/[\s-]/g, '');
+  const master = (feeMasters[feeKey] || []).find((m) => {
+    const mNorm = String(m.name || '')
+      .toLowerCase()
+      .replace(/[\s-]/g, '');
+    return mNorm && (vtNorm === mNorm || vtNorm.includes(mNorm));
+  });
+  return master ? Number(master.amount) || 0 : 0;
+};
+
+/** Default checklist biaya rute: centang ON jika nominal master/default > 0 */
+export const defaultIncludesForVehicle = (vehicleTypeId, vehicleTypes, feeMasters = {}) => {
+  const includes = {};
+  for (const fee of ROUTE_FEE_DEFS) {
+    const amount = getRouteFeeAmount(fee.key, vehicleTypeId, vehicleTypes, feeMasters);
+    includes[`include_${fee.key}`] = amount > 0;
+  }
+  return includes;
 };
 
 export const ROUTE_FEE_DISPLAY = [

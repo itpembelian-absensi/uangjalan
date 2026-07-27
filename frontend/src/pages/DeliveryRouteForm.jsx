@@ -29,6 +29,7 @@ import {
   getUangPelabuhanAmount,
   routeFeeFieldsFromApi,
   routeFeePayloadFromForm,
+  defaultIncludesForVehicle,
 } from '../utils/routeFeeConfig';
 
 const formatIDR = (num) =>
@@ -87,14 +88,17 @@ const DeliveryRouteForm = () => {
       setCustomersError(err.message || 'Gagal memuat daftar customer.');
     }
 
+    let loadedVehicleTypes = [];
     try {
       const dataVt = await apiFetch('/api/vehicle-types');
-      setVehicleTypes(Array.isArray(dataVt) ? dataVt : []);
+      loadedVehicleTypes = Array.isArray(dataVt) ? dataVt : [];
+      setVehicleTypes(loadedVehicleTypes);
     } catch (err) {
       setVehicleTypes([]);
       setRoutesError(err.message || 'Gagal memuat jenis kendaraan.');
     }
 
+    let loadedFeeMasters = {};
     try {
       const masterEntries = await Promise.all(
         ROUTE_FEE_DEFS.map(async (fee) => {
@@ -102,7 +106,8 @@ const DeliveryRouteForm = () => {
           return [fee.key, Array.isArray(data) ? data : []];
         })
       );
-      setFeeMasters(Object.fromEntries(masterEntries));
+      loadedFeeMasters = Object.fromEntries(masterEntries);
+      setFeeMasters(loadedFeeMasters);
     } catch {
       setFeeMasters({});
     }
@@ -141,13 +146,23 @@ const DeliveryRouteForm = () => {
           navigate('/delivery-routes');
           return;
         }
+        const vtId = String(route.vehicle_type_id);
+        const feeFields = routeFeeFieldsFromApi(route);
+        // Default tick ON untuk biaya yang punya nominal (mis. Parkir Kawasan untuk Viar)
+        const defaultIncludes = defaultIncludesForVehicle(vtId, loadedVehicleTypes, loadedFeeMasters);
+        for (const fee of ROUTE_FEE_DEFS) {
+          const key = `include_${fee.key}`;
+          if (defaultIncludes[key] && !feeFields[key] && !(Number(route[fee.key]) > 0)) {
+            feeFields[key] = true;
+          }
+        }
         setForm({
           route_no: route.route_no,
           date: route.date,
-          vehicle_type_id: String(route.vehicle_type_id),
+          vehicle_type_id: vtId,
           ritase: String(route.ritase || 1),
           remarks: route.remarks || '',
-          ...routeFeeFieldsFromApi(route),
+          ...feeFields,
           stops: route.stops.length
             ? route.stops.sort((a, b) => a.sort_order - b.sort_order).map(mapStopFromApi)
             : [emptyStop()],
@@ -339,18 +354,12 @@ const DeliveryRouteForm = () => {
       feeMasters,
       pelabuhanMasters
     );
-    setForm((prev) => {
-      const next = {
-        ...prev,
-        vehicle_type_id: vehicleTypeId,
-        include_uang_pelabuhan: prev.include_uang_pelabuhan && nextPelabuhanAmount > 0,
-      };
-      for (const fee of ROUTE_FEE_DEFS) {
-        const amount = getRouteFeeAmount(fee.key, vehicleTypeId, vehicleTypes, feeMasters);
-        next[`include_${fee.key}`] = amount > 0;
-      }
-      return next;
-    });
+    setForm((prev) => ({
+      ...prev,
+      vehicle_type_id: vehicleTypeId,
+      include_uang_pelabuhan: prev.include_uang_pelabuhan && nextPelabuhanAmount > 0,
+      ...defaultIncludesForVehicle(vehicleTypeId, vehicleTypes, feeMasters),
+    }));
   };
 
   const handlePelabuhanToggle = (checked) => {
@@ -370,7 +379,7 @@ const DeliveryRouteForm = () => {
             Rute per tanggal dan jenis kendaraan. Sopir ditentukan gudang saat uang jalan dibuat.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+        <div className="page-header-actions" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           <Link to="/delivery-routes" className="btn btn-secondary" style={{ textDecoration: 'none' }}>
             <ArrowLeft size={18} /> Kembali ke Daftar
           </Link>
@@ -469,13 +478,14 @@ const DeliveryRouteForm = () => {
             </div>
 
             <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
-              <div style={{ flex: '1 1 360px' }}>
+              <div className="route-stops-section" style={{ flex: '1 1 360px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
                   <h4 style={{ margin: 0, fontSize: '0.95rem' }}>Urutan pengiriman (customer)</h4>
                   <button type="button" className="btn btn-secondary" onClick={addStop} style={{ fontSize: '0.85rem' }}>
                     <Plus size={16} /> Customer
                   </button>
                 </div>
+                <div className="table-container route-stops-table-wrap" style={{ padding: 0 }}>
                 <table className="glass-table" style={{ fontSize: '0.9rem' }}>
                   <thead>
                     <tr>
@@ -635,10 +645,12 @@ const DeliveryRouteForm = () => {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </div>
 
               {points.length > 0 && (
                 <div
+                  className="route-map-section"
                   style={{
                     flex: '1 1 280px',
                     position: 'relative',

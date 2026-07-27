@@ -614,7 +614,7 @@ const Sales = () => {
             <Link to="/delivery-routes">Rute Pengiriman</Link>.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+        <div className="page-header-actions" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           <button
             className="btn btn-secondary"
             onClick={() => printBulkSales(displaySales, { fromLabel: filterFrom ? formatDate(filterFrom) : '', toLabel: filterTo ? formatDate(filterTo) : '' })}
@@ -691,7 +691,7 @@ const Sales = () => {
       )}
 
       <div className="table-container" style={{ padding: 0, width: '100%' }}>
-          <table className="glass-table">
+          <table className="glass-table responsive-card-table">
             <thead>
               <tr>
                 <SortableTh
@@ -774,22 +774,22 @@ const Sales = () => {
                   return (
                     <React.Fragment key={s.id}>
                     <tr style={{ cursor: 'pointer' }} onClick={toggleExpand}>
-                      <td style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
+                      <td data-label="Nomor Transaksi" style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
                           {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                           {s.sale_no}
                         </span>
                       </td>
-                      <td style={{ whiteSpace: 'nowrap' }}>
+                      <td data-label="Rute" style={{ whiteSpace: 'nowrap' }}>
                         {s.route_no ? (
                           <Link to="/delivery-routes" onClick={(e) => e.stopPropagation()}>{s.route_no}</Link>
                         ) : (
                           <span style={{ color: 'var(--text-secondary)' }}>Manual</span>
                         )}
                       </td>
-                      <td style={{ whiteSpace: 'nowrap' }}>{formatDate(s.date)}</td>
-                      <td>{s.vehicle_plate || (s.delivery_route_id ? '— belum dipilih' : '—')}</td>
-                      <td>
+                      <td data-label="Tanggal" style={{ whiteSpace: 'nowrap' }}>{formatDate(s.date)}</td>
+                      <td data-label="Kendaraan">{s.vehicle_plate || (s.delivery_route_id ? '— belum dipilih' : '—')}</td>
+                      <td data-label="Sopir">
                         <div style={{ display: 'flex', flexDirection: 'column' }}>
                           <span style={{ fontWeight: 500 }}>{s.driver_name || (s.delivery_route_id ? '—' : '—')}</span>
                           {s.driver_phone && <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{s.driver_phone}</span>}
@@ -800,7 +800,7 @@ const Sales = () => {
                           )}
                         </div>
                       </td>
-                      <td>
+                      <td data-label="Customer">
                         <div style={{ fontWeight: 500 }}>{s.details.length} Customer</div>
                         {s.details.length > 0 && (
                           <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px', lineHeight: '1.3' }}>
@@ -819,7 +819,7 @@ const Sales = () => {
                           </div>
                         )}
                       </td>
-                      <td style={{ textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                      <td data-label="Total Nominal" style={{ textAlign: 'right', fontWeight: 600, whiteSpace: 'nowrap' }}>
                         {s.is_void ? (
                           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
                             <span style={{ color: 'var(--text-secondary)', textDecoration: 'line-through' }}>{formatIDR(totalUJ)}</span>
@@ -828,7 +828,7 @@ const Sales = () => {
                           <span style={{ color: 'var(--success-color)' }}>{formatIDR(totalUJ)}</span>
                         )}
                       </td>
-                      <td style={{ textAlign: 'center' }}>
+                      <td data-label="Pembayaran" style={{ textAlign: 'center' }}>
                         {s.is_void ? (
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '0.25rem 0.6rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 600, background: '#fee2e2', color: '#b91c1c' }} title={s.void_reason}>
                             <Ban size={12} /> Void
@@ -841,7 +841,7 @@ const Sales = () => {
                           <span className="badge-finance-pending">Menunggu</span>
                         )}
                       </td>
-                      <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
+                      <td data-label="Aksi" style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
                         <div style={{ display: 'inline-flex', gap: '0.35rem', justifyContent: 'flex-end', flexWrap: 'nowrap' }}>
                           <button
                             type="button"

@@ -3,13 +3,14 @@ from __future__ import annotations
 import math
 
 PELABUHAN_VEHICLE_ORDER = ("grandmax", "tronton", "fuso", "double", "engkle", "engkel")
-ROUTE_FEE_VEHICLE_ORDER = ("grandmax", "tronton", "fuso", "double", "engkle", "engkel")
+ROUTE_FEE_VEHICLE_ORDER = ("grandmax", "tronton", "fuso", "double", "engkle", "engkel", "viar")
 ROUTE_FEE_CATEGORY_LABELS = {
     "grandmax": "Grand Max",
     "engkle": "Engkle",
     "double": "Double",
     "fuso": "Fuso",
     "tronton": "Tronton",
+    "viar": "Viar",
 }
 PELABUHAN_MASTER_LABELS = {
     "grandmax": "Grand Max",

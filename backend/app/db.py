@@ -1010,7 +1010,8 @@ def ensure_schema() -> None:
                   ('parkir_kawasan', 'Engkle', 10000),
                   ('parkir_kawasan', 'Double', 10000),
                   ('parkir_kawasan', 'Fuso', 20000),
-                  ('parkir_kawasan', 'Tronton', 20000)
+                  ('parkir_kawasan', 'Tronton', 20000),
+                  ('parkir_kawasan', 'Viar', 10000)
                 ) AS v(fee_type, name, amount)
                 ON CONFLICT (fee_type, name) DO NOTHING
                 """

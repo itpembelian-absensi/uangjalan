@@ -246,7 +246,7 @@ const DeliveryRoutesList = () => {
           <h1 className="page-title">Daftar Rute Pengiriman</h1>
           <p className="page-subtitle">Kelola rute pengiriman dan buat uang jalan dari rute.</p>
         </div>
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+        <div className="page-header-actions" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           <button className="btn btn-secondary" onClick={fetchData} disabled={loading}>
             <RefreshCw size={18} className={loading ? 'spin' : ''} />
             Refresh
@@ -342,7 +342,7 @@ const DeliveryRoutesList = () => {
         </div>
 
         <div className="table-container" style={{ padding: 0 }}>
-          <table className="glass-table">
+          <table className="glass-table responsive-card-table">
             <thead>
               <tr>
                 <SortableTh id="route_no" label="No Rute" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
@@ -385,13 +385,13 @@ const DeliveryRoutesList = () => {
                   const tariffMsg = missingTariffMessage(r);
                   return (
                   <tr key={r.id}>
-                    <td style={{ fontWeight: 600 }}>{r.route_no}</td>
-                    <td>{formatRouteDate(r.date)}</td>
-                    <td>{r.vehicle_type_name || '-'}</td>
-                    <td style={{ whiteSpace: 'nowrap' }}>
+                    <td data-label="No Rute" style={{ fontWeight: 600 }}>{r.route_no}</td>
+                    <td data-label="Tanggal">{formatRouteDate(r.date)}</td>
+                    <td data-label="Jenis Kendaraan">{r.vehicle_type_name || '-'}</td>
+                    <td data-label="Rit" style={{ whiteSpace: 'nowrap' }}>
                       <span className="badge badge-blue" style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>Rit {r.ritase || 1}</span>
                     </td>
-                    <td>
+                    <td data-label="Stop">
                       <div style={{ fontWeight: 500 }}>{r.stops.length} customer</div>
                       {r.stops.length > 0 && (
                         <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px', lineHeight: '1.3' }}>
@@ -415,7 +415,7 @@ const DeliveryRoutesList = () => {
                         </div>
                       )}
                     </td>
-                    <td>
+                    <td data-label="Uang Jalan">
                       {r.sale_no ? (
                         <span style={{ display: 'inline-flex', flexDirection: 'column', gap: '0.15rem', alignItems: 'flex-start' }}>
                           {canGenerateSale ? (
@@ -461,7 +461,7 @@ const DeliveryRoutesList = () => {
                       )}
                     </td>
                     {showRouteActions && (
-                    <td style={{ textAlign: 'right' }}>
+                    <td data-label="Aksi" style={{ textAlign: 'right' }}>
                       <div
                         style={{
                           display: 'inline-flex',

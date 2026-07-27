@@ -101,6 +101,7 @@ ROUTE_FEE_DEFS: tuple[RouteFeeDef, ...] = (
             "double": 10000.0,
             "fuso": 20000.0,
             "tronton": 20000.0,
+            "viar": 10000.0,
         },
         seed_rows=(
             ("Grand Max", 10000),
@@ -108,6 +109,7 @@ ROUTE_FEE_DEFS: tuple[RouteFeeDef, ...] = (
             ("Double", 10000),
             ("Fuso", 20000),
             ("Tronton", 20000),
+            ("Viar", 10000),
         ),
     ),
 )

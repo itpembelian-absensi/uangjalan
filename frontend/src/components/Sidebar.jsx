@@ -83,7 +83,7 @@ function pathInGroup(group, pathname, menuPaths) {
   return children.some((c) => isNavItemActive(c.path, pathname, menuPaths));
 }
 
-const Sidebar = ({ onToggleHide }) => {
+const Sidebar = ({ onToggleHide, onMobileClose, isMobile = false }) => {
   const { user, logout } = useAuth();
   const { settings } = useAppSettings();
   const navigate = useNavigate();
@@ -181,6 +181,10 @@ const Sidebar = ({ onToggleHide }) => {
     });
   };
 
+  const handleNavClick = () => {
+    if (onMobileClose) onMobileClose();
+  };
+
   const renderNavLink = (item, { sub = false } = {}) => {
     const active = isNavItemActive(item.path, pathname, menuPaths);
     return (
@@ -188,6 +192,7 @@ const Sidebar = ({ onToggleHide }) => {
         key={item.id}
         to={item.path}
         className={`nav-link ${sub ? 'nav-link-sub' : ''} ${active ? 'active' : ''}`}
+        onClick={handleNavClick}
       >
         <MenuIcon name={item.icon} size={sub ? 16 : 20} />
         <span style={item.icon === 'Minus' ? { fontSize: '0.9rem' } : undefined}>
@@ -222,6 +227,7 @@ const Sidebar = ({ onToggleHide }) => {
           <Link
             to={item.path}
             className={`nav-link nav-link-group ${parentActive ? 'active' : ''}`}
+            onClick={handleNavClick}
           >
             <MenuIcon name={item.icon} size={20} />
             <span>{item.label}</span>
@@ -237,7 +243,7 @@ const Sidebar = ({ onToggleHide }) => {
   };
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${isMobile ? 'sidebar-mobile' : ''}`}>
       <div className="sidebar-brand">
         <div className="sidebar-brand-info">
           {settings.logo_base64 && (
@@ -305,7 +311,7 @@ const Sidebar = ({ onToggleHide }) => {
 
       <div className="sidebar-footer">
         {dbToolsAvailable && (
-          <Link to="/db-tools" className={`nav-link ${pathname === '/db-tools' ? 'active' : ''}`} style={{ marginBottom: '0.5rem', fontSize: '0.85rem' }}>
+          <Link to="/db-tools" className={`nav-link ${pathname === '/db-tools' ? 'active' : ''}`} style={{ marginBottom: '0.5rem', fontSize: '0.85rem' }} onClick={handleNavClick}>
             <Database size={16} />
             <span>DB Tools</span>
           </Link>
