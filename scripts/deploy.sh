@@ -37,6 +37,11 @@ sync_code() {
   log "Sync code"
   cd "${DEPLOY_PATH}"
 
+  # Bersihkan bytecode lokal agar git reset tidak gagal (file root-owned / dirty)
+  find backend -type d -name '__pycache__' -prune -exec rm -rf {} + 2>/dev/null || true
+  find backend -type f -name '*.pyc' -delete 2>/dev/null || true
+  rm -f actions.json jobs.json 2>/dev/null || true
+
   git remote -v
   git fetch origin "${BRANCH}" --tags --force
 
