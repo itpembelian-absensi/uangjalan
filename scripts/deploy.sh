@@ -65,7 +65,10 @@ build_frontend() {
   cd "${DEPLOY_PATH}/frontend"
 
   if [ -f package-lock.json ]; then
-    npm ci --no-audit --no-fund
+    if ! npm ci --no-audit --no-fund; then
+      log "npm ci gagal — fallback npm install (perbarui lock di repo jika perlu)"
+      npm install --no-audit --no-fund
+    fi
   else
     npm install --no-audit --no-fund
   fi
