@@ -1,7 +1,7 @@
 name: Deploy
 
 # Self-hosted runner harus terpasang di server produksi (/srv/docker/uangjalan).
-# Deploy: bersihkan junk → git sync → npm build frontend → docker compose restart.
+# Deploy: bersihkan junk â†’ git sync â†’ npm build frontend â†’ docker compose restart.
 # File .env tetap di server (tidak dihapus oleh workflow ini).
 
 on:
@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   deploy:
-    # Cukup label self-hosted — hindari job menggantung karena label custom hilang.
+    # Cukup label self-hosted â€” hindari job menggantung karena label custom hilang.
     # Opsional: tambahkan label "uangjalan" di runner, lalu ganti menjadi [self-hosted, uangjalan].
     runs-on: self-hosted
     timeout-minutes: 30
@@ -54,7 +54,7 @@ jobs:
           git config --global --add safe.directory "${DEPLOY_PATH}" 2>/dev/null || true
           git fetch origin "${BRANCH}" --tags --force
           if ! git reset --hard "${GIT_SHA}"; then
-            echo "==> git reset gagal — retry setelah chown"
+            echo "==> git reset gagal â€” retry setelah chown"
             sudo -n chown -R "$(id -u):$(id -g)" . 2>/dev/null || true
             clean_pycache
             git reset --hard "${GIT_SHA}"

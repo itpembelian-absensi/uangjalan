@@ -99,7 +99,7 @@ health_check() {
     fi
 
     if { [ "${api_code}" = "200" ] || [ "${api_code}" = "401" ]; } && [ "${frontend_ok}" -eq 1 ]; then
-      log "Deploy successful — API (${api_code}) + frontend OK on port 3215"
+      log "Deploy successful - API (${api_code}) + frontend OK on port 3215"
       docker compose ps
       return 0
     fi
@@ -122,7 +122,7 @@ run_migrations() {
   docker compose exec -T db sh -c 'until pg_isready -U postgres; do sleep 1; done'
 
   # Jalankan ALTER TABLE via psql di container db.
-  # IF NOT EXISTS / IF NOT EXISTS pattern — aman dijalankan berulang.
+  # IF NOT EXISTS / IF NOT EXISTS pattern - aman dijalankan berulang.
   docker compose exec -T db psql -U postgres -d uang_pengiriman -v ON_ERROR_STOP=0 <<'SQL'
 -- migrate_custom_toll
 ALTER TABLE customers ADD COLUMN IF NOT EXISTS custom_toll_breakdown TEXT;
