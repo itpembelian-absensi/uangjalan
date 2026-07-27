@@ -1,8 +1,6 @@
 name: Deploy
 
-# Self-hosted runner harus terpasang di server produksi (/srv/docker/uangjalan).
-# Deploy: bersihkan junk â†’ git sync â†’ npm build frontend â†’ docker compose restart.
-# File .env tetap di server (tidak dihapus oleh workflow ini).
+# Self-hosted runner di server produksi (/srv/docker/uangjalan).
 
 on:
   push:
@@ -15,8 +13,6 @@ concurrency:
 
 jobs:
   deploy:
-    # Cukup label self-hosted â€” hindari job menggantung karena label custom hilang.
-    # Opsional: tambahkan label "uangjalan" di runner, lalu ganti menjadi [self-hosted, uangjalan].
     runs-on: self-hosted
     timeout-minutes: 30
 
@@ -26,41 +22,54 @@ jobs:
           DEPLOY_PATH: /srv/docker/uangjalan
           GIT_SHA: ${{ github.sha }}
           BRANCH: main
+        shell: bash
         run: |
           set -euo pipefail
+
+          fail() {
+            echo "::error::$1"
+            exit 1
+          }
+
+          echo "==> host=$(hostname 2>/dev/null || echo unknown) user=$(whoami) pwd=$(pwd)"
+          echo "==> DEPLOY_PATH=${DEPLOY_PATH}"
+          echo "==> GIT_SHA=${GIT_SHA}"
+
+          command -v bash >/dev/null || fail "bash tidak ditemukan"
+          command -v git >/dev/null || fail "git tidak ditemukan"
+          command -v npm >/dev/null || fail "npm tidak ditemukan"
+          command -v docker >/dev/null || fail "docker tidak ditemukan"
+          docker compose version >/dev/null 2>&1 || fail "docker compose tidak tersedia"
+          command -v node >/dev/null || fail "node tidak ditemukan"
+          command -v curl >/dev/null || fail "curl tidak ditemukan"
+
+          [ -d "${DEPLOY_PATH}" ] || fail "Folder deploy tidak ada: ${DEPLOY_PATH}"
+          [ -d "${DEPLOY_PATH}/.git" ] || fail "Bukan git repo: ${DEPLOY_PATH}"
+          [ -f "${DEPLOY_PATH}/.env" ] || fail "File .env tidak ada di ${DEPLOY_PATH}"
+
           cd "${DEPLOY_PATH}"
 
-          echo "==> Pre-clean (agar git reset tidak gagal karena __pycache__/file kotor)"
-          # Hapus bytecode & junk; coba sudo -n jika file root-owned
-          clean_pycache() {
-            find backend -type d -name '__pycache__' -prune -print0 2>/dev/null \
-              | xargs -0 -r rm -rf 2>/dev/null || true
-            find backend -type f \( -name '*.pyc' -o -name '*.pyo' \) -delete 2>/dev/null || true
-            rm -f actions.json jobs.json 2>/dev/null || true
-          }
-          clean_pycache
-          if ! clean_pycache 2>/dev/null; then
-            true
-          fi
-          # Jika masih ada sisa yang tidak bisa dihapus runner-user, coba passwordless sudo
+          echo "==> Pre-clean __pycache__"
+          find backend -type d -name '__pycache__' -prune -exec rm -rf {} + 2>/dev/null || true
+          find backend -type f -name '*.pyc' -delete 2>/dev/null || true
+          rm -f actions.json jobs.json 2>/dev/null || true
           if find backend -type d -name '__pycache__' 2>/dev/null | grep -q .; then
-            echo "==> Mencoba sudo untuk bersihkan __pycache__ root-owned"
+            echo "==> sudo clean root-owned pycache"
             sudo -n find backend -type d -name '__pycache__' -prune -exec rm -rf {} + 2>/dev/null || true
-            sudo -n find backend -type f -name '*.pyc' -delete 2>/dev/null || true
             sudo -n chown -R "$(id -u):$(id -g)" backend scripts frontend .git 2>/dev/null || true
           fi
 
-          echo "==> Sync code ke ${GIT_SHA}"
+          echo "==> Sync ${GIT_SHA}"
           git config --global --add safe.directory "${DEPLOY_PATH}" 2>/dev/null || true
-          git fetch origin "${BRANCH}" --tags --force
+          git fetch origin "${BRANCH}" --tags --force || fail "git fetch gagal"
           if ! git reset --hard "${GIT_SHA}"; then
-            echo "==> git reset gagal â€” retry setelah chown"
+            echo "==> git reset gagal, retry chown"
             sudo -n chown -R "$(id -u):$(id -g)" . 2>/dev/null || true
-            clean_pycache
-            git reset --hard "${GIT_SHA}"
+            find backend -type d -name '__pycache__' -prune -exec rm -rf {} + 2>/dev/null || true
+            git reset --hard "${GIT_SHA}" || fail "git reset --hard gagal (izin file?)"
           fi
           echo "Active commit: $(git log -1 --oneline)"
-          test "$(git rev-parse HEAD)" = "${GIT_SHA}"
+          [ "$(git rev-parse HEAD)" = "${GIT_SHA}" ] || fail "HEAD tidak sama dengan GIT_SHA"
 
-          echo "==> Jalankan deploy.sh (sudah versi commit ini)"
-          bash "${DEPLOY_PATH}/scripts/deploy.sh"
+          echo "==> Run deploy.sh"
+          bash "${DEPLOY_PATH}/scripts/deploy.sh" || fail "deploy.sh gagal (cek log di atas)"
