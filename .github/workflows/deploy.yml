@@ -72,4 +72,16 @@ jobs:
           [ "$(git rev-parse HEAD)" = "${GIT_SHA}" ] || fail "HEAD tidak sama dengan GIT_SHA"
 
           echo "==> Run deploy.sh"
-          bash "${DEPLOY_PATH}/scripts/deploy.sh" || fail "deploy.sh gagal (cek log di atas)"
+          set +e
+          bash "${DEPLOY_PATH}/scripts/deploy.sh" 2>&1 | tee /tmp/uangjalan-deploy.log
+          code=${PIPESTATUS[0]}
+          set -e
+          if [ "${code}" -ne 0 ]; then
+            echo "## Deploy.sh gagal (exit ${code})" >> "${GITHUB_STEP_SUMMARY}"
+            echo '```' >> "${GITHUB_STEP_SUMMARY}"
+            tail -n 40 /tmp/uangjalan-deploy.log >> "${GITHUB_STEP_SUMMARY}" || true
+            echo '```' >> "${GITHUB_STEP_SUMMARY}"
+            last="$(tail -n 5 /tmp/uangjalan-deploy.log | tr '\n' ' | ' | cut -c1-200)"
+            fail "deploy.sh exit ${code}: ${last}"
+          fi
+          echo "==> Deploy selesai"
