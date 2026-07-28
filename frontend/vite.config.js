@@ -57,6 +57,7 @@ export default defineConfig({
         // Cache app shell (JS/CSS/HTML/fonts). API tetap network-first (tidak di-cache).
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
         navigateFallback: '/index.html',
+        navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
           {
             urlPattern: ({ url }) => url.pathname.startsWith('/api/'),
