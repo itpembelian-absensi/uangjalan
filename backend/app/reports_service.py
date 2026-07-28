@@ -13,6 +13,7 @@ from app.delivery_route_service import (
 from app.models import (
     CashDisbursement,
     Customer,
+    CustomerVehicleTariff,
     DeliveryRoute,
     DeliveryRouteStop,
     Driver,
@@ -214,3 +215,65 @@ def delivery_route_report(
         "routes": route_rows,
         "stop_rows": stop_rows,
     }
+
+
+def customer_tariff_report(
+    db: Session,
+    *,
+    customer_id: int | None = None,
+    active_only: bool = True,
+    filled_only: bool = True,
+) -> list[dict]:
+    """Master tarif uang jalan per customer × jenis kendaraan."""
+    stmt = (
+        select(
+            Customer.id.label("customer_id"),
+            Customer.code.label("customer_code"),
+            Customer.name.label("customer_name"),
+            Customer.is_active,
+            VehicleType.id.label("vehicle_type_id"),
+            VehicleType.name.label("vehicle_type_name"),
+            CustomerVehicleTariff.bbm,
+            CustomerVehicleTariff.tol,
+            CustomerVehicleTariff.uang_mel,
+            CustomerVehicleTariff.parkir,
+            CustomerVehicleTariff.lain_lain,
+            CustomerVehicleTariff.uang_jalan,
+        )
+        .select_from(CustomerVehicleTariff)
+        .join(Customer, Customer.id == CustomerVehicleTariff.customer_id)
+        .join(VehicleType, VehicleType.id == CustomerVehicleTariff.vehicle_type_id)
+        .order_by(Customer.code.asc().nulls_last(), Customer.name.asc(), VehicleType.name.asc())
+    )
+    if customer_id:
+        stmt = stmt.where(Customer.id == customer_id)
+    if active_only:
+        stmt = stmt.where(Customer.is_active.is_(True))
+    if filled_only:
+        stmt = stmt.where(
+            (CustomerVehicleTariff.uang_jalan > 0)
+            | (CustomerVehicleTariff.bbm > 0)
+            | (CustomerVehicleTariff.tol > 0)
+            | (CustomerVehicleTariff.uang_mel > 0)
+            | (CustomerVehicleTariff.parkir > 0)
+            | (CustomerVehicleTariff.lain_lain > 0)
+        )
+
+    rows = db.execute(stmt).all()
+    return [
+        {
+            "customer_id": int(r.customer_id),
+            "customer_code": r.customer_code,
+            "customer_name": r.customer_name,
+            "is_active": bool(r.is_active),
+            "vehicle_type_id": int(r.vehicle_type_id),
+            "vehicle_type_name": r.vehicle_type_name,
+            "bbm": float(r.bbm or 0),
+            "tol": float(r.tol or 0),
+            "uang_mel": float(r.uang_mel or 0),
+            "parkir": float(r.parkir or 0),
+            "lain_lain": float(r.lain_lain or 0),
+            "uang_jalan": float(r.uang_jalan or 0),
+        }
+        for r in rows
+    ]

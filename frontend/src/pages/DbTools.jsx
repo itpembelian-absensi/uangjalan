@@ -7,7 +7,7 @@ const DbTools = () => {
   const [status, setStatus] = useState(null);
   const [backupJob, setBackupJob] = useState(null);
   const [restoreResult, setRestoreResult] = useState(null);
-  const [loading, setLoading] = useState({ status: false, backup: false, restore: false });
+  const [loading, setLoading] = useState({ status: false, backup: false, restore: false, download: false });
   const [error, setError] = useState(null);
   const [ready, setReady] = useState(false);
   const fileInputRef = useRef(null);
@@ -68,8 +68,47 @@ const DbTools = () => {
     }
   };
 
-  const downloadBackup = () => {
-    if (backupJob?.download_url) window.open(backupJob.download_url, '_blank');
+  const downloadBackup = async () => {
+    const url = backupJob?.download_url;
+    if (!url) {
+      setError('URL download tidak tersedia. Buat backup ulang.');
+      return;
+    }
+    setLoading((l) => ({ ...l, download: true }));
+    setError(null);
+    try {
+      const res = await fetch(url, { credentials: 'include' });
+      if (!res.ok) {
+        let detail = `Download gagal (HTTP ${res.status})`;
+        try {
+          const data = await res.json();
+          if (data?.detail) detail = typeof data.detail === 'string' ? data.detail : detail;
+        } catch {
+          /* ignore */
+        }
+        throw new Error(detail);
+      }
+      const blob = await res.blob();
+      if (!blob || blob.size === 0) {
+        throw new Error('File backup kosong atau tidak terbaca.');
+      }
+      const filename =
+        backupJob.filename ||
+        res.headers.get('Content-Disposition')?.match(/filename="?([^"]+)"?/)?.[1] ||
+        'backup.sql';
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch (e) {
+      setError(e.message || 'Gagal mengunduh backup.');
+    } finally {
+      setLoading((l) => ({ ...l, download: false }));
+    }
   };
 
   const triggerRestore = async () => {
@@ -177,8 +216,13 @@ const DbTools = () => {
                   <span style={styles.resultLabel}>Ukuran</span>
                   <span style={styles.resultValue}>{formatBytes(backupJob.file_size)}</span>
                 </div>
-                <button onClick={downloadBackup} style={styles.btnSecondary}>
-                  <Download size={14} /> Download
+                <button
+                  onClick={downloadBackup}
+                  disabled={loading.download}
+                  style={styles.btnSecondary}
+                >
+                  <Download size={14} />
+                  {loading.download ? 'Mengunduh...' : 'Download'}
                 </button>
               </div>
             )}

@@ -75,6 +75,7 @@ from app.delivery_route_service import (
 )
 from app.reports_service import (
     customer_summary,
+    customer_tariff_report,
     delivery_route_report,
     disbursement_detail,
     driver_summary,
@@ -82,6 +83,7 @@ from app.reports_service import (
 from app.routing_service import (
     VEHICLE_TOLL_CLASS,
     _match_toll_vehicle_key,
+    _driving_distance,
     build_toll_road_overlays,
     calculate_route,
     calculate_route_chained,
@@ -103,7 +105,10 @@ from app.schemas import (
     CustomerBulkImport,
     CustomerUnlockAllOut,
     CustomerLockAllOut,
+    CustomerLockRestoreStatusOut,
+    CustomerRelockPreviousOut,
     CustomerSummaryRow,
+    CustomerTariffReportRow,
     CustomerTariffItem,
     CustomerTariffOut,
     DisbursementDetailRow,
@@ -270,6 +275,7 @@ def _build_corridor_route(
     force_toll: bool,
     vehicle_types,
     note_prefix: str | None = None,
+    distance_provider: str = "osrm",
 ) -> tuple[dict, list[dict]]:
     gates = gate_context.get("gates") or []
     manual = build_manual_toll_breakdown(
@@ -315,6 +321,7 @@ def _build_corridor_route(
             gate_context=gate_context,
             prefer_cheapest_toll=False,
             waypoints=None,
+            distance_provider="osrm",
         )
 
     toll_note = manual.get("toll_note") or (
@@ -323,7 +330,7 @@ def _build_corridor_route(
     if note_prefix:
         toll_note = f"{note_prefix} {toll_note}"
     if route_via_toll_gates and corridor_used:
-        toll_note = f"Jarak & peta mengikuti koridor gerbang tol. {toll_note}"
+        toll_note = f"Jarak & peta mengikuti koridor gerbang tol (OSRM). {toll_note}"
     elif route_via_toll_gates and not corridor_used:
         route_via_toll_gates = False
         toll_note = (
@@ -332,9 +339,54 @@ def _build_corridor_route(
         )
     else:
         toll_note = (
-            "Koordinat gerbang tol belum lengkap — jarak dari rute langsung. "
+            "Koordinat gerbang tol belum lengkap — jarak & peta dari rute OSRM langsung. "
             + toll_note
         )
+
+    provider = (distance_provider or "osrm").strip().lower()
+    route_km = float(route.get("distance_km") or 0)
+    route_dur = float(route.get("duration_min") or 0)
+    route["distance_km_route"] = route_km
+    route["duration_min_route"] = route_dur
+
+    # Selalu sediakan jarak langsung (≈ Google) untuk perbandingan di UI
+    try:
+        direct = _driving_distance(
+            origin_lat, origin_lng, dest_lat, dest_lng, provider="osrm_direct"
+        )
+        route["distance_km_direct"] = float(direct["distance_km"])
+        route["duration_min_direct"] = float(direct["duration_min"] or 0)
+    except Exception:
+        route["distance_km_direct"] = route_km
+        route["duration_min_direct"] = route_dur
+
+    if provider in ("google", "osrm_direct", "direct"):
+        # Jarak BBM diganti; peta/koridor tetap OSRM visual
+        driving = _driving_distance(
+            origin_lat,
+            origin_lng,
+            dest_lat,
+            dest_lng,
+            provider="google" if provider == "google" else "osrm_direct",
+        )
+        route["distance_km"] = driving["distance_km"]
+        route["duration_min"] = driving["duration_min"]
+        route["distance_source"] = driving["source"]
+        if driving["source"] == "google":
+            route["distance_km_direct"] = float(driving["distance_km"])
+            route["duration_min_direct"] = float(driving["duration_min"] or 0)
+            toll_note = (
+                f"Jarak BBM dari Google Maps ({driving['distance_km']} km). " + toll_note
+            )
+        else:
+            toll_note = (
+                f"Jarak BBM dari OSRM langsung ({driving['distance_km']} km), "
+                f"mendekati Google Maps. " + toll_note
+            )
+    else:
+        route["distance_source"] = "osrm"
+        route["distance_km"] = route_km
+        route["duration_min"] = route_dur
 
     toll_by_vehicle_raw = _toll_by_vehicle_from_manual_segments(
         custom_segments,
@@ -856,6 +908,32 @@ def refresh_stale_customer_toll(db: Session = Depends(get_db)):
     }
 
 
+@router.get("/customers/lock-restore-status", response_model=CustomerLockRestoreStatusOut)
+def finance_lock_restore_status(
+    user: User = Depends(require_permission("customers:read")),
+    db: Session = Depends(get_db),
+):
+    """Status snapshot customer yang menunggu dikunci kembali setelah unlock-all.
+
+    Harus dideklarasikan sebelum ``/customers/{customer_id}`` agar path tidak
+    tertangkap sebagai ID.
+    """
+    if user.role != Role.ADMIN.value:
+        raise HTTPException(
+            status_code=403,
+            detail="Hanya Admin yang dapat melihat status kunci kembali.",
+        )
+    pending = _finance_lock_restore_ids(db)
+    return CustomerLockRestoreStatusOut(
+        pending_count=len(pending),
+        message=(
+            f"{len(pending)} customer menunggu dikunci kembali."
+            if pending
+            else "Tidak ada antrian kunci kembali."
+        ),
+    )
+
+
 @router.get("/customers/{customer_id}", response_model=CustomerOut)
 def get_customer(customer_id: int, db: Session = Depends(get_db)):
     obj = db.get(Customer, customer_id)
@@ -1015,29 +1093,79 @@ def update_customer(customer_id: int, payload: CustomerCreate, db: Session = Dep
     return _serialize_customer(db, obj)
 
 
+def _get_or_create_app_setting(db: Session) -> AppSetting:
+    setting = db.scalars(select(AppSetting).limit(1)).first()
+    if setting:
+        return setting
+    setting = AppSetting()
+    db.add(setting)
+    db.flush()
+    return setting
+
+
+def _finance_lock_restore_ids(db: Session) -> list[int]:
+    setting = db.scalars(select(AppSetting).limit(1)).first()
+    raw = (setting.finance_lock_restore_ids if setting else None) or ""
+    raw = raw.strip()
+    if not raw:
+        return []
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(data, list):
+        return []
+    ids: list[int] = []
+    for item in data:
+        try:
+            ids.append(int(item))
+        except (TypeError, ValueError):
+            continue
+    return ids
+
+
+def _set_finance_lock_restore_ids(db: Session, ids: list[int] | None) -> None:
+    setting = _get_or_create_app_setting(db)
+    if not ids:
+        setting.finance_lock_restore_ids = None
+    else:
+        setting.finance_lock_restore_ids = json.dumps(sorted({int(i) for i in ids}))
+
+
 @router.post("/customers/unlock-all", response_model=CustomerUnlockAllOut)
 def unlock_all_customers(
     user: User = Depends(require_permission("customers:write")),
     db: Session = Depends(get_db),
 ):
-    """Buka kunci Finance (Final) untuk SEMUA Master Customer — hanya Admin. Kunci Marketing tidak diubah."""
+    """Buka kunci Finance (Final) untuk SEMUA Master Customer — hanya Admin.
+
+    Menyimpan daftar ID yang dibuka agar bisa dikunci kembali lewat
+    ``relock-previous`` setelah sinkronisasi. Kunci Marketing tidak diubah.
+    """
     if user.role != Role.ADMIN.value:
         raise HTTPException(
             status_code=403,
             detail="Hanya Admin yang dapat membuka kunci semua Master Customer.",
         )
 
-    locked_finance_count = db.scalar(
-        select(func.count()).select_from(Customer).where(Customer.is_locked_finance.is_(True))
-    ) or 0
+    locked_ids = list(
+        db.scalars(select(Customer.id).where(Customer.is_locked_finance.is_(True))).all()
+    )
+    locked_finance_count = len(locked_ids)
 
     if locked_finance_count == 0:
+        pending = _finance_lock_restore_ids(db)
         return CustomerUnlockAllOut(
             unlocked_count=0,
             unlocked_finance_count=0,
             unlocked_marketing_count=0,
+            restore_pending_count=len(pending),
             message="Tidak ada Master Customer yang terkunci Finance.",
         )
+
+    previous = set(_finance_lock_restore_ids(db))
+    merged = sorted(previous | set(locked_ids))
+    _set_finance_lock_restore_ids(db, merged)
 
     db.execute(
         update(Customer)
@@ -1054,7 +1182,79 @@ def unlock_all_customers(
         unlocked_count=locked_finance_count,
         unlocked_finance_count=locked_finance_count,
         unlocked_marketing_count=0,
-        message=f"Berhasil membuka kunci Finance {locked_finance_count} Master Customer.",
+        restore_pending_count=len(merged),
+        message=(
+            f"Berhasil membuka kunci Finance {locked_finance_count} Master Customer. "
+            f"Setelah sync, gunakan 'Kunci Kembali Sebelumnya' "
+            f"({len(merged)} customer)."
+        ),
+    )
+
+
+@router.post("/customers/relock-previous", response_model=CustomerRelockPreviousOut)
+def relock_previous_finance_customers(
+    user: User = Depends(require_permission("customers:write")),
+    db: Session = Depends(get_db),
+):
+    """Kunci ulang Finance hanya untuk customer yang sebelumnya dibuka via unlock-all."""
+    if user.role != Role.ADMIN.value:
+        raise HTTPException(
+            status_code=403,
+            detail="Hanya Admin yang dapat mengunci kembali customer sebelumnya.",
+        )
+
+    restore_ids = _finance_lock_restore_ids(db)
+    if not restore_ids:
+        return CustomerRelockPreviousOut(
+            locked_count=0,
+            message="Tidak ada antrian kunci kembali. Buka kunci semua dulu sebelum sync.",
+        )
+
+    existing_rows = list(
+        db.scalars(select(Customer).where(Customer.id.in_(restore_ids))).all()
+    )
+    existing_ids = {c.id for c in existing_rows}
+    skipped_missing = len(restore_ids) - len(existing_ids)
+
+    already_locked = [c for c in existing_rows if c.is_locked_finance]
+    to_lock = [c for c in existing_rows if not c.is_locked_finance]
+
+    if to_lock:
+        lock_ids = [c.id for c in to_lock]
+        db.execute(
+            update(Customer)
+            .where(Customer.id.in_(lock_ids))
+            .values(
+                is_locked_finance=True,
+                is_locked_marketing=True,
+                updated_at=func.now(),
+                updated_by_id=user.id,
+            )
+        )
+
+    _set_finance_lock_restore_ids(db, None)
+    db.commit()
+
+    locked_count = len(to_lock)
+    skipped_already = len(already_locked)
+    return CustomerRelockPreviousOut(
+        locked_count=locked_count,
+        skipped_already_locked=skipped_already,
+        skipped_missing=skipped_missing,
+        pending_count=0,
+        message=(
+            f"Berhasil mengunci kembali {locked_count} Master Customer"
+            + (
+                f" ({skipped_already} sudah terkunci sebelumnya)."
+                if skipped_already
+                else "."
+            )
+            + (
+                f" {skipped_missing} ID tidak ditemukan (mungkin sudah dihapus)."
+                if skipped_missing
+                else ""
+            )
+        ),
     )
 
 
@@ -1104,6 +1304,7 @@ def lock_all_customers(
             updated_by_id=user.id,
         )
     )
+    _set_finance_lock_restore_ids(db, None)
     db.commit()
 
     return CustomerLockAllOut(
@@ -1711,6 +1912,23 @@ def report_by_customer(
     db: Session = Depends(get_db),
 ):
     return customer_summary(db, from_date, to_date)
+
+
+@router.get("/reports/customer-tariffs", response_model=list[CustomerTariffReportRow])
+def report_customer_tariffs(
+    customer_id: int | None = None,
+    active_only: bool = Query(True),
+    filled_only: bool = Query(True),
+    db: Session = Depends(get_db),
+    _user: User = Depends(require_permission("reports:read")),
+):
+    """Master tarif uang jalan per customer (BBM, Tol, Uang Mel, Parkir, Lain-lain)."""
+    return customer_tariff_report(
+        db,
+        customer_id=customer_id,
+        active_only=active_only,
+        filled_only=filled_only,
+    )
 
 
 @router.get("/reports/disbursements", response_model=list[DisbursementDetailRow])
@@ -2613,6 +2831,7 @@ def process_route(
             force_toll=bool(payload.force_toll),
             vehicle_types=vehicle_types,
             note_prefix=note_prefix,
+            distance_provider=(payload.distance_provider or "osrm"),
         )
         route["route_profile"] = profile_key
     else:
@@ -2625,6 +2844,7 @@ def process_route(
             force_toll=payload.force_toll,
             gate_context=gate_context,
             prefer_cheapest_toll=bool(payload.prefer_cheapest_toll),
+            distance_provider=(payload.distance_provider or "osrm"),
         )
         route["route_profile"] = profile_key if profile_key not in ("auto", "") else None
         route["route_via_toll_gates"] = False
@@ -2780,11 +3000,17 @@ def recalculate_route_with_sections(
         gate_context=gate_context,
         force_toll=bool(payload.force_toll),
         vehicle_types=vehicle_types,
+        distance_provider=(payload.distance_provider or "osrm"),
     )
 
     return RouteRecalculateOut(
         distance_km=route["distance_km"],
         duration_min=route["duration_min"],
+        distance_source=route.get("distance_source") or "osrm",
+        distance_km_route=route.get("distance_km_route"),
+        duration_min_route=route.get("duration_min_route"),
+        distance_km_direct=route.get("distance_km_direct"),
+        duration_min_direct=route.get("duration_min_direct"),
         geometry=route.get("geometry") or [],
         toll_roads=route.get("toll_roads") or [],
         toll_breakdown=route["toll_breakdown"],

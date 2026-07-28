@@ -889,7 +889,13 @@ def geocode_address(address: str | None, kelurahan: str | None = None, kecamatan
     return float(best["lat"]), float(best["lon"])
 
 
-def _google_toll_idr(origin_lat: float, origin_lng: float, dest_lat: float, dest_lng: float) -> float | None:
+def _google_route_metrics(
+    origin_lat: float,
+    origin_lng: float,
+    dest_lat: float,
+    dest_lng: float,
+) -> dict[str, float | None] | None:
+    """Ambil jarak/durasi/tarif tol dari Google Routes API (sekali per pasangan koordinat)."""
     if not settings.google_maps_api_key:
         return None
 
@@ -920,16 +926,123 @@ def _google_toll_idr(origin_lat: float, origin_lng: float, dest_lat: float, dest
     routes = data.get("routes") or []
     if not routes:
         return None
-    toll_info = routes[0].get("travelAdvisory", {}).get("tollInfo", {})
+
+    route0 = routes[0]
+    distance_m = route0.get("distanceMeters")
+    distance_km = round(float(distance_m) / 1000, 2) if distance_m is not None else None
+
+    duration_min = None
+    duration_raw = route0.get("duration")  # e.g. "3345s"
+    if isinstance(duration_raw, str) and duration_raw.endswith("s"):
+        try:
+            duration_min = round(float(duration_raw[:-1]) / 60, 1)
+        except ValueError:
+            duration_min = None
+
+    toll_idr = 0.0
+    toll_info = route0.get("travelAdvisory", {}).get("tollInfo", {}) or {}
     money = toll_info.get("estimatedPrice") or []
-    if not money:
-        return 0.0
-    total = 0.0
-    for entry in money:
-        units = float(entry.get("units") or 0)
-        nanos = float(entry.get("nanos") or 0) / 1_000_000_000
-        total += units + nanos
-    return round(total, 0)
+    if money:
+        total = 0.0
+        for entry in money:
+            units = float(entry.get("units") or 0)
+            nanos = float(entry.get("nanos") or 0) / 1_000_000_000
+            total += units + nanos
+        toll_idr = round(total, 0)
+
+    return {
+        "distance_km": distance_km,
+        "duration_min": duration_min,
+        "toll_idr": toll_idr,
+    }
+
+
+@lru_cache(maxsize=256)
+def _google_route_metrics_cached(
+    origin_lat: float,
+    origin_lng: float,
+    dest_lat: float,
+    dest_lng: float,
+) -> tuple[float | None, float | None, float | None]:
+    metrics = _google_route_metrics(origin_lat, origin_lng, dest_lat, dest_lng)
+    if not metrics:
+        return (None, None, None)
+    return (
+        metrics.get("distance_km"),
+        metrics.get("duration_min"),
+        metrics.get("toll_idr"),
+    )
+
+
+def _google_toll_idr(origin_lat: float, origin_lng: float, dest_lat: float, dest_lng: float) -> float | None:
+    """Kompatibilitas: tarif tol Google (None jika API gagal / key kosong)."""
+    if not settings.google_maps_api_key:
+        return None
+    _dist, _dur, toll = _google_route_metrics_cached(
+        round(origin_lat, 5),
+        round(origin_lng, 5),
+        round(dest_lat, 5),
+        round(dest_lng, 5),
+    )
+    return toll
+
+
+def _driving_distance(
+    origin_lat: float,
+    origin_lng: float,
+    dest_lat: float,
+    dest_lng: float,
+    *,
+    provider: str = "osrm",
+) -> dict[str, float | str]:
+    """Jarak berkendara gudang→customer (rute langsung, tanpa waypoint gerbang).
+
+    provider:
+      - ``osrm`` / ``osrm_direct``: OSRM rute langsung (gratis, mendekati Google Maps)
+      - ``google``: Google Routes API (wajib API key)
+    """
+    provider_key = (provider or "osrm").strip().lower()
+    if provider_key == "google":
+        if not settings.google_maps_api_key:
+            raise HTTPException(
+                status_code=400,
+                detail="GOOGLE_MAPS_API_KEY belum dikonfigurasi di server.",
+            )
+        g_dist, g_dur, _toll = _google_route_metrics_cached(
+            round(origin_lat, 5),
+            round(origin_lng, 5),
+            round(dest_lat, 5),
+            round(dest_lng, 5),
+        )
+        if g_dist is None or g_dist <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Gagal menghitung jarak via Google Maps. Coba lagi atau pakai OSRM langsung.",
+            )
+        return {
+            "distance_km": float(g_dist),
+            "duration_min": float(g_dur) if g_dur is not None else 0.0,
+            "source": "google",
+        }
+
+    # osrm / osrm_direct / direct → rute OSRM tanpa waypoint
+    dist, dur, _geom = _osrm_route_fast(origin_lat, origin_lng, dest_lat, dest_lng, None)
+    source = "osrm_direct" if provider_key in ("osrm_direct", "direct") else "osrm"
+    return {
+        "distance_km": float(dist),
+        "duration_min": float(dur),
+        "source": source,
+    }
+
+
+def _driving_distance_prefer_google(
+    origin_lat: float,
+    origin_lng: float,
+    dest_lat: float,
+    dest_lng: float,
+) -> dict[str, float | str]:
+    """Deprecated alias — default sekarang OSRM; Google hanya jika diminta eksplisit."""
+    return _driving_distance(origin_lat, origin_lng, dest_lat, dest_lng, provider="osrm")
 
 
 def _is_toll_step(step: dict) -> bool:
@@ -1434,6 +1547,7 @@ def calculate_route(
     gate_context: dict | None = None,
     prefer_cheapest_toll: bool = False,
     waypoints: list[tuple[float, float]] | None = None,
+    distance_provider: str = "osrm",
 ) -> dict:
     coord_parts = [f"{origin_lng},{origin_lat}"]
     if waypoints:
@@ -1499,5 +1613,50 @@ def calculate_route(
             f"Dipilih rute tol termurah dari {len(routes)} alternatif OSRM.{savings_text} "
             + (result.get("toll_note") or "")
         )
+
+    # Simpan jarak rute OSRM + jarak langsung untuk perbandingan di UI
+    route_km = float(result.get("distance_km") or 0)
+    route_dur = float(result.get("duration_min") or 0)
+    result["distance_km_route"] = route_km
+    result["duration_min_route"] = route_dur
+    try:
+        direct = _driving_distance(
+            origin_lat, origin_lng, dest_lat, dest_lng, provider="osrm_direct"
+        )
+        result["distance_km_direct"] = float(direct["distance_km"])
+        result["duration_min_direct"] = float(direct["duration_min"] or 0)
+    except Exception:
+        result["distance_km_direct"] = route_km
+        result["duration_min_direct"] = route_dur
+
+    provider = (distance_provider or "osrm").strip().lower()
+    if provider in ("google", "osrm_direct", "direct"):
+        driving = _driving_distance(
+            origin_lat,
+            origin_lng,
+            dest_lat,
+            dest_lng,
+            provider="google" if provider == "google" else "osrm_direct",
+        )
+        result["distance_km"] = driving["distance_km"]
+        if driving["duration_min"]:
+            result["duration_min"] = driving["duration_min"]
+        result["distance_source"] = driving["source"]
+        if driving["source"] == "google":
+            result["distance_km_direct"] = float(driving["distance_km"])
+            result["duration_min_direct"] = float(driving["duration_min"] or 0)
+        note = result.get("toll_note") or ""
+        if driving["source"] == "google":
+            label = f"Jarak BBM dari Google Maps ({driving['distance_km']} km)."
+        else:
+            label = (
+                f"Jarak BBM dari OSRM langsung ({driving['distance_km']} km), "
+                "mendekati Google Maps."
+            )
+        result["toll_note"] = f"{label} {note}".strip()
+    else:
+        result["distance_source"] = "osrm"
+        result["distance_km"] = route_km
+        result["duration_min"] = route_dur
 
     return result

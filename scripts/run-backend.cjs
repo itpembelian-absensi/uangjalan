@@ -17,7 +17,7 @@ if (!fs.existsSync(python)) {
 
 const child = spawn(
   python,
-  ["-m", "uvicorn", "app.main:app", "--reload", "--host", "127.0.0.1", "--port", "8001"],
+  ["-m", "uvicorn", "app.main:app", "--reload", "--host", "127.0.0.1", "--port", "8002"],
   { cwd: backendDir, stdio: "inherit", shell: false, windowsHide: true }
 );
 

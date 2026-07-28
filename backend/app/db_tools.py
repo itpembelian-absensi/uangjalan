@@ -182,9 +182,12 @@ def download_backup(backup_id: str):
 
     return FileResponse(
         path=job.file_path,
-        media_type="application/sql",
+        media_type="application/octet-stream",
         filename=job.filename,
-        headers={"Content-Disposition": f'attachment; filename="{job.filename}"'},
+        headers={
+            "Content-Disposition": f'attachment; filename="{job.filename}"',
+            "Cache-Control": "no-store",
+        },
     )
 
 

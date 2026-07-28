@@ -40,7 +40,7 @@ function start() {
       "--host",
       "127.0.0.1",
       "--port",
-      "8001",
+      "8002",
       "--reload",
       "--reload-dir",
       "app",

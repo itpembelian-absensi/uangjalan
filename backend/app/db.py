@@ -11,8 +11,29 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 
 def ensure_schema() -> None:
+    """Terapkan migrasi ringan; retry jika deadlock (uvicorn --reload / restart ganda)."""
+    import time
+
+    last_err: BaseException | None = None
+    for attempt in range(8):
+        try:
+            _ensure_schema_locked()
+            return
+        except Exception as e:
+            msg = str(e).lower()
+            if "40p01" not in msg and "deadlock" not in msg:
+                raise
+            last_err = e
+            time.sleep(0.5 * (attempt + 1))
+    if last_err is not None:
+        raise last_err
+
+
+def _ensure_schema_locked() -> None:
     """Terapkan migrasi ringan yang dibutuhkan aplikasi."""
     with engine.begin() as conn:
+        # Satu proses migrasi pada satu waktu (hindari deadlock ALTER antar proses)
+        conn.execute(text("SELECT pg_advisory_xact_lock(872314001)"))
         conn.execute(
             text(
                 """
@@ -1106,6 +1127,14 @@ def ensure_schema() -> None:
                 """
                 ALTER TABLE app_settings
                 ADD COLUMN IF NOT EXISTS finance_can_unlock_customer BOOLEAN NOT NULL DEFAULT FALSE
+                """
+            )
+        )
+        conn.execute(
+            text(
+                """
+                ALTER TABLE app_settings
+                ADD COLUMN IF NOT EXISTS finance_lock_restore_ids TEXT
                 """
             )
         )

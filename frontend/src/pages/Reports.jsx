@@ -7,6 +7,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import DeliveryRouteReportTab from './DeliveryRouteReportTab';
+import CustomerTariffReportTab from './CustomerTariffReportTab';
 import TablePager from '../components/TablePager';
 import { computeUangJalanTotals } from '../utils/saleExport';
 import { sumRouteFees } from '../utils/routeFeeConfig';
@@ -514,7 +515,9 @@ const Reports = () => {
           <p>
             {activeTab === 'routes'
               ? 'Laporan ringkasan dan detail rute pengiriman'
-              : 'Laporan ringkasan dan detail transaksi uang jalan'}
+              : activeTab === 'tariffs'
+                ? 'Master tarif uang jalan per customer dan jenis kendaraan'
+                : 'Laporan ringkasan dan detail transaksi uang jalan'}
           </p>
         </div>
         {activeTab === 'sales' && canSalesReport && (
@@ -545,17 +548,25 @@ const Reports = () => {
         )}
       </div>
 
-      {(canSalesReport && canRouteReport) && (
+      {canSalesReport && (
         <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
           <button type="button" style={tabStyle('sales')} onClick={() => setActiveTab('sales')}>
             <FileText size={16} /> Uang Jalan
           </button>
-          <button type="button" style={tabStyle('routes')} onClick={() => setActiveTab('routes')}>
-            <MapPinned size={16} /> Rute Pengiriman
+          <button type="button" style={tabStyle('tariffs')} onClick={() => setActiveTab('tariffs')}>
+            <Users size={16} /> Tarif Customer
           </button>
+          {canRouteReport && (
+            <button type="button" style={tabStyle('routes')} onClick={() => setActiveTab('routes')}>
+              <MapPinned size={16} /> Rute Pengiriman
+            </button>
+          )}
         </div>
       )}
 
+      {activeTab === 'tariffs' && canSalesReport && <CustomerTariffReportTab />}
+
+      {activeTab !== 'tariffs' && (
       <GlassCard style={{ marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap', padding: '0.5rem 0' }}>
           <div className="form-group" style={{ marginBottom: 0, flex: '1 1 180px' }}>
@@ -598,6 +609,7 @@ const Reports = () => {
           )}
         </div>
       </GlassCard>
+      )}
 
       {activeTab === 'routes' && canRouteReport && (
         <DeliveryRouteReportTab fromDate={fromDate} toDate={toDate} />

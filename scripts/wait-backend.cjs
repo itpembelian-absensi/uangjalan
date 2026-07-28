@@ -1,10 +1,10 @@
 /**
- * Tunggu backend siap di port 8001 sebelum frontend memanggil /api
+ * Tunggu backend siap di port 8002 sebelum frontend memanggil /api
  */
 const http = require("http");
 
 const host = "127.0.0.1";
-const port = 8001;
+const port = 8002;
 const maxAttempts = 90;
 
 let attempts = 0;

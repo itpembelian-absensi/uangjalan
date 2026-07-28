@@ -62,6 +62,7 @@ class CustomerUnlockAllOut(BaseModel):
     unlocked_count: int
     unlocked_finance_count: int
     unlocked_marketing_count: int
+    restore_pending_count: int = 0
     message: str
 
 
@@ -69,6 +70,19 @@ class CustomerLockAllOut(BaseModel):
     locked_count: int
     locked_finance_count: int
     marketing_ensured_count: int
+    message: str
+
+
+class CustomerLockRestoreStatusOut(BaseModel):
+    pending_count: int
+    message: str
+
+
+class CustomerRelockPreviousOut(BaseModel):
+    locked_count: int
+    skipped_already_locked: int = 0
+    skipped_missing: int = 0
+    pending_count: int = 0
     message: str
 
 
@@ -297,6 +311,21 @@ class CustomerSummaryRow(BaseModel):
     customer_name: str
     delivery_count: int
     total_amount: float
+
+
+class CustomerTariffReportRow(BaseModel):
+    customer_id: int
+    customer_code: str | None = None
+    customer_name: str
+    is_active: bool = True
+    vehicle_type_id: int
+    vehicle_type_name: str
+    bbm: float = 0
+    tol: float = 0
+    uang_mel: float = 0
+    parkir: float = 0
+    lain_lain: float = 0
+    uang_jalan: float = 0
 
 
 class DisbursementDetailRow(BaseModel):
@@ -564,6 +593,8 @@ class RouteProcessRequest(BaseModel):
     prefer_cheapest_toll: bool | None = False
     route_profile: str | None = "auto"
     section_ids: list[int] | None = None
+    # "osrm" (koridor/default) | "osrm_direct" (mendekati Google, gratis) | "google"
+    distance_provider: str | None = "osrm"
 
 
 class RouteProfileOut(BaseModel):
@@ -617,6 +648,12 @@ class RouteProcessOut(BaseModel):
     destination: RoutePoint
     distance_km: float
     duration_min: float
+    distance_source: str | None = "osrm"
+    # Perbandingan: jarak rute/peta vs jarak langsung (≈ Google)
+    distance_km_route: float | None = None
+    duration_min_route: float | None = None
+    distance_km_direct: float | None = None
+    duration_min_direct: float | None = None
     toll_idr: float
     toll_is_estimate: bool
     toll_note: str | None = None
@@ -650,11 +687,17 @@ class RouteRecalculateRequest(BaseModel):
     longitude: float
     section_ids: list[int] = Field(min_length=1)
     force_toll: bool | None = False
+    distance_provider: str | None = "osrm"
 
 
 class RouteRecalculateOut(BaseModel):
     distance_km: float
     duration_min: float
+    distance_source: str | None = "osrm"
+    distance_km_route: float | None = None
+    duration_min_route: float | None = None
+    distance_km_direct: float | None = None
+    duration_min_direct: float | None = None
     geometry: list[list[float]] = Field(default_factory=list)
     toll_roads: list[RouteTollRoadOut] = Field(default_factory=list)
     toll_breakdown: list[RouteTollSegmentOut] = Field(default_factory=list)

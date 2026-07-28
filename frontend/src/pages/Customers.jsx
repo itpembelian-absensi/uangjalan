@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Plus, Trash2, Edit2, Search, MapPin, X, FileSpreadsheet, Download, ArrowUp, ArrowDown, ArrowUpDown, Lock, Unlock, Clock } from 'lucide-react';
+import { Plus, Trash2, Edit2, Search, MapPin, X, FileSpreadsheet, Download, ArrowUp, ArrowDown, ArrowUpDown, Lock, Unlock, Clock, RefreshCw } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { apiFetch } from '../api';
 import LocationPickerMap from '../components/LocationPickerMap';
@@ -364,6 +364,9 @@ const Customers = () => {
   const [isUnlocking, setIsUnlocking] = useState(false);
   const [isUnlockingAll, setIsUnlockingAll] = useState(false);
   const [isLockingAll, setIsLockingAll] = useState(false);
+  const [isRelockingPrevious, setIsRelockingPrevious] = useState(false);
+  const [restorePendingCount, setRestorePendingCount] = useState(0);
+  const [distanceLoading, setDistanceLoading] = useState(false);
 
   const [form, setForm] = useState({
     code: '',
@@ -396,6 +399,19 @@ const Customers = () => {
     }
   };
 
+  const fetchRestorePending = async () => {
+    if (user?.role !== 'admin') {
+      setRestorePendingCount(0);
+      return;
+    }
+    try {
+      const data = await apiFetch('/api/customers/lock-restore-status');
+      setRestorePendingCount(Number(data?.pending_count) || 0);
+    } catch {
+      setRestorePendingCount(0);
+    }
+  };
+
   const fetchTollSections = async () => {
     try {
       const data = await apiFetch('/api/toll-sections');
@@ -413,7 +429,10 @@ const Customers = () => {
     });
   };
 
-  const fetchRouteWithSections = async (sectionIds, { forceAuto = false } = {}) => {
+  const fetchRouteWithSections = async (
+    sectionIds,
+    { forceAuto = false, distanceProvider = 'osrm' } = {}
+  ) => {
     const lat = parseFloat(form.latitude);
     const lng = parseFloat(form.longitude);
     if (Number.isNaN(lat) || Number.isNaN(lng)) return null;
@@ -424,6 +443,12 @@ const Customers = () => {
       name: form.name || 'Customer',
       force_toll: forceToll,
       route_profile: 'auto',
+      distance_provider:
+        distanceProvider === 'google'
+          ? 'google'
+          : distanceProvider === 'osrm_direct' || distanceProvider === 'direct'
+            ? 'osrm_direct'
+            : 'osrm',
     };
     if (editId) body.customer_id = editId;
     if (!forceAuto && sectionIds?.length) {
@@ -436,6 +461,84 @@ const Customers = () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
+  };
+
+  const recalculateDistanceWithProvider = async (provider) => {
+    const wantDirect = provider === 'osrm_direct' || provider === 'direct' || provider === 'google';
+
+    // Jika kedua jarak sudah ada dari API, ganti lokal (cepat & pasti terlihat)
+    if (
+      provider !== 'google' &&
+      routeInfo &&
+      routeInfo.distance_km_route != null &&
+      routeInfo.distance_km_direct != null
+    ) {
+      const nextKm = wantDirect
+        ? Number(routeInfo.distance_km_direct)
+        : Number(routeInfo.distance_km_route);
+      const nextDur = wantDirect
+        ? Number(routeInfo.duration_min_direct ?? routeInfo.duration_min)
+        : Number(routeInfo.duration_min_route ?? routeInfo.duration_min);
+      const sameKm = Math.abs(Number(routeInfo.distance_km) - nextKm) < 0.05;
+      setRouteInfo((prev) => ({
+        ...prev,
+        distance_km: nextKm,
+        duration_min: nextDur,
+        distance_source: wantDirect ? 'osrm_direct' : 'osrm',
+      }));
+      if (sameKm) {
+        setRouteError(
+          wantDirect
+            ? 'Untuk skema ini jarak rute & jarak langsung hampir sama. Selisih jelas saat Manual + koridor gerbang (mis. DU004).'
+            : 'Jarak rute OSRM dipakai untuk BBM.'
+        );
+      } else {
+        setRouteError('');
+      }
+      return;
+    }
+
+    const useManual = Boolean(manualTollOverride);
+    const sectionIds = useManual
+      ? routeInfo?.toll_breakdown
+          ?.map((row) => row.section_id)
+          .filter((id) => id != null) ||
+        persistedTollBreakdownRef.current
+          ?.map((row) => row.section_id)
+          .filter((id) => id != null) ||
+        []
+      : [];
+
+    setDistanceLoading(true);
+    setRouteError('');
+    try {
+      const result = await fetchRouteWithSections(sectionIds, {
+        forceAuto: !useManual,
+        distanceProvider: provider,
+      });
+      if (!result) {
+        setRouteError('Koordinat customer belum valid.');
+        return;
+      }
+      setRouteInfo({
+        ...result,
+        route_profile: useManual ? 'manual' : result.route_profile || 'auto',
+      });
+      if (useManual && result.toll_breakdown?.length) {
+        persistedTollBreakdownRef.current = result.toll_breakdown;
+      }
+    } catch (err) {
+      setRouteError(err.message || 'Gagal menghitung jarak.');
+    } finally {
+      setDistanceLoading(false);
+    }
+  };
+
+  const distanceSourceLabel = (source, viaGates) => {
+    if (source === 'google') return 'Google Maps';
+    if (source === 'osrm_direct') return 'OSRM langsung (≈ Google)';
+    if (viaGates) return 'OSRM koridor';
+    return 'OSRM';
   };
 
   const applyManualTollUpdate = async (sectionIds) => {
@@ -609,6 +712,7 @@ const Customers = () => {
   useEffect(() => {
     fetchCustomers();
     fetchVehicleTypes();
+    fetchRestorePending();
   }, []);
 
   useEffect(() => {
@@ -1074,7 +1178,7 @@ const Customers = () => {
     }
     if (
       !window.confirm(
-        `Buka kunci Finance (Final) untuk SEMUA Master Customer?\n\n${lockedCount} customer terkunci Finance akan dibuka.\nKunci Marketing tidak diubah.\nTindakan ini tidak dapat dibatalkan.`
+        `Buka kunci Finance (Final) untuk SEMUA Master Customer?\n\n${lockedCount} customer terkunci Finance akan dibuka.\nKunci Marketing tidak diubah.\n\nDaftar yang dibuka akan disimpan agar bisa dikunci kembali setelah sync (tombol "Kunci Kembali Sebelumnya").`
       )
     ) {
       return;
@@ -1084,6 +1188,7 @@ const Customers = () => {
     try {
       const result = await apiFetch('/api/customers/unlock-all', { method: 'POST' });
       await fetchCustomers();
+      setRestorePendingCount(Number(result.restore_pending_count) || 0);
       if (isModalOpen && editId) {
         setForm((prev) => ({
           ...prev,
@@ -1096,6 +1201,52 @@ const Customers = () => {
       alert(err.message);
     } finally {
       setIsUnlockingAll(false);
+    }
+  };
+
+  const handleRelockPreviousCustomers = async () => {
+    if (restorePendingCount <= 0) {
+      alert(
+        'Belum ada antrian kunci kembali.\n\n' +
+          'Urutan yang benar:\n' +
+          '1. Klik "Buka Kunci Finance Semua" (daftar yang terkunci disimpan)\n' +
+          '2. Lakukan sync / perubahan massal\n' +
+          '3. Baru klik "Kunci Kembali Sebelumnya"\n\n' +
+          'Tombol aktif dan menampilkan jumlah (N) setelah langkah 1.'
+      );
+      return;
+    }
+    if (
+      !window.confirm(
+        `Kunci kembali hanya customer yang sebelumnya terkunci Finance?\n\n${restorePendingCount} customer akan dikunci ulang.\nCustomer yang tadinya Open tetap Open.\nKunci Marketing ikut diaktifkan jika belum aktif.`
+      )
+    ) {
+      return;
+    }
+    setError('');
+    setIsRelockingPrevious(true);
+    try {
+      const result = await apiFetch('/api/customers/relock-previous', { method: 'POST' });
+      await fetchCustomers();
+      setRestorePendingCount(Number(result.pending_count) || 0);
+      if (isModalOpen && editId) {
+        try {
+          const updated = await apiFetch(`/api/customers/${editId}`);
+          setForm((prev) => ({
+            ...prev,
+            is_locked_finance: !!updated.is_locked_finance,
+            is_locked_marketing: !!updated.is_locked_marketing,
+          }));
+        } catch {
+          /* ignore */
+        }
+      }
+      alert(result.message || `Berhasil mengunci kembali ${result.locked_count} customer.`);
+    } catch (err) {
+      setError(err.message);
+      alert(err.message);
+    } finally {
+      setIsRelockingPrevious(false);
     }
   };
 
@@ -1117,6 +1268,7 @@ const Customers = () => {
     try {
       const result = await apiFetch('/api/customers/lock-all', { method: 'POST' });
       await fetchCustomers();
+      setRestorePendingCount(0);
       if (isModalOpen && editId) {
         setForm((prev) => ({
           ...prev,
@@ -1249,7 +1401,9 @@ const Customers = () => {
                 type="button"
                 className="btn btn-secondary"
                 onClick={handleLockAllCustomers}
-                disabled={isLockingAll || isUnlockingAll || loadingCustomers}
+                disabled={
+                  isLockingAll || isUnlockingAll || isRelockingPrevious || loadingCustomers
+                }
                 title="Kunci Finance (Final) untuk semua Master Customer"
                 style={{
                   display: 'flex',
@@ -1267,8 +1421,10 @@ const Customers = () => {
                 type="button"
                 className="btn btn-secondary"
                 onClick={handleUnlockAllCustomers}
-                disabled={isUnlockingAll || isLockingAll || loadingCustomers}
-                title="Buka kunci Finance (Final) untuk semua Master Customer"
+                disabled={
+                  isUnlockingAll || isLockingAll || isRelockingPrevious || loadingCustomers
+                }
+                title="Buka kunci Finance (Final) untuk semua Master Customer (simpan daftar untuk kunci kembali)"
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -1280,6 +1436,43 @@ const Customers = () => {
               >
                 <Unlock size={18} />
                 {isUnlockingAll ? 'Membuka...' : 'Buka Kunci Finance Semua'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleRelockPreviousCustomers}
+                disabled={
+                  isRelockingPrevious ||
+                  isLockingAll ||
+                  isUnlockingAll ||
+                  loadingCustomers
+                }
+                title={
+                  restorePendingCount > 0
+                    ? `Kunci kembali ${restorePendingCount} customer yang sebelumnya terkunci Finance`
+                    : 'Belum ada antrian. Klik "Buka Kunci Finance Semua" dulu sebelum sync, lalu tombol ini aktif.'
+                }
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  color: restorePendingCount > 0 ? '#047857' : '#6b7280',
+                  borderColor:
+                    restorePendingCount > 0
+                      ? 'rgba(4, 120, 87, 0.35)'
+                      : 'rgba(107, 114, 128, 0.35)',
+                  background:
+                    restorePendingCount > 0
+                      ? 'rgba(4, 120, 87, 0.08)'
+                      : 'rgba(107, 114, 128, 0.06)',
+                }}
+              >
+                <Lock size={18} />
+                {isRelockingPrevious
+                  ? 'Mengunci kembali...'
+                  : restorePendingCount > 0
+                    ? `Kunci Kembali Sebelumnya (${restorePendingCount})`
+                    : 'Kunci Kembali Sebelumnya'}
               </button>
             </>
           )}
@@ -1879,8 +2072,8 @@ const Customers = () => {
                           </div>
                           <small style={{ color: 'var(--text-secondary)', fontSize: '0.78rem', display: 'block', marginTop: '0.35rem' }}>
                             {manualTollOverride
-                              ? 'Rute dipaksa mengikuti ruas manual. Klik Isi ulang dari rute peta untuk kembali ke rute otomatis.'
-                              : 'Rute tercepat dari OSRM. Ruas referensi Google/BPJT tidak memaksa rute memutar.'}
+                              ? 'Tarif tol mengikuti ruas manual. Default jarak = OSRM koridor (ikut peta). Tombol "Jarak langsung" ≈ Google Maps (gratis).'
+                              : 'Default jarak = OSRM rute tercepat. Tombol "Jarak langsung" menghitung ulang tanpa memaksa koridor tol.'}
                           </small>
                         </div>
 
@@ -1896,7 +2089,7 @@ const Customers = () => {
                               color: '#92400e',
                             }}
                           >
-                            Garis biru = rute perjalanan via gerbang tol. Garis oranye = ruas tol mengikuti jalur jalan.
+                            Garis biru = jalur via gerbang tol (visual). Garis oranye = ruas tol. Jarak default = OSRM.
                           </div>
                         )}
 
@@ -1944,7 +2137,7 @@ const Customers = () => {
                             display: 'grid',
                             gridTemplateColumns: 'repeat(2, 1fr)',
                             gap: '0.75rem',
-                            marginBottom: '1rem',
+                            marginBottom: '0.75rem',
                           }}
                         >
                           <div
@@ -1961,6 +2154,51 @@ const Customers = () => {
                             <p style={{ margin: 0, fontSize: '1.2rem', fontWeight: 700 }}>
                               {routeInfo.distance_km.toLocaleString('id-ID')} km
                             </p>
+                            <p
+                              style={{
+                                margin: '0.35rem 0 0',
+                                fontSize: '0.72rem',
+                                color:
+                                  routeInfo.distance_source === 'google'
+                                    ? '#1d4ed8'
+                                    : routeInfo.distance_source === 'osrm_direct'
+                                      ? '#0369a1'
+                                      : '#64748b',
+                                fontWeight: 600,
+                              }}
+                            >
+                              Dipakai BBM:{' '}
+                              {distanceSourceLabel(
+                                routeInfo.distance_source,
+                                routeInfo.route_via_toll_gates
+                              )}
+                            </p>
+                            {(routeInfo.distance_km_route != null ||
+                              routeInfo.distance_km_direct != null) && (
+                              <div
+                                style={{
+                                  marginTop: '0.55rem',
+                                  paddingTop: '0.45rem',
+                                  borderTop: '1px dashed var(--glass-border)',
+                                  fontSize: '0.72rem',
+                                  color: 'var(--text-secondary)',
+                                  lineHeight: 1.45,
+                                }}
+                              >
+                                <div>
+                                  Rute/peta:{' '}
+                                  <strong>
+                                    {(routeInfo.distance_km_route ?? routeInfo.distance_km).toLocaleString('id-ID')} km
+                                  </strong>
+                                </div>
+                                <div>
+                                  Langsung ≈ Google:{' '}
+                                  <strong>
+                                    {(routeInfo.distance_km_direct ?? routeInfo.distance_km).toLocaleString('id-ID')} km
+                                  </strong>
+                                </div>
+                              </div>
+                            )}
                           </div>
                           <div
                             style={{
@@ -1979,6 +2217,83 @@ const Customers = () => {
                           </div>
                         </div>
 
+                        <div
+                          style={{
+                            display: 'flex',
+                            flexWrap: 'wrap',
+                            gap: '0.5rem',
+                            marginBottom: '1rem',
+                          }}
+                        >
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            disabled={distanceLoading || routeLoading}
+                            onClick={() => recalculateDistanceWithProvider('osrm')}
+                            title={
+                              manualTollOverride
+                                ? 'Jarak mengikuti koridor/peta OSRM (default skema manual)'
+                                : 'Jarak OSRM rute tercepat (default skema otomatis)'
+                            }
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              fontSize: '0.85rem',
+                              borderColor:
+                                !routeInfo.distance_source ||
+                                routeInfo.distance_source === 'osrm'
+                                  ? 'rgba(4, 120, 87, 0.4)'
+                                  : undefined,
+                              background:
+                                !routeInfo.distance_source ||
+                                routeInfo.distance_source === 'osrm'
+                                  ? 'rgba(4, 120, 87, 0.08)'
+                                  : undefined,
+                              color:
+                                !routeInfo.distance_source ||
+                                routeInfo.distance_source === 'osrm'
+                                  ? '#047857'
+                                  : undefined,
+                            }}
+                          >
+                            <RefreshCw size={15} />
+                            {distanceLoading &&
+                            (!routeInfo.distance_source ||
+                              routeInfo.distance_source === 'osrm')
+                              ? 'Menghitung...'
+                              : manualTollOverride
+                                ? 'OSRM koridor (default)'
+                                : 'OSRM (default)'}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            disabled={distanceLoading || routeLoading}
+                            onClick={() => recalculateDistanceWithProvider('osrm_direct')}
+                            title="Jarak OSRM langsung — mendekati Google Maps, gratis (tanpa API key)"
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '0.35rem',
+                              fontSize: '0.85rem',
+                              borderColor:
+                                routeInfo.distance_source === 'osrm_direct'
+                                  ? 'rgba(3, 105, 161, 0.45)'
+                                  : 'rgba(3, 105, 161, 0.3)',
+                              background:
+                                routeInfo.distance_source === 'osrm_direct'
+                                  ? 'rgba(3, 105, 161, 0.1)'
+                                  : 'rgba(3, 105, 161, 0.06)',
+                              color: '#0369a1',
+                            }}
+                          >
+                            <MapPin size={15} />
+                            {distanceLoading && routeInfo.distance_source === 'osrm_direct'
+                              ? 'Menghitung...'
+                              : 'Jarak langsung (≈ Google)'}
+                          </button>
+                        </div>
                         <LocationPickerMap
                           key={`${form.latitude}-${form.longitude}-${routeInfo?.geometry?.length || 0}-${routeInfo?.route_profile || 'auto'}`}
                           latitude={form.latitude}
