@@ -368,6 +368,24 @@
       "longitude": 106.859717,
       "source": "manual:Jakarta Dalam Kota"
     },
+    "karawaci": {
+      "name": "Karawaci",
+      "latitude": -6.210500,
+      "longitude": 106.608500,
+      "source": "manual:Karawaci I/C km 21"
+    },
+    "bitung": {
+      "name": "Bitung",
+      "latitude": -6.218333,
+      "longitude": 106.565000,
+      "source": "manual:Bitung 1 Toll Gate"
+    },
+    "cikupa": {
+      "name": "Cikupa",
+      "latitude": -6.218000,
+      "longitude": 106.520000,
+      "source": "manual:Cikupa Utama km 31"
+    },
     "jembatantigapluit": {
       "name": "Jembatan Tiga/Pluit",
       "latitude": -6.13258,

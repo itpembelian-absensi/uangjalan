@@ -81,7 +81,7 @@ SECTION_ROUTE_HINTS: list[tuple[list[str], list[str]]] = [
     (["cinere"], ["cinere", "jagorawi", "cimanggis"]),
     (["bekasicawang", "bckm"], ["bekasi", "cawang", "kampungmelayu"]),
     (["cimanggis", "cibitung"], ["cimanggis", "cibitung", "jatikarya"]),
-    (["merak", "tangerang"], ["merak", "tangerang"]),
+    (["merak", "tangerang", "karawaci", "bitung", "cikupa"], ["merak", "tangerang", "karawaci", "bitung", "cikupa"]),
     (["cipularang", "purwakarta", "padalarang"], ["cipularang", "padalarang", "purwakarta"]),
     (["padaleunyi", "purbaleunyi", "padalarangcileunyi"], ["padaleunyi", "purbaleunyi", "cileunyi", "pasteur"]),
     (["cisumdawu", "sumedang"], ["cisumdawu", "sumedang", "jatinangor", "paseh"]),

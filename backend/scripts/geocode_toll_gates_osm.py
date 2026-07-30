@@ -57,6 +57,9 @@ MANUAL_COORDS: dict[str, tuple[float, float]] = {
     "jakartadalamkota": (-6.244012, 106.873012),
     "jakarta": (-6.244012, 106.873012),
     "jakartaic": (-6.244012, 106.873012),
+    "karawaci": (-6.210500, 106.608500),
+    "bitung": (-6.218333, 106.565000),
+    "cikupa": (-6.218000, 106.520000),
 }
 
 

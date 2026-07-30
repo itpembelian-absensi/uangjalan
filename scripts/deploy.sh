@@ -204,6 +204,9 @@ SQL
   # ---- Seed data: ruas tol Sumatera, ferry, dan FUSO 6 Roda Panjang ----
   docker compose exec -T db psql -U postgres -d uang_pengiriman -v ON_ERROR_STOP=0 < scripts/seed_sumatera.sql
 
+  # ---- Seed data: Karawaci & Bitung (Tangerang-Merak) ----
+  docker compose exec -T db psql -U postgres -d uang_pengiriman -v ON_ERROR_STOP=0 < scripts/seed_karawaci_bitung.sql
+
   log "Migrations done"
 }
 
