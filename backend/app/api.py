@@ -179,7 +179,13 @@ from app.schemas import (
 router = APIRouter(prefix="/api", dependencies=[Depends(require_api_access)])
 
 
-def _load_active_toll_sections(db: Session) -> list[dict]:
+def _load_active_toll_sections(db: Session, *, collapse: bool = True) -> list[dict]:
+    """
+    Muat master ruas tol aktif.
+
+    collapse=True  → gabungkan exit-variant (nama sama) jadi 1 acuan (deteksi rute otomatis).
+    collapse=False → semua baris tetap (wajib untuk pilih manual Karawaci/Cikupa/dll).
+    """
     rows = db.scalars(
         select(TollSection)
         .options(
@@ -190,7 +196,10 @@ def _load_active_toll_sections(db: Session) -> list[dict]:
     ).all()
     if not rows:
         return _default_sections_from_settings()
-    return collapse_sections_for_routing(serialize_toll_sections(rows))
+    serialized = serialize_toll_sections(rows)
+    if collapse:
+        return collapse_sections_for_routing(serialized)
+    return serialized
 
 
 def _toll_by_vehicle_from_manual_segments(
@@ -2804,12 +2813,13 @@ def process_route(
 
     payload = _sanitize_route_profile_for_user(payload, current_user, customer)
 
-    sections = _load_active_toll_sections(db)
+    sections_full = _load_active_toll_sections(db, collapse=False)
+    sections_auto = collapse_sections_for_routing(sections_full)
     gate_context = _load_toll_gate_fare_context(db)
     vehicle_types = db.scalars(_load_vehicle_types_query()).all()
 
     section_ids, profile_key = _resolve_route_section_ids(
-        payload, customer, sections, dest_lat, dest_lng
+        payload, customer, sections_full, dest_lat, dest_lng
     )
     requested_profile = (payload.route_profile or "auto").strip().lower()
     profile_label = next(
@@ -2826,7 +2836,7 @@ def process_route(
             dest_lat=dest_lat,
             dest_lng=dest_lng,
             section_ids=section_ids,
-            sections=sections,
+            sections=sections_full,
             gate_context=gate_context,
             force_toll=bool(payload.force_toll),
             vehicle_types=vehicle_types,
@@ -2840,7 +2850,7 @@ def process_route(
             origin_lng,
             dest_lat,
             dest_lng,
-            sections=sections,
+            sections=sections_auto,
             force_toll=payload.force_toll,
             gate_context=gate_context,
             prefer_cheapest_toll=bool(payload.prefer_cheapest_toll),
@@ -2867,7 +2877,7 @@ def process_route(
                         gol_code,
                         distance_km=route["distance_km"],
                         route_toll_roads=route.get("toll_roads") or [],
-                        sections=sections,
+                        sections=sections_full,
                     )
                     toll = round(bpjt[0] * 2, 0) if bpjt else route["toll_idr"]
                 else:
@@ -2947,7 +2957,8 @@ def manual_toll_breakdown(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_api_access),
 ):
-    sections = _load_active_toll_sections(db)
+    # Jangan collapse: exit-variant (Karawaci, Cikupa, Merak, …) harus resolve by id.
+    sections = _load_active_toll_sections(db, collapse=False)
     gate_context = _load_toll_gate_fare_context(db)
     result = build_manual_toll_breakdown(
         payload.section_ids,
@@ -2986,7 +2997,7 @@ def recalculate_route_with_sections(
 
     dest_lat = float(payload.latitude)
     dest_lng = float(payload.longitude)
-    sections = _load_active_toll_sections(db)
+    sections = _load_active_toll_sections(db, collapse=False)
     gate_context = _load_toll_gate_fare_context(db)
     vehicle_types = db.scalars(_load_vehicle_types_query()).all()
 

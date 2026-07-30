@@ -599,6 +599,17 @@ const Customers = () => {
     if (seq !== corridorFetchSeqRef.current) return;
 
     const breakdown = manual.segments || [];
+    if (sectionIds.length > 0 && breakdown.length === 0) {
+      setRouteError(
+        'Ruas yang dipilih tidak bisa dimuat. Coba pilih ulang dari master, atau refresh halaman.'
+      );
+      return;
+    }
+    if (breakdown.length < sectionIds.length) {
+      setRouteError(
+        `Hanya ${breakdown.length} dari ${sectionIds.length} ruas yang berhasil dimuat. Periksa master ruas tol.`
+      );
+    }
     const tollByVehicle = tollByVehicleFromSegments(breakdown, vehicleTypes, prev?.distance_km);
     persistedTollBreakdownRef.current = breakdown;
     setRouteInfo({
@@ -650,7 +661,8 @@ const Customers = () => {
 
   const addTollSegment = async (sectionId) => {
     if (!sectionId) return;
-    if (routeInfo?.toll_breakdown?.some((row) => row.section_id === sectionId)) {
+    const sid = Number(sectionId);
+    if (routeInfo?.toll_breakdown?.some((row) => Number(row.section_id) === sid)) {
       setRouteError('Ruas tol ini sudah ada di tabel.');
       return;
     }
@@ -659,9 +671,9 @@ const Customers = () => {
     try {
       const prev = routeInfo;
       if (!prev) return;
-      const sectionIds = [...(prev.toll_breakdown || []), { section_id: sectionId }]
-        .map((row) => row.section_id)
-        .filter(Boolean);
+      const sectionIds = [...(prev.toll_breakdown || []).map((row) => row.section_id), sid]
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id) && id > 0);
       await applyManualTollUpdate(sectionIds);
     } catch (err) {
       setRouteError(err.message);
