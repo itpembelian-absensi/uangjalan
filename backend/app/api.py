@@ -2910,7 +2910,7 @@ def process_route(
                 ],
                 base_toll_idr=route["toll_idr"],
                 toll_is_estimate=route["toll_is_estimate"],
-                sections=sections,
+                sections=sections_auto,
             )
         if toll_by_vehicle_raw:
             route["toll_idr"] = toll_by_vehicle_raw[0]["toll_idr"]
