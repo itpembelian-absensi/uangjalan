@@ -1516,21 +1516,48 @@ def build_toll_road_overlays(segments: list[dict], gates: list[dict]) -> list[di
         )
         geom = list(anchors)
         if len(anchors) >= 2:
+            # Jahit per pasangan gerbang berurutan — lebih stabil di ring JORR
+            # daripada satu request multi-waypoint yang sering keluar tol.
+            stitched: list[list[float]] = []
             try:
-                start = anchors[0]
-                end = anchors[-1]
-                middles = anchors[1:-1] if len(anchors) > 2 else None
-                _, _, road = _osrm_route_fast(
-                    start[0],
-                    start[1],
-                    end[0],
-                    end[1],
-                    middles,
-                )
-                if len(road) > 2:
-                    geom = road
+                for i in range(len(anchors) - 1):
+                    start = anchors[i]
+                    end = anchors[i + 1]
+                    _, _, road = _osrm_route_fast(
+                        start[0],
+                        start[1],
+                        end[0],
+                        end[1],
+                        None,
+                    )
+                    if len(road) < 2:
+                        continue
+                    if (
+                        stitched
+                        and abs(stitched[-1][0] - road[0][0]) < 1e-5
+                        and abs(stitched[-1][1] - road[0][1]) < 1e-5
+                    ):
+                        stitched.extend(road[1:])
+                    else:
+                        stitched.extend(road)
+                if len(stitched) > 2:
+                    geom = stitched
             except HTTPException:
-                pass
+                try:
+                    start = anchors[0]
+                    end = anchors[-1]
+                    middles = anchors[1:-1] if len(anchors) > 2 else None
+                    _, _, road = _osrm_route_fast(
+                        start[0],
+                        start[1],
+                        end[0],
+                        end[1],
+                        middles,
+                    )
+                    if len(road) > 2:
+                        geom = road
+                except HTTPException:
+                    pass
         roads.append(
             {
                 "name": seg.get("section_name")

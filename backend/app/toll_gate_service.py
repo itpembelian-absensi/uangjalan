@@ -20,6 +20,7 @@ _GATE_COORDS_FILE = _DATA_DIR / "toll_gate_coordinates.json"
 _LEGACY_GATE_COORDINATES: dict[str, tuple[float, float]] = {
     "pondokpinang": (-6.290622, 106.781860),
     "tamanmini": (-6.287103, 106.878255),
+    "ulujami": (-6.239000, 106.764000),
     "rorotan": (-6.146076, 106.940282),
     "kebonbawang": (-6.155421, 106.798312),
     "kebonjeruk": (-6.190284, 106.767997),
@@ -1232,6 +1233,20 @@ _JORR_RING_GATES: list[str] = [
     "Kebon Bawang",
 ]
 
+# Titik jarang untuk OSRM — hindari ramp yang menarik rute ke jalan lokal
+# (Pondok Pinang/TMII/Kembangan sering bikin zig-zag / keluar ke Jagorawi).
+_JORR_ROUTE_SPARSE_GATES: list[str] = [
+    "Penjaringan",
+    "Kayu Besar",
+    "Ulujami",
+    "Cikunir",
+    "Jati Asih",
+    "Cakung",
+    "Cilincing",
+    "Rorotan",
+    "Kebon Bawang",
+]
+
 
 def _normalize_jorr_gate_label(name: str) -> str:
     n = _normalize_gate_name(name)
@@ -1274,6 +1289,39 @@ def _jorr_waypoints_between(entry: str, exit_: str) -> list[str] | None:
     forward = _JORR_RING_GATES[i:] + _JORR_RING_GATES[: j + 1]
     backward = list(reversed(_JORR_RING_GATES[j : i + 1]))
     return forward if len(forward) <= len(backward) else backward
+
+
+def _jorr_sparse_route_waypoints(
+    entry: str,
+    exit_: str,
+    *,
+    for_jagorawi_transfer: bool = False,
+) -> list[str] | None:
+    """
+    Waypoint OSRM/peta untuk JORR — subset ring agar tetap di lingkar luar.
+    for_jagorawi_transfer=True: potong di Taman Mini (pindah ke Jagorawi).
+    """
+    full = _jorr_waypoints_between(entry, exit_)
+    if not full:
+        return None
+    if for_jagorawi_transfer:
+        full = _clip_jorr_names_at_transfer(full)
+        allowed = {
+            _normalize_gate_name(g)
+            for g in (*_JORR_ROUTE_SPARSE_GATES, _JORR_JAGORAWI_TRANSFER)
+        }
+    else:
+        allowed = {_normalize_gate_name(g) for g in _JORR_ROUTE_SPARSE_GATES}
+
+    sparse: list[str] = []
+    for idx, name in enumerate(full):
+        keep = idx == 0 or idx == len(full) - 1 or _normalize_gate_name(name) in allowed
+        if not keep:
+            continue
+        if sparse and _normalize_gate_name(sparse[-1]) == _normalize_gate_name(name):
+            continue
+        sparse.append(name)
+    return sparse or full
 
 
 # SS Taman Mini = perpindahan alami JORR ↔ Jagorawi (ke Bogor/Ciawi).
@@ -1380,8 +1428,9 @@ def _corridor_waypoint_names(
     ):
         # Pakai pasangan gerbang yang dipilih manual (Kayu Besar → Jati Asih),
         # jangan diganti waypoint generik Rorotan/Cilincing.
+        # Sparse: hindari ramp Pondok Pinang/TMII yang menarik OSRM keluar ring.
         if entry and exit_:
-            ring = _jorr_waypoints_between(entry, exit_)
+            ring = _jorr_sparse_route_waypoints(entry, exit_)
             if ring:
                 return ring
             return [entry, exit_]
@@ -1389,7 +1438,7 @@ def _corridor_waypoint_names(
 
         if destination_corridor(dest_lat, dest_lng) == "east":
             return ["rorotan", "pulogebang", "cilincing"]
-        return ["penjaringan", "kebonjeruk", "rorotan"]
+        return ["penjaringan", "ulujami", "rorotan"]
     if any(k in text for k in ("cipularang", "purwakarta")) or (
         "cikampek" in text and "padalarang" in text
     ):
@@ -1486,13 +1535,18 @@ def toll_segment_map_geometry(
     exit_ = (segment.get("exit_gate_name") or segment.get("exit_gate_code") or "").strip()
     names: list[str] = []
     if entry and exit_ and _jorr_ring_index(entry) is not None and _jorr_ring_index(exit_) is not None:
-        names = _jorr_waypoints_between(entry, exit_) or [entry, exit_]
-        if clip_jorr_at_transfer:
-            names = _clip_jorr_names_at_transfer(names)
+        names = (
+            _jorr_sparse_route_waypoints(
+                entry,
+                exit_,
+                for_jagorawi_transfer=clip_jorr_at_transfer,
+            )
+            or [entry, exit_]
+        )
     elif clip_jorr_at_transfer and _is_jagorawi_bogor_segment(segment, None):
-        # Overlay Jagorawi setelah pindah dari JORR: mulai Taman Mini → Ciawi
+        # Overlay Jagorawi: jangan ulang Taman Mini (sudah ujung overlay JORR)
         exit_name = exit_ or "Ciawi"
-        names = [_JORR_JAGORAWI_TRANSFER, "Cibubur", exit_name]
+        names = ["Cibubur", exit_name]
     else:
         for code_key, name_key in (
             ("entry_gate_code", "entry_gate_name"),
@@ -1594,12 +1648,18 @@ def waypoints_from_toll_segments(
             dest_lng,
             sections_by_id,
         )
-        if clip_jorr_for_jagorawi and is_jorr_pair:
-            names = _clip_jorr_names_at_transfer(names)
+        if is_jorr_pair:
+            sparse = _jorr_sparse_route_waypoints(
+                entry,
+                exit_,
+                for_jagorawi_transfer=clip_jorr_for_jagorawi,
+            )
+            if sparse:
+                names = sparse
         if clip_jorr_for_jagorawi and is_jagorawi:
-            # Lanjut dari SS Taman Mini, jangan balik ke gerbang "Jakarta"/Cawang.
+            # Lanjut Jagorawi tanpa mengulang Taman Mini (hindari knot di SS).
             exit_name = exit_ or "Ciawi"
-            names = [_JORR_JAGORAWI_TRANSFER, "Cibubur", exit_name]
+            names = ["Cibubur", exit_name]
 
         group: list[tuple[float, float]] = []
         for name in names:
