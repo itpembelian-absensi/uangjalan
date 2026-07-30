@@ -1183,7 +1183,16 @@ def _corridor_type_key(
         return "ctc"
     if any(
         k in text
-        for k in ("jorr", "cilincing", "cibungtcilincing", "pulogebang", "cakung", "rorotan")
+        for k in (
+            "jorr",
+            "cilincing",
+            "cibungtcilincing",
+            "pulogebang",
+            "cakung",
+            "rorotan",
+            "kayubesar",
+            "jatiasih",
+        )
     ):
         from app.route_profiles import destination_corridor
 
@@ -1205,6 +1214,67 @@ def _corridor_type_key(
     return None
 
 
+# Urutan gerbang JORR (Penjaringan → selatan → timur → utara → Priok)
+_JORR_RING_GATES: list[str] = [
+    "Penjaringan",
+    "Kayu Besar",
+    "Kembangan",
+    "Kebon Jeruk",
+    "Ulujami",
+    "Pondok Pinang",
+    "Taman Mini",
+    "Cikunir",
+    "Jati Asih",
+    "Cakung",
+    "Cilincing",
+    "Rorotan",
+    "Kebon Bawang",
+]
+
+
+def _normalize_jorr_gate_label(name: str) -> str:
+    n = _normalize_gate_name(name)
+    aliases = {
+        "kayubesar": "Kayu Besar",
+        "jatiasih": "Jati Asih",
+        "kebonjeruk": "Kebon Jeruk",
+        "pondokpinang": "Pondok Pinang",
+        "tamanmini": "Taman Mini",
+        "kebonbawang": "Kebon Bawang",
+        "aksestanjungpriuk": "Kebon Bawang",
+        "tanjungpriok": "Kebon Bawang",
+        "tanjungpriuk": "Kebon Bawang",
+    }
+    if n in aliases:
+        return aliases[n]
+    for gate in _JORR_RING_GATES:
+        if _normalize_gate_name(gate) == n:
+            return gate
+    return (name or "").strip()
+
+
+def _jorr_ring_index(name: str) -> int | None:
+    label = _normalize_jorr_gate_label(name)
+    for i, gate in enumerate(_JORR_RING_GATES):
+        if _normalize_gate_name(gate) == _normalize_gate_name(label):
+            return i
+    return None
+
+
+def _jorr_waypoints_between(entry: str, exit_: str) -> list[str] | None:
+    """Titik lintasan sepanjang ring JORR antara gerbang masuk dan keluar."""
+    i = _jorr_ring_index(entry)
+    j = _jorr_ring_index(exit_)
+    if i is None or j is None or i == j:
+        return None
+    if i < j:
+        return _JORR_RING_GATES[i : j + 1]
+    # Arah berlawanan: ambil jalur pendek lewat ujung ring (via Priok) atau balik
+    forward = _JORR_RING_GATES[i:] + _JORR_RING_GATES[: j + 1]
+    backward = list(reversed(_JORR_RING_GATES[j : i + 1]))
+    return forward if len(forward) <= len(backward) else backward
+
+
 def _corridor_waypoint_names(
     segment: dict,
     sections_by_id: dict[int, dict] | None,
@@ -1217,20 +1287,42 @@ def _corridor_waypoint_names(
     jalur peta lewat koridor sebenarnya (mis. Tanjung Priok di utara).
     """
     text = _segment_routing_text(segment, sections_by_id)
+    entry = (segment.get("entry_gate_name") or segment.get("entry_gate_code") or "").strip()
+    exit_ = (segment.get("exit_gate_name") or segment.get("exit_gate_code") or "").strip()
+
     if any(k in text for k in ("priok", "pelabuhan", "aksestanjung", "tanjungpriok")):
         return ["aksestanjungpriuk", "cawang"]
     if any(k in text for k in ("ctc", "tomang", "cawangtomangpluit")) or (
         "cawang" in text and "pluit" in text
     ):
-        entry = (segment.get("entry_gate_name") or segment.get("entry_gate_code") or "").strip()
-        exit_ = (segment.get("exit_gate_name") or segment.get("exit_gate_code") or "").strip()
         if entry and exit_:
             return [entry, exit_]
         return ["cawang", "pluit"]
     if any(
         k in text
-        for k in ("jorr", "cilincing", "cibungtcilincing", "pulogebang", "cakung", "rorotan")
+        for k in (
+            "jorr",
+            "cilincing",
+            "cibungtcilincing",
+            "pulogebang",
+            "cakung",
+            "rorotan",
+            "kayubesar",
+            "jatiasih",
+        )
+    ) or (
+        entry
+        and exit_
+        and _jorr_ring_index(entry) is not None
+        and _jorr_ring_index(exit_) is not None
     ):
+        # Pakai pasangan gerbang yang dipilih manual (Kayu Besar → Jati Asih),
+        # jangan diganti waypoint generik Rorotan/Cilincing.
+        if entry and exit_:
+            ring = _jorr_waypoints_between(entry, exit_)
+            if ring:
+                return ring
+            return [entry, exit_]
         from app.route_profiles import destination_corridor
 
         if destination_corridor(dest_lat, dest_lng) == "east":
@@ -1264,23 +1356,37 @@ def _gate_names_in_travel_order(
     )
     fixed = _corridor_waypoint_names(segment, sections_by_id, dest_lat, dest_lng)
     if fixed:
-        candidates = list(fixed)
-    else:
-        candidates = []
+        # Pertahankan urutan koridor (mis. ring JORR Kayu Besar→Jati Asih).
+        # Jangan di-sort ulang menurut garis lurus gudang→customer.
+        ordered: list[str] = []
         seen: set[str] = set()
-        for code_key, name_key in (
-            ("entry_gate_code", "entry_gate_name"),
-            ("exit_gate_code", "exit_gate_name"),
-        ):
-            for val in (segment.get(name_key), segment.get(code_key)):
-                if not val:
-                    continue
-                label = str(val).strip()
-                norm = _normalize_gate_name(label)
-                if not norm or norm in seen:
-                    continue
-                seen.add(norm)
-                candidates.append(label)
+        for name in fixed:
+            coords = _coords_for_anchor_name(name, gates)
+            if not coords:
+                continue
+            norm = _normalize_gate_name(name)
+            if norm in seen:
+                continue
+            seen.add(norm)
+            ordered.append(name)
+        if ordered:
+            return ordered
+
+    candidates = []
+    seen_c: set[str] = set()
+    for code_key, name_key in (
+        ("entry_gate_code", "entry_gate_name"),
+        ("exit_gate_code", "exit_gate_name"),
+    ):
+        for val in (segment.get(name_key), segment.get(code_key)):
+            if not val:
+                continue
+            label = str(val).strip()
+            norm = _normalize_gate_name(label)
+            if not norm or norm in seen_c:
+                continue
+            seen_c.add(norm)
+            candidates.append(label)
 
     scored: list[tuple[float, str]] = []
     for name in candidates:
@@ -1292,20 +1398,25 @@ def _gate_names_in_travel_order(
 
 
 def toll_segment_map_geometry(segment: dict, gates: list[dict]) -> list[list[float]]:
-    """Garis ruas tol di peta: gerbang masuk → gerbang keluar."""
+    """Garis ruas tol di peta: ikuti gerbang sepanjang koridor bila ada."""
+    entry = (segment.get("entry_gate_name") or segment.get("entry_gate_code") or "").strip()
+    exit_ = (segment.get("exit_gate_name") or segment.get("exit_gate_code") or "").strip()
+    names: list[str] = []
+    if entry and exit_ and _jorr_ring_index(entry) is not None and _jorr_ring_index(exit_) is not None:
+        names = _jorr_waypoints_between(entry, exit_) or [entry, exit_]
+    else:
+        for code_key, name_key in (
+            ("entry_gate_code", "entry_gate_name"),
+            ("exit_gate_code", "exit_gate_name"),
+        ):
+            for val in (segment.get(name_key), segment.get(code_key)):
+                if val:
+                    names.append(str(val).strip())
+                    break
+
     geometry: list[list[float]] = []
-    for code_key, name_key in (
-        ("entry_gate_code", "entry_gate_name"),
-        ("exit_gate_code", "exit_gate_name"),
-    ):
-        gate = _find_gate_for_segment_side(
-            gates,
-            segment.get(code_key),
-            segment.get(name_key),
-        )
-        if not gate:
-            continue
-        coords = _gate_coordinates(gate)
+    for name in names:
+        coords = _coords_for_anchor_name(name, gates)
         if not coords:
             continue
         lat, lng = coords
@@ -1360,6 +1471,7 @@ def waypoints_from_toll_segments(
     )
     corridor_seen: set[str] = set()
     groups: list[list[tuple[float, float]]] = []
+    preserve_corridor_order = False
 
     for segment in segments:
         ctype = _corridor_type_key(segment, sections_by_id, dest_lat, dest_lng)
@@ -1367,6 +1479,16 @@ def waypoints_from_toll_segments(
             continue
         if ctype:
             corridor_seen.add(ctype)
+
+        entry = (segment.get("entry_gate_name") or segment.get("entry_gate_code") or "").strip()
+        exit_ = (segment.get("exit_gate_name") or segment.get("exit_gate_code") or "").strip()
+        if (
+            entry
+            and exit_
+            and _jorr_ring_index(entry) is not None
+            and _jorr_ring_index(exit_) is not None
+        ):
+            preserve_corridor_order = True
 
         names = _gate_names_in_travel_order(
             segment,
@@ -1385,11 +1507,16 @@ def waypoints_from_toll_segments(
         if group:
             groups.append(group)
 
-    groups.sort(key=lambda g: progress(g[0][0], g[0][1]))
+    if not preserve_corridor_order:
+        groups.sort(key=lambda g: progress(g[0][0], g[0][1]))
     points: list[tuple[float, float]] = []
     for group in groups:
         for lat, lng in group:
             _append_waypoint(points, lat, lng)
+
+    if preserve_corridor_order:
+        # Jangan sort/filter menurut garis lurus gudang→customer (merusak ring JORR).
+        return points
 
     points = filter_monotonic_waypoints(
         trim_waypoints_before_destination(

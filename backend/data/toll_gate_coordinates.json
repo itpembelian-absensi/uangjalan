@@ -244,15 +244,21 @@
     },
     "kayubesar": {
       "name": "Kayu Besar",
-      "latitude": -6.120500,
-      "longitude": 106.762000,
-      "source": "manual:JORR Kayu Besar km 1"
+      "latitude": -6.113611,
+      "longitude": 106.723889,
+      "source": "manual:JORR Kayu Besar km 1 (Kapuk/Kamal)"
     },
     "jatiasih": {
       "name": "Jati Asih",
       "latitude": -6.295739,
       "longitude": 106.955481,
       "source": "manual:JORR Jati Asih km 41"
+    },
+    "kembangan": {
+      "name": "Kembangan",
+      "latitude": -6.180500,
+      "longitude": 106.740500,
+      "source": "manual:JORR Kembangan"
     },
     "ulujami": {
       "name": "Ulujami",
