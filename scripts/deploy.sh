@@ -210,16 +210,21 @@ SQL
   # ---- Seed data: JORR Kayu Besar → Jati Asih / Priok ----
   docker compose exec -T db psql -U postgres -d uang_pengiriman -v ON_ERROR_STOP=0 < scripts/seed_jorr_kayu_besar.sql
 
+  # ---- Seed data: Bocimi Ciawi–Cibadak ----
+  docker compose exec -T db psql -U postgres -d uang_pengiriman -v ON_ERROR_STOP=0 < scripts/seed_bocimi.sql
+
   # Upsert via Python (pastikan tarif terbaru menimpa data lama)
   docker compose up -d backend
   docker compose exec -T backend python add_karawaci_bitung_tolls.py || \
     docker compose run --rm --no-deps backend python add_karawaci_bitung_tolls.py || true
   docker compose exec -T backend python add_jorr_kayu_besar_tolls.py || \
     docker compose run --rm --no-deps backend python add_jorr_kayu_besar_tolls.py || true
+  docker compose exec -T backend python add_bocimi_tolls.py || \
+    docker compose run --rm --no-deps backend python add_bocimi_tolls.py || true
 
-  log "Verify Karawaci/Bitung + JORR Kayu Besar rates"
+  log "Verify Karawaci/JORR/Bocimi rates"
   docker compose exec -T db psql -U postgres -d uang_pengiriman -c \
-    "SELECT destination_name, gol23, gol45 FROM toll_sections WHERE (name='Tangerang - Merak' AND destination_name IN ('Karawaci','Bitung')) OR (name='JORR' AND origin_name='Kayu Besar') ORDER BY sort_order;"
+    "SELECT name, origin_name, destination_name, gol23 FROM toll_sections WHERE (name='Tangerang - Merak' AND destination_name IN ('Karawaci','Bitung')) OR (name='JORR' AND origin_name='Kayu Besar') OR name='Bocimi' ORDER BY sort_order;"
 
   log "Migrations done"
 }

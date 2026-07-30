@@ -38,6 +38,30 @@
       "longitude": 106.839146,
       "source": "osm:Gerbang Tol Ciawi"
     },
+    "caringin": {
+      "name": "Caringin",
+      "latitude": -6.708500,
+      "longitude": 106.835500,
+      "source": "manual:Bocimi Caringin"
+    },
+    "cigombong": {
+      "name": "Cigombong",
+      "latitude": -6.743500,
+      "longitude": 106.803500,
+      "source": "manual:Bocimi Cigombong"
+    },
+    "parungkuda": {
+      "name": "Parungkuda (Cibadak)",
+      "latitude": -6.837500,
+      "longitude": 106.770500,
+      "source": "manual:Bocimi Parungkuda/Cibadak"
+    },
+    "cibadak": {
+      "name": "Cibadak",
+      "latitude": -6.837500,
+      "longitude": 106.770500,
+      "source": "manual:Bocimi Parungkuda/Cibadak"
+    },
     "cibatu": {
       "name": "Cibatu",
       "latitude": -6.332211,
