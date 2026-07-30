@@ -1,9 +1,8 @@
 """
 Tambah gerbang keluar Karawaci & Bitung pada koridor Jakarta → Tangerang/Merak.
 
-Tarif = tarif integrasi Tomang–Tangerang Barat–Cikupa (sama dengan Cikupa
-yang sudah ada di DB), karena Karawaci & Bitung berada di segmen terbuka
-yang sama sebelum Cikupa.
+Tarif = tarif resmi integrasi Jakarta–Tangerang / Tomang–Cikupa
+(Kepmen PUPR 2692/KPTS/M/2024).
 """
 from __future__ import annotations
 
@@ -20,8 +19,9 @@ NETWORK = "Trans Jawa"
 ORIGIN = "Jakarta (Dalam Kota)"
 LENGTH_KM = 98.0
 
-# Samakan dengan Cikupa (id 65) — tarif integrasi segmen Tomang–Cikupa di DB
-RATES = {"I": 19000, "II": 28500, "III": 28500, "IV": 38000, "V": 38000}
+# Tarif resmi integrasi Jakarta–Tangerang / Tomang–Cikupa
+# (Kepmen PUPR 2692/KPTS/M/2024, berlaku 19 Okt 2024)
+RATES = {"I": 8500, "II": 12500, "III": 12500, "IV": 16500, "V": 16500}
 
 # sort_order sebelum Cikupa (39)
 EXITS = [
