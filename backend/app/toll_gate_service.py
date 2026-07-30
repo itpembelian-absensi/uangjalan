@@ -1276,6 +1276,67 @@ def _jorr_waypoints_between(entry: str, exit_: str) -> list[str] | None:
     return forward if len(forward) <= len(backward) else backward
 
 
+# SS Taman Mini = perpindahan alami JORR ↔ Jagorawi (ke Bogor/Ciawi).
+_JORR_JAGORAWI_TRANSFER = "Taman Mini"
+
+
+def _is_jorr_ring_pair(entry: str | None, exit_: str | None) -> bool:
+    if not entry or not exit_:
+        return False
+    return _jorr_ring_index(entry) is not None and _jorr_ring_index(exit_) is not None
+
+
+def _is_jagorawi_bogor_segment(
+    segment: dict,
+    sections_by_id: dict[int, dict] | None,
+) -> bool:
+    text = _segment_routing_text(segment, sections_by_id)
+    return any(
+        k in text
+        for k in ("jagorawi", "jakartabogor", "bogorciawi", "ciawi", "cibubur")
+    ) and "bocimi" not in text
+
+
+def _segment_has_jorr_ring(segment: dict) -> bool:
+    entry = (segment.get("entry_gate_name") or segment.get("entry_gate_code") or "").strip()
+    exit_ = (segment.get("exit_gate_name") or segment.get("exit_gate_code") or "").strip()
+    if _is_jorr_ring_pair(entry, exit_):
+        return True
+    text = _normalize_gate_name(
+        f"{segment.get('section_name') or ''} {entry} {exit_}"
+    )
+    return any(k in text for k in ("jorr", "kayubesar", "jatiasih", "cikunir"))
+
+
+def _clip_jorr_names_at_transfer(
+    names: list[str],
+    transfer: str = _JORR_JAGORAWI_TRANSFER,
+) -> list[str]:
+    """Potong lintasan JORR di gerbang pindah ke Jagorawi (hindari mutar ke Cikunir dulu)."""
+    if not names:
+        return names
+    transfer_norm = _normalize_gate_name(transfer)
+    clipped: list[str] = []
+    for name in names:
+        clipped.append(name)
+        if _normalize_gate_name(name) == transfer_norm:
+            return clipped
+    # Transfer tidak ada di list (exit sebelum TMII) — biarkan apa adanya
+    exit_idx = _jorr_ring_index(names[-1])
+    transfer_idx = _jorr_ring_index(transfer)
+    entry_idx = _jorr_ring_index(names[0])
+    if (
+        entry_idx is not None
+        and exit_idx is not None
+        and transfer_idx is not None
+        and entry_idx < transfer_idx < exit_idx
+    ):
+        ring = _jorr_waypoints_between(names[0], transfer)
+        if ring:
+            return ring
+    return names
+
+
 def _corridor_waypoint_names(
     segment: dict,
     sections_by_id: dict[int, dict] | None,
@@ -1339,6 +1400,15 @@ def _corridor_waypoint_names(
         return ["padalarang", "pasteur", "cileunyi"]
     if "cisumdawu" in text:
         return ["cileunyi", "paseh", "cisumdawuutama"]
+    if any(k in text for k in ("jagorawi", "jakartabogor", "bogorciawi")) or (
+        "ciawi" in text and "jakarta" in text
+    ):
+        # Ke Bogor/Ciawi: jangan tarik balik ke Cawang jika sudah lewat Taman Mini.
+        if exit_ and "ciawi" in _normalize_gate_name(exit_):
+            return [_JORR_JAGORAWI_TRANSFER, "cibubur", exit_]
+        if entry and exit_:
+            return [entry, exit_]
+        return [_JORR_JAGORAWI_TRANSFER, "cibubur", "ciawi"]
     return None
 
 
@@ -1398,13 +1468,31 @@ def _gate_names_in_travel_order(
     return [name for _, name in scored]
 
 
-def toll_segment_map_geometry(segment: dict, gates: list[dict]) -> list[list[float]]:
+def segments_need_jorr_jagorawi_transfer(segments: list[dict]) -> bool:
+    """True jika kombinasi JORR + Jagorawi/Bogor — lintasan dipotong di Taman Mini."""
+    return any(_segment_has_jorr_ring(s) for s in segments) and any(
+        _is_jagorawi_bogor_segment(s, None) for s in segments
+    )
+
+
+def toll_segment_map_geometry(
+    segment: dict,
+    gates: list[dict],
+    *,
+    clip_jorr_at_transfer: bool = False,
+) -> list[list[float]]:
     """Garis ruas tol di peta: ikuti gerbang sepanjang koridor bila ada."""
     entry = (segment.get("entry_gate_name") or segment.get("entry_gate_code") or "").strip()
     exit_ = (segment.get("exit_gate_name") or segment.get("exit_gate_code") or "").strip()
     names: list[str] = []
     if entry and exit_ and _jorr_ring_index(entry) is not None and _jorr_ring_index(exit_) is not None:
         names = _jorr_waypoints_between(entry, exit_) or [entry, exit_]
+        if clip_jorr_at_transfer:
+            names = _clip_jorr_names_at_transfer(names)
+    elif clip_jorr_at_transfer and _is_jagorawi_bogor_segment(segment, None):
+        # Overlay Jagorawi setelah pindah dari JORR: mulai Taman Mini → Ciawi
+        exit_name = exit_ or "Ciawi"
+        names = [_JORR_JAGORAWI_TRANSFER, "Cibubur", exit_name]
     else:
         for code_key, name_key in (
             ("entry_gate_code", "entry_gate_name"),
@@ -1471,8 +1559,15 @@ def waypoints_from_toll_segments(
         origin_lat, origin_lng, dest_lat, dest_lng, lat, lng
     )
     corridor_seen: set[str] = set()
-    groups: list[list[tuple[float, float]]] = []
+    groups: list[tuple[int, list[tuple[float, float]]]] = []
     preserve_corridor_order = False
+
+    has_jorr_ring = any(_segment_has_jorr_ring(seg) for seg in segments)
+    has_jagorawi = any(
+        _is_jagorawi_bogor_segment(seg, sections_by_id) for seg in segments
+    )
+    # Kayu Besar→Cikunir + Jakarta→Ciawi: jangan mutar JORR sampai Cikunir dulu.
+    clip_jorr_for_jagorawi = has_jorr_ring and has_jagorawi
 
     for segment in segments:
         ctype = _corridor_type_key(segment, sections_by_id, dest_lat, dest_lng)
@@ -1483,12 +1578,11 @@ def waypoints_from_toll_segments(
 
         entry = (segment.get("entry_gate_name") or segment.get("entry_gate_code") or "").strip()
         exit_ = (segment.get("exit_gate_name") or segment.get("exit_gate_code") or "").strip()
-        if (
-            entry
-            and exit_
-            and _jorr_ring_index(entry) is not None
-            and _jorr_ring_index(exit_) is not None
-        ):
+        is_jorr_pair = _is_jorr_ring_pair(entry, exit_)
+        is_jagorawi = _is_jagorawi_bogor_segment(segment, sections_by_id)
+        if is_jorr_pair:
+            preserve_corridor_order = True
+        if clip_jorr_for_jagorawi and (is_jorr_pair or is_jagorawi):
             preserve_corridor_order = True
 
         names = _gate_names_in_travel_order(
@@ -1500,18 +1594,35 @@ def waypoints_from_toll_segments(
             dest_lng,
             sections_by_id,
         )
+        if clip_jorr_for_jagorawi and is_jorr_pair:
+            names = _clip_jorr_names_at_transfer(names)
+        if clip_jorr_for_jagorawi and is_jagorawi:
+            # Lanjut dari SS Taman Mini, jangan balik ke gerbang "Jakarta"/Cawang.
+            exit_name = exit_ or "Ciawi"
+            names = [_JORR_JAGORAWI_TRANSFER, "Cibubur", exit_name]
+
         group: list[tuple[float, float]] = []
         for name in names:
             coords = _coords_for_anchor_name(name, gates)
             if coords:
                 group.append(coords)
         if group:
-            groups.append(group)
+            # Urutan koridor: JORR dulu (0), lalu Jagorawi (1), lain (2)
+            if is_jorr_pair or (_segment_has_jorr_ring(segment) and not is_jagorawi):
+                order_key = 0
+            elif is_jagorawi:
+                order_key = 1
+            else:
+                order_key = 2
+            groups.append((order_key, group))
 
-    if not preserve_corridor_order:
-        groups.sort(key=lambda g: progress(g[0][0], g[0][1]))
+    if clip_jorr_for_jagorawi:
+        groups.sort(key=lambda row: row[0])
+    elif not preserve_corridor_order:
+        groups.sort(key=lambda row: progress(row[1][0][0], row[1][0][1]))
+
     points: list[tuple[float, float]] = []
-    for group in groups:
+    for _, group in groups:
         for lat, lng in group:
             _append_waypoint(points, lat, lng)
 

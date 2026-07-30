@@ -1500,11 +1500,20 @@ def calculate_route_chained(
 
 def build_toll_road_overlays(segments: list[dict], gates: list[dict]) -> list[dict]:
     """Overlay ruas tol di peta — geometri mengikuti jalan (OSRM), bukan garis lurus."""
-    from app.toll_gate_service import toll_segment_map_geometry
+    from app.toll_gate_service import (
+        segments_need_jorr_jagorawi_transfer,
+        toll_segment_map_geometry,
+    )
+
+    clip_transfer = segments_need_jorr_jagorawi_transfer(segments)
 
     roads: list[dict] = []
     for seg in segments:
-        anchors = toll_segment_map_geometry(seg, gates)
+        anchors = toll_segment_map_geometry(
+            seg,
+            gates,
+            clip_jorr_at_transfer=clip_transfer,
+        )
         geom = list(anchors)
         if len(anchors) >= 2:
             try:
