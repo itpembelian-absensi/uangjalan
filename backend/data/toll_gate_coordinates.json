@@ -184,9 +184,9 @@
     },
     "pondokpinang": {
       "name": "Pondok Pinang",
-      "latitude": -6.290622,
-      "longitude": 106.78186,
-      "source": "osm:Toll Gate Pondok Pinang"
+      "latitude": -6.272000,
+      "longitude": 106.800000,
+      "source": "manual:JORR S mainline (bukan ramp plaza)"
     },
     "rorotan": {
       "name": "Rorotan",

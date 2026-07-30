@@ -18,7 +18,7 @@ _GATE_COORDS_FILE = _DATA_DIR / "toll_gate_coordinates.json"
 
 # Fallback jika file koordinat belum ada (mis. development lokal).
 _LEGACY_GATE_COORDINATES: dict[str, tuple[float, float]] = {
-    "pondokpinang": (-6.290622, 106.781860),
+    "pondokpinang": (-6.272000, 106.800000),
     "tamanmini": (-6.287103, 106.878255),
     "ulujami": (-6.239000, 106.764000),
     "rorotan": (-6.146076, 106.940282),
@@ -1233,12 +1233,14 @@ _JORR_RING_GATES: list[str] = [
     "Kebon Bawang",
 ]
 
-# Titik jarang untuk OSRM — hindari ramp yang menarik rute ke jalan lokal
-# (Pondok Pinang/TMII/Kembangan sering bikin zig-zag / keluar ke Jagorawi).
+# Titik jarang untuk OSRM — cukup untuk tetap di lingkar luar.
+# Pondok Pinang (koordinat motorway) mencegah loncatan Ulujami→Cikunir
+# lewat CTC/dalam kota yang tampil seperti lekukan persegi.
 _JORR_ROUTE_SPARSE_GATES: list[str] = [
     "Penjaringan",
     "Kayu Besar",
     "Ulujami",
+    "Pondok Pinang",
     "Cikunir",
     "Jati Asih",
     "Cakung",
