@@ -204,8 +204,17 @@ SQL
   # ---- Seed data: ruas tol Sumatera, ferry, dan FUSO 6 Roda Panjang ----
   docker compose exec -T db psql -U postgres -d uang_pengiriman -v ON_ERROR_STOP=0 < scripts/seed_sumatera.sql
 
-  # ---- Seed data: Karawaci & Bitung (Tangerang-Merak) ----
+  # ---- Seed data: Karawaci & Bitung (tarif resmi Jakarta-Tangerang) ----
   docker compose exec -T db psql -U postgres -d uang_pengiriman -v ON_ERROR_STOP=0 < scripts/seed_karawaci_bitung.sql
+
+  # Upsert via Python (pastikan tarif terbaru menimpa data lama)
+  docker compose up -d backend
+  docker compose exec -T backend python add_karawaci_bitung_tolls.py || \
+    docker compose run --rm --no-deps backend python add_karawaci_bitung_tolls.py || true
+
+  log "Verify Karawaci/Bitung rates"
+  docker compose exec -T db psql -U postgres -d uang_pengiriman -c \
+    "SELECT destination_name, gol23, gol45 FROM toll_sections WHERE name='Tangerang - Merak' AND destination_name IN ('Karawaci','Bitung') ORDER BY sort_order;"
 
   log "Migrations done"
 }
