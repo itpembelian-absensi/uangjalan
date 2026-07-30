@@ -69,7 +69,7 @@ SECTION_ROUTE_HINTS: list[tuple[list[str], list[str]]] = [
     (["cawang", "tomang", "dalamkota", "cawangpluit"], ["cawang", "ctc", "tomang", "dalamkota", "pluit"]),
     (["cikampek", "japek"], ["cikampek", "japek"]),
     (["bekasi", "cikarang", "karawang", "tambun", "cibitung"], ["cikampek", "japek", "bekasi", "cikarang", "karawang", "tambun"]),
-    (["jorr", "lingkarluar", "outer"], ["jorr", "lingkarluar"]),
+    (["jorr", "lingkarluar", "outer", "kayubesar", "jatiasih"], ["jorr", "lingkarluar", "kayubesar", "jatiasih", "cikunir", "cilincing", "kebonbawang"]),
     (["bogor", "ciawi", "jagorawi", "cinere"], ["bogor", "ciawi", "jagorawi", "cinere"]),
     (["kelapagading", "pulogebang"], ["dalamkota", "kelapagading", "pulogebang"]),
     (["cengkareng", "batuceper"], ["cengkareng", "batuceper", "benda"]),
