@@ -60,6 +60,16 @@ const storedManualTollBreakdown = (value) => {
   return value.filter((row) => row?.section_id);
 };
 
+/** Ruas tol tersimpan untuk ditampilkan saat Finance terkunci (tanpa hitung ulang). */
+const storedTollBreakdownForDisplay = (value) => {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (row) =>
+      row &&
+      (row.section_id || row.entry_gate_name || row.exit_gate_name || row.section_name),
+  );
+};
+
 const customTollBreakdownPayload = (routeInfo, manualOverride) => {
   if (!manualOverride) return null;
   const rows = routeInfo?.toll_breakdown || [];
@@ -353,6 +363,7 @@ const Customers = () => {
   const [tollSections, setTollSections] = useState([]);
   const [tollManualLoading, setTollManualLoading] = useState(false);
   const [manualTollOverride, setManualTollOverride] = useState(false);
+  const [routeRefreshNeeded, setRouteRefreshNeeded] = useState(false);
   const persistedTollBreakdownRef = useRef(null);
   const corridorDebounceRef = useRef(null);
   const corridorFetchSeqRef = useRef(0);
@@ -753,6 +764,7 @@ const Customers = () => {
   const openModal = async (customer = null) => {
     if (!canWrite) return;
     fetchTollSections();
+    setRouteRefreshNeeded(false);
     if (customer) {
       setEditId(customer.id);
       try {
@@ -761,6 +773,7 @@ const Customers = () => {
         const savedManualBreakdown = storedManualTollBreakdown(full.custom_toll_breakdown);
         persistedTollBreakdownRef.current = savedManualBreakdown;
         setManualTollOverride(savedManualBreakdown != null);
+        const financeLocked = Boolean(full.is_locked_finance);
         setForm({
           code: full.code || '',
           name: full.name || '',
@@ -775,9 +788,35 @@ const Customers = () => {
           share_location: full.share_location || '',
           is_active: full.is_active,
           is_locked_marketing: full.is_locked_marketing || false,
-          is_locked_finance: full.is_locked_finance || false,
+          is_locked_finance: financeLocked,
           tariffs: buildTariffRows(vehicleTypes, full.tariffs || []),
         });
+        // Finance terkunci: jangan hitung ulang — tampilkan snapshot ruas tersimpan saja.
+        if (financeLocked) {
+          const lockedSegments = storedTollBreakdownForDisplay(full.custom_toll_breakdown);
+          setRouteInfo(
+            lockedSegments.length
+              ? {
+                  distance_km: null,
+                  duration_min: null,
+                  geometry: [],
+                  toll_roads: [],
+                  toll_breakdown: lockedSegments,
+                  toll_by_vehicle: [],
+                  toll_idr: 0,
+                  toll_source: 'locked',
+                  toll_is_estimate: false,
+                  toll_note:
+                    'Finance terkunci — data BBM/Tol & ruas mengikuti nilai saat dikunci. Buka kunci untuk refresh rute.',
+                  route_via_toll_gates: false,
+                }
+              : null,
+          );
+          setRouteError('');
+        } else {
+          setRouteInfo(null);
+          setRouteError('');
+        }
       } catch (err) {
         alert(err.message);
         return;
@@ -787,6 +826,8 @@ const Customers = () => {
       setForceToll(false);
       persistedTollBreakdownRef.current = null;
       setManualTollOverride(false);
+      setRouteInfo(null);
+      setRouteError('');
       setForm({
         code: '',
         name: '',
@@ -846,6 +887,7 @@ const Customers = () => {
       setRouteInfo(null);
       setRouteError('');
       setManualTollOverride(false);
+      setRouteRefreshNeeded(false);
       persistedTollBreakdownRef.current = null;
       corridorFetchSeqRef.current += 1;
       if (corridorDebounceRef.current) clearTimeout(corridorDebounceRef.current);
@@ -967,18 +1009,27 @@ const Customers = () => {
 
   useEffect(() => {
     if (!isModalOpen || !hasCoords) {
-      setRouteInfo(null);
-      setRouteError('');
+      if (!form.is_locked_finance) {
+        setRouteInfo(null);
+        setRouteError('');
+      }
       return undefined;
     }
+    // Finance terkunci / menunggu refresh setelah unlock → jangan auto-hitung.
+    if (form.is_locked_finance || routeRefreshNeeded) return undefined;
     const timer = setTimeout(() => {
       fetchRouteInfo();
     }, 1200);
     return () => clearTimeout(timer);
+    // is_locked_finance & routeRefreshNeeded sengaja tidak di deps:
+    // unlock tidak boleh memicu hitung ulang otomatis (pakai tombol Refresh).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.latitude, form.longitude, isModalOpen, form.name, forceToll, routeTrigger]);
 
   useEffect(() => {
     if (!isModalOpen || !routeInfo?.distance_km || vehicleTypes.length === 0) return;
+    // Jangan timpa tarif tersimpan selama Finance terkunci.
+    if (form.is_locked_finance) return;
     setForm((prev) => ({
       ...prev,
       tariffs: prev.tariffs.map((row) => {
@@ -995,10 +1046,11 @@ const Customers = () => {
         };
       }),
     }));
-  }, [routeInfo, isModalOpen, vehicleTypes]);
+  }, [routeInfo, isModalOpen, vehicleTypes, form.is_locked_finance]);
 
   useEffect(() => {
     if (!isModalOpen || vehicleTypes.length === 0) return;
+    if (form.is_locked_finance) return;
     setForm((prev) => ({
       ...prev,
       tariffs: prev.tariffs.map((row) => {
@@ -1006,7 +1058,7 @@ const Customers = () => {
         return { ...row, uang_mel: masterUangMel(vt) };
       }),
     }));
-  }, [vehicleTypes, isModalOpen]);
+  }, [vehicleTypes, isModalOpen, form.is_locked_finance]);
 
   const handleGeocode = async () => {
     setGeocoding(true);
@@ -1068,6 +1120,7 @@ const Customers = () => {
 
   const autoFillBbmTol = () => {
     if (!routeInfo?.distance_km) return;
+    if (form.is_locked_finance) return;
     setForm((prev) => ({
       ...prev,
       tariffs: prev.tariffs.map((row) => {
@@ -1081,6 +1134,18 @@ const Customers = () => {
         return { ...row, bbm, tol, uang_mel: masterUangMel(vt) };
       }),
     }));
+  };
+
+  const handleRefreshRouteBbmTol = async () => {
+    if (form.is_locked_finance) return;
+    setTollManualLoading(true);
+    setRouteError('');
+    try {
+      await fetchRouteInfo({ forceAuto: true });
+      setRouteRefreshNeeded(false);
+    } finally {
+      setTollManualLoading(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -1162,6 +1227,7 @@ const Customers = () => {
         is_locked_finance: false,
         is_locked_marketing: updated.is_locked_marketing ?? prev.is_locked_marketing,
       }));
+      setRouteRefreshNeeded(true);
       setCustomers((prev) =>
         prev.map((c) =>
           c.id === editId
@@ -1206,6 +1272,7 @@ const Customers = () => {
           ...prev,
           is_locked_finance: false,
         }));
+        setRouteRefreshNeeded(true);
       }
       alert(result.message || `Berhasil membuka kunci Finance ${result.unlocked_count} customer.`);
     } catch (err) {
@@ -1928,16 +1995,30 @@ const Customers = () => {
                         <label className="form-label" style={{ textTransform: 'none', marginBottom: 0 }}>
                           Tarif Uang Jalan per Jenis Kendaraan
                         </label>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
                           <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem' }}>
                             <input
                               type="checkbox"
                               checked={forceToll}
                               onChange={(e) => setForceToll(e.target.checked)}
+                              disabled={form.is_locked_finance}
                             />
                             Asumsikan lewat jalan Tol
                           </label>
-                          {routeInfo && (
+                          {routeRefreshNeeded && !form.is_locked_finance && (
+                            <button
+                              type="button"
+                              className="btn btn-primary"
+                              style={{ fontSize: '0.85rem', padding: '0.35rem 0.75rem' }}
+                              onClick={handleRefreshRouteBbmTol}
+                              disabled={tollManualLoading || routeLoading || !hasCoords}
+                            >
+                              {tollManualLoading || routeLoading
+                                ? 'Refresh...'
+                                : 'Refresh rute, BBM & Tol'}
+                            </button>
+                          )}
+                          {routeInfo && !form.is_locked_finance && !routeRefreshNeeded && (
                             <button
                               type="button"
                               className="btn btn-secondary"
@@ -2008,7 +2089,11 @@ const Customers = () => {
                         </table>
                       </div>
                       <small style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
-                        BBM &amp; Tol dihitung otomatis dari rute (tidak bisa diubah manual). Uang Mel diisi otomatis dari master jenis kendaraan. Parkir &amp; Lain-lain diisi manual. Uang jalan = BBM + Tol + Uang Mel + Parkir + Lain-lain.
+                        {form.is_locked_finance
+                          ? 'Finance terkunci — BBM, Tol, dan ruas tol tidak dihitung ulang. Buka kunci Finance untuk refresh rute.'
+                          : routeRefreshNeeded
+                            ? 'Kunci Finance sudah dibuka. Klik "Refresh rute, BBM & Tol" jika ingin menghitung ulang dari rute terbaru.'
+                            : 'BBM & Tol dihitung otomatis dari rute (tidak bisa diubah manual). Uang Mel diisi otomatis dari master jenis kendaraan. Parkir & Lain-lain diisi manual. Uang jalan = BBM + Tol + Uang Mel + Parkir + Lain-lain.'}
                       </small>
                       
                       <div
@@ -2065,8 +2150,25 @@ const Customers = () => {
                       </div>
                     )}
 
+                    {routeInfo && form.is_locked_finance && (
+                      <div
+                        style={{
+                          marginBottom: '0.75rem',
+                          padding: '0.65rem 0.85rem',
+                          borderRadius: '8px',
+                          border: '1px solid #fecaca',
+                          background: '#fef2f2',
+                          fontSize: '0.85rem',
+                          color: '#991b1b',
+                        }}
+                      >
+                        Finance terkunci — BBM/Tol &amp; ruas tidak dihitung ulang. Buka kunci lalu klik Refresh bila perlu update.
+                      </div>
+                    )}
+
                     {routeInfo && (
                       <>
+                        {routeInfo.distance_km != null && !form.is_locked_finance && (
                         <div className="form-group" style={{ marginBottom: '1rem' }}>
                           <label className="form-label" style={{ fontSize: '0.75rem', marginBottom: '0.35rem' }}>
                             Skema Rute / Koridor Tol
@@ -2088,7 +2190,10 @@ const Customers = () => {
                               : 'Default jarak = OSRM rute tercepat. Tombol "Jarak langsung" menghitung ulang tanpa memaksa koridor tol.'}
                           </small>
                         </div>
+                        )}
 
+                        {routeInfo.distance_km != null && (
+                        <>
                         {manualTollOverride && routeInfo.route_via_toll_gates && (
                           <div
                             style={{
@@ -2306,11 +2411,16 @@ const Customers = () => {
                               : 'Jarak langsung (≈ Google)'}
                           </button>
                         </div>
+                        </>
+                        )}
                         <LocationPickerMap
                           key={`${form.latitude}-${form.longitude}-${routeInfo?.geometry?.length || 0}-${routeInfo?.route_profile || 'auto'}`}
                           latitude={form.latitude}
                           longitude={form.longitude}
-                          onLocationChange={(lat, lng) => setForm({ ...form, latitude: String(lat), longitude: String(lng) })}
+                          onLocationChange={(lat, lng) => {
+                            if (form.is_locked_finance) return;
+                            setForm({ ...form, latitude: String(lat), longitude: String(lng) });
+                          }}
                           origin={routeInfo?.origin || null}
                           geometry={routeInfo?.geometry || []}
                           tollRoads={routeInfo?.toll_roads || []}
@@ -2322,7 +2432,7 @@ const Customers = () => {
                           segments={routeInfo.toll_breakdown}
                           tollSource={routeInfo.toll_source}
                           tollNote={routeInfo.toll_note}
-                          editable={canWrite}
+                          editable={canWrite && !form.is_locked_finance}
                           tollSections={tollSections}
                           tollLoading={tollManualLoading}
                           onSegmentReplace={replaceTollSegmentAt}
@@ -2374,7 +2484,17 @@ const Customers = () => {
                         id="is_locked_finance" 
                         checked={form.is_locked_finance} 
                         disabled={(user?.role === 'finance' && initLockedFinance && !financeCanUnlock) || !form.is_locked_marketing}
-                        onChange={(e) => setForm({ ...form, is_locked_finance: e.target.checked })} 
+                        onChange={(e) => {
+                          const next = e.target.checked;
+                          setForm({ ...form, is_locked_finance: next });
+                          // Buka kunci via checkbox → tampilkan tombol refresh (jangan auto-recalc).
+                          if (!next && initLockedFinance) {
+                            setRouteRefreshNeeded(true);
+                          }
+                          if (next) {
+                            setRouteRefreshNeeded(false);
+                          }
+                        }} 
                       />
                       <label htmlFor="is_locked_finance" style={{ cursor: 'pointer', fontSize: '0.9rem', fontWeight: 500, color: form.is_locked_finance ? '#dc2626' : 'var(--text-secondary)' }}>
                         Kunci Finance (Final)
