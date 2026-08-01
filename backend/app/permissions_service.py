@@ -21,7 +21,14 @@ ACCESS_LABELS = {
 PROTECTED_ADMIN_MENUS: dict[str, str] = {
     "users": "full",
     "access_matrix": "full",
+    "customer_finance_lock": "full",
 }
+
+# Muncul di Matriks Akses, tidak ditampilkan di menu navigasi samping
+NAV_HIDDEN_MENU_IDS: frozenset[str] = frozenset({"customer_finance_lock"})
+
+# Permission tulis untuk kunci/buka Kunci Finance Master Customer
+CUSTOMER_FINANCE_LOCK_PERMISSION = "customers:finance_lock"
 
 
 @dataclass(frozen=True)
@@ -41,8 +48,18 @@ DEFAULT_MENUS: list[MenuDef] = [
     MenuDef("delivery_routes", "Rute Pengiriman", "/delivery-routes", "Transaksi", "MapPinned", 20, "delivery_routes:read", "delivery_routes:write"),
     MenuDef("delivery_routes_report", "Laporan Rute", "/delivery-routes/report", "Transaksi", "FileBarChart", 22, "delivery_routes:read"),
     MenuDef("sales", "Uang Jalan", "/sales", "Transaksi", "Wallet", 21, "sales:read", "sales:write"),
-    MenuDef("reports", "Laporan", "/reports", "Analitik", "BarChart3", 30, "reports:read"),
+    MenuDef("reports", "Laporan", "/reports", "Analitik", "BarChart3", 30, "reports:read", "reports:write"),
     MenuDef("customers", "Customers", "/customers", "Master Data", "Users", 31, "customers:read", "customers:write"),
+    MenuDef(
+        "customer_finance_lock",
+        "Kunci Finance Customer",
+        "/customers#finance-lock",
+        "Master Data",
+        "Lock",
+        32,
+        "customers:finance_lock_read",
+        CUSTOMER_FINANCE_LOCK_PERMISSION,
+    ),
     MenuDef("drivers", "Drivers", "/drivers", "Master Data", "Car", 32, "drivers:read", "drivers:write"),
     MenuDef("vehicles", "Vehicles", "/vehicles", "Master Data", "Truck", 33, "vehicles:read", "vehicles:write"),
     MenuDef("vehicle_brands", "Merek", "/vehicle-brands", "Master Data", "Minus", 34, "vehicle_brands:read", "vehicle_brands:write"),
@@ -69,6 +86,13 @@ def _default_access_level(menu: MenuDef, role: Role) -> str:
     defaults: dict[str, dict[Role, str]] = {
         "dashboard": {Role.ADMIN: "full", Role.FINANCE: "read", Role.MARKETING: "read", Role.GUDANG: "read"},
         "customers": {Role.ADMIN: "full", Role.FINANCE: "full", Role.MARKETING: "full", Role.GUDANG: "read"},
+        # full = boleh kunci & buka Kunci Finance; read = lihat status saja; none = tidak boleh ubah
+        "customer_finance_lock": {
+            Role.ADMIN: "full",
+            Role.FINANCE: "full",
+            Role.MARKETING: "none",
+            Role.GUDANG: "none",
+        },
         "drivers": {Role.ADMIN: "full", Role.FINANCE: "read", Role.MARKETING: "full", Role.GUDANG: "read"},
         "vehicles": {Role.ADMIN: "full", Role.FINANCE: "read", Role.MARKETING: "full", Role.GUDANG: "read"},
         "vehicle_brands": {Role.ADMIN: "full", Role.FINANCE: "full", Role.MARKETING: "full", Role.GUDANG: "read"},
@@ -85,9 +109,21 @@ def _default_access_level(menu: MenuDef, role: Role) -> str:
         "toll_gates": {Role.ADMIN: "full", Role.FINANCE: "full", Role.MARKETING: "full", Role.GUDANG: "none"},
         "toll_sections": {Role.ADMIN: "full", Role.FINANCE: "none", Role.MARKETING: "full", Role.GUDANG: "none"},
         "delivery_routes": {Role.ADMIN: "full", Role.FINANCE: "read", Role.MARKETING: "full", Role.GUDANG: "read"},
-        "delivery_routes_report": {Role.ADMIN: "full", Role.FINANCE: "read", Role.MARKETING: "read", Role.GUDANG: "read"},
+        # Samakan dengan akses lihat rute — dipakai tab Laporan Rute
+        "delivery_routes_report": {
+            Role.ADMIN: "full",
+            Role.FINANCE: "full",
+            Role.MARKETING: "read",
+            Role.GUDANG: "read",
+        },
         "sales": {Role.ADMIN: "full", Role.FINANCE: "full", Role.MARKETING: "none", Role.GUDANG: "full"},
-        "reports": {Role.ADMIN: "read", Role.FINANCE: "read", Role.MARKETING: "read", Role.GUDANG: "read"},
+        # Finance = Admin untuk halaman Laporan (lihat + export)
+        "reports": {
+            Role.ADMIN: "full",
+            Role.FINANCE: "full",
+            Role.MARKETING: "read",
+            Role.GUDANG: "read",
+        },
         "users": {Role.ADMIN: "full", Role.FINANCE: "none", Role.MARKETING: "none", Role.GUDANG: "none"},
         "access_matrix": {Role.ADMIN: "full", Role.FINANCE: "read", Role.MARKETING: "read", Role.GUDANG: "none"},
         "app_settings": {Role.ADMIN: "full", Role.FINANCE: "read", Role.MARKETING: "read", Role.GUDANG: "read"},
@@ -238,6 +274,57 @@ def sync_role_access(db: Session) -> None:
         db.commit()
 
 
+def ensure_finance_reports_like_admin(db: Session) -> None:
+    """Pastikan Finance punya akses Laporan (dan Laporan Rute) setara Admin."""
+    changed = False
+    for menu_id, level in (
+        ("reports", "full"),
+        ("delivery_routes_report", "full"),
+    ):
+        if not db.get(AppMenu, menu_id):
+            continue
+        row = db.scalar(
+            select(RoleMenuAccess).where(
+                RoleMenuAccess.menu_id == menu_id,
+                RoleMenuAccess.role == Role.FINANCE.value,
+            )
+        )
+        if row is None:
+            db.add(
+                RoleMenuAccess(
+                    menu_id=menu_id,
+                    role=Role.FINANCE.value,
+                    access_level=level,
+                )
+            )
+            changed = True
+        elif row.access_level != level:
+            row.access_level = level
+            changed = True
+
+        admin_row = db.scalar(
+            select(RoleMenuAccess).where(
+                RoleMenuAccess.menu_id == menu_id,
+                RoleMenuAccess.role == Role.ADMIN.value,
+            )
+        )
+        if admin_row is None:
+            db.add(
+                RoleMenuAccess(
+                    menu_id=menu_id,
+                    role=Role.ADMIN.value,
+                    access_level=level,
+                )
+            )
+            changed = True
+        elif admin_row.access_level not in ("full", "read"):
+            admin_row.access_level = level
+            changed = True
+
+    if changed:
+        db.commit()
+
+
 def access_matrix_payload(db: Session, *, can_edit: bool) -> dict:
     menus = _load_menus(db)
     rows = db.scalars(select(RoleMenuAccess)).all()
@@ -278,6 +365,8 @@ def menus_for_role(role: str, db: Session | None = None) -> list[dict]:
 
     items: list[dict] = []
     for menu in menus:
+        if menu.id in NAV_HIDDEN_MENU_IDS:
+            continue
         level = access_map.get(menu.id, "none")
         if level == "none":
             continue

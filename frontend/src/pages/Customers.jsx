@@ -347,12 +347,12 @@ const TariffReadonlyAmount = ({ value }) => (
 );
 
 import { useAuth } from '../auth/AuthContext';
-import { useAppSettings } from '../context/AppSettingsContext';
 
 const Customers = () => {
-  const { user } = useAuth();
-  const { settings: appSettings } = useAppSettings();
-  const financeCanUnlock = appSettings?.finance_can_unlock_customer || false;
+  const { user, hasPermission } = useAuth();
+  // Hak kunci/buka Finance dari Matriks Akses → "Kunci Finance Customer" (Lihat & Edit).
+  const canManageFinanceLock = hasPermission('customers:finance_lock');
+  const canUnlockFinanceLock = canManageFinanceLock;
   const canWrite = useCrudWrite();
   const location = useLocation();
   const [customers, setCustomers] = useState([]);
@@ -1086,7 +1086,9 @@ const Customers = () => {
             email: form.email || null,
             is_active: form.is_active,
             is_locked_marketing: form.is_locked_marketing,
-            is_locked_finance: form.is_locked_finance,
+            is_locked_finance: canManageFinanceLock
+              ? form.is_locked_finance
+              : Boolean(customers.find((c) => c.id === editId)?.is_locked_finance),
             latitude: form.latitude ? parseFloat(form.latitude) : null,
             longitude: form.longitude ? parseFloat(form.longitude) : null,
             tariffs: tariffPayloadRows(form.tariffs),
@@ -1179,7 +1181,10 @@ const Customers = () => {
         email: form.email || null,
         is_active: form.is_active,
         is_locked_marketing: form.is_locked_marketing,
-        is_locked_finance: form.is_locked_finance,
+        // Marketing tidak boleh ubah Kunci Finance — kirim status server apa adanya.
+        is_locked_finance: canManageFinanceLock
+          ? form.is_locked_finance
+          : Boolean(customers.find((c) => c.id === editId)?.is_locked_finance),
         force_toll: forceToll,
         latitude: form.latitude ? parseFloat(form.latitude) : null,
         longitude: form.longitude ? parseFloat(form.longitude) : null,
@@ -1778,9 +1783,7 @@ const Customers = () => {
               <div className="modal-body">
                 <fieldset
                   disabled={
-                    (user?.role !== 'admin'
-                      && !(user?.role === 'finance' && financeCanUnlock)
-                      && initLockedFinance)
+                    (initLockedFinance && !canUnlockFinanceLock)
                     || (user?.role === 'marketing' && form.is_locked_marketing)
                   }
                   style={{ border: 'none', padding: 0, margin: 0 }}
@@ -2481,38 +2484,63 @@ const Customers = () => {
                       type="checkbox" 
                       id="is_locked_marketing" 
                       checked={form.is_locked_marketing} 
-                      disabled={initLockedFinance && user?.role !== 'admin' && !(user?.role === 'finance' && financeCanUnlock)}
-                      onChange={(e) => setForm({ ...form, is_locked_marketing: e.target.checked })} 
+                      disabled={initLockedFinance && !canUnlockFinanceLock}
+                      onChange={(e) => setForm({ ...form, is_locked_marketing: e.target.checked })}
                     />
                     <label htmlFor="is_locked_marketing" style={{ cursor: 'pointer', fontSize: '0.9rem', fontWeight: 500, color: form.is_locked_marketing ? '#dc2626' : 'var(--text-secondary)' }}>
                       Kunci Marketing
                     </label>
                   </div>
-                  {(user?.role === 'finance' || user?.role === 'admin') && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <input 
-                        type="checkbox" 
-                        id="is_locked_finance" 
-                        checked={form.is_locked_finance} 
-                        disabled={(user?.role === 'finance' && initLockedFinance && !financeCanUnlock) || !form.is_locked_marketing}
-                        onChange={(e) => {
-                          const next = e.target.checked;
-                          setForm({ ...form, is_locked_finance: next });
-                          // Buka kunci via checkbox → tampilkan tombol refresh (jangan auto-recalc).
-                          if (!next && initLockedFinance) {
-                            setRouteRefreshNeeded(true);
-                          }
-                          if (next) {
-                            setRouteRefreshNeeded(false);
-                          }
-                        }} 
-                      />
-                      <label htmlFor="is_locked_finance" style={{ cursor: 'pointer', fontSize: '0.9rem', fontWeight: 500, color: form.is_locked_finance ? '#dc2626' : 'var(--text-secondary)' }}>
-                        Kunci Finance (Final)
-                      </label>
-                    </div>
-                  )}
-                  {user?.role === 'admin' && editId && initLockedFinance && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <input
+                      type="checkbox"
+                      id="is_locked_finance"
+                      checked={form.is_locked_finance}
+                      disabled={
+                        !canManageFinanceLock
+                        || (initLockedFinance && !canUnlockFinanceLock)
+                        || !form.is_locked_marketing
+                      }
+                      onChange={(e) => {
+                        if (!canManageFinanceLock) return;
+                        const next = e.target.checked;
+                        if (!next && initLockedFinance && !canUnlockFinanceLock) return;
+                        setForm({ ...form, is_locked_finance: next });
+                        // Buka kunci via checkbox → tampilkan tombol refresh (jangan auto-recalc).
+                        if (!next && initLockedFinance) {
+                          setRouteRefreshNeeded(true);
+                        }
+                        if (next) {
+                          setRouteRefreshNeeded(false);
+                        }
+                      }}
+                      title={
+                        !canManageFinanceLock
+                          ? 'Tidak berwenang. Atur di Matriks Akses → Kunci Finance Customer'
+                          : !form.is_locked_marketing
+                            ? 'Aktifkan Kunci Marketing terlebih dahulu'
+                            : undefined
+                      }
+                    />
+                    <label
+                      htmlFor="is_locked_finance"
+                      style={{
+                        cursor: canManageFinanceLock ? 'pointer' : 'not-allowed',
+                        fontSize: '0.9rem',
+                        fontWeight: 500,
+                        color: form.is_locked_finance ? '#dc2626' : 'var(--text-secondary)',
+                        opacity: canManageFinanceLock ? 1 : 0.75,
+                      }}
+                      title={
+                        !canManageFinanceLock
+                          ? 'Tidak berwenang. Atur di Matriks Akses → Kunci Finance Customer'
+                          : undefined
+                      }
+                    >
+                      Kunci Finance (Final)
+                    </label>
+                  </div>
+                  {canUnlockFinanceLock && editId && initLockedFinance && (
                     <button
                       type="button"
                       className="btn btn-secondary"
@@ -2528,7 +2556,7 @@ const Customers = () => {
                       }}
                       disabled={isUnlocking || isSubmitting || isUnlockingAll || isLockingAll}
                       onClick={handleUnlockFinance}
-                      title="Buka kunci Finance (Final) — hanya Admin"
+                      title="Buka kunci Finance (Final) — Admin / Finance"
                     >
                       <Unlock size={14} />
                       {isUnlocking ? 'Membuka...' : 'Buka Kunci Finance'}
@@ -2556,7 +2584,7 @@ const Customers = () => {
                 <button type="button" className="btn btn-secondary" onClick={closeModal}>
                   Batal
                 </button>
-                {!(user?.role !== 'admin' && !(user?.role === 'finance' && financeCanUnlock) && initLockedFinance) && (
+                {!(initLockedFinance && !canUnlockFinanceLock) && (
                   <button 
                     type="button"
                     className="btn btn-primary" 

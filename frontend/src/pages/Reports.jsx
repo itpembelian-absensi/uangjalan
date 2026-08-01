@@ -42,8 +42,11 @@ const enrichSaleReportRow = (s) => {
 
 const Reports = () => {
   const { hasPermission } = useAuth();
-  const canSalesReport = hasPermission('reports:read');
-  const canRouteReport = hasPermission('delivery_routes:read');
+  // Finance & Admin: reports:read (+ reports:write jika full di matriks)
+  const canSalesReport =
+    hasPermission('reports:read') || hasPermission('reports:write');
+  const canRouteReport =
+    hasPermission('delivery_routes:read') || hasPermission('delivery_routes:write');
 
   const [activeTab, setActiveTab] = useState(
     canSalesReport ? 'sales' : canRouteReport ? 'routes' : 'sales'

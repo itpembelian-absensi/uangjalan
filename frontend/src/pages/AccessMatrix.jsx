@@ -10,13 +10,26 @@ const ACCESS_META = {
   none: { label: 'Tidak ada akses', className: 'access-none', icon: XCircle },
 };
 
-function AccessBadge({ level, highlight }) {
+/** Label khusus untuk baris hak yang bukan navigasi menu. */
+const SPECIAL_MENU_LABELS = {
+  customer_finance_lock: {
+    full: 'Bisa kunci & buka',
+    read: 'Lihat status saja',
+    none: 'Tidak bisa ubah',
+  },
+};
+
+function levelLabel(menuId, level, legend) {
+  return SPECIAL_MENU_LABELS[menuId]?.[level] || legend[level] || level;
+}
+
+function AccessBadge({ level, highlight, label }) {
   const meta = ACCESS_META[level];
   const Icon = meta.icon;
   return (
     <span className={`access-badge ${meta.className} ${highlight ? 'access-badge-current' : ''}`}>
       <Icon size={18} />
-      <span>{meta.label}</span>
+      <span>{label || meta.label}</span>
     </span>
   );
 }
@@ -118,7 +131,8 @@ const AccessMatrix = () => {
           <p>
             Pilih level akses pada setiap sel. <strong>Lihat & Edit</strong> = buka menu + ubah data,{' '}
             <strong>Lihat saja</strong> = hanya lihat, <strong>Tidak ada akses</strong> = menu disembunyikan.
-            Admin selalu memiliki akses penuh ke Manajemen User dan Matriks Akses.
+            Baris <strong>Kunci Finance Customer</strong> mengatur siapa yang boleh kunci/buka kunci Finance di master customer (bukan menu navigasi).
+            Admin selalu memiliki akses penuh ke Manajemen User, Matriks Akses, dan Kunci Finance Customer.
           </p>
         </GlassCard>
       )}
@@ -149,7 +163,11 @@ const AccessMatrix = () => {
                     <tr key={item.id} className="access-data-row">
                       <td className="access-menu-cell">
                         <div className="access-menu-label">{item.label}</div>
-                        <div className="access-menu-path">{item.path}</div>
+                        <div className="access-menu-path">
+                          {item.id === 'customer_finance_lock'
+                            ? 'Hak khusus (lock/unlock Finance)'
+                            : item.path}
+                        </div>
                       </td>
                       {matrix.roles.map((role) => {
                         const level = item.access[role.id];
@@ -170,7 +188,7 @@ const AccessMatrix = () => {
                               >
                                 {levels.map((lv) => (
                                   <option key={lv} value={lv}>
-                                    {matrix.legend[lv] || lv}
+                                    {levelLabel(item.id, lv, matrix.legend)}
                                   </option>
                                 ))}
                               </select>
@@ -185,7 +203,11 @@ const AccessMatrix = () => {
 
                         return (
                           <td key={role.id} className="access-role-cell">
-                            <AccessBadge level={level} highlight={highlight} />
+                            <AccessBadge
+                              level={level}
+                              highlight={highlight}
+                              label={levelLabel(item.id, level, matrix.legend)}
+                            />
                           </td>
                         );
                       })}

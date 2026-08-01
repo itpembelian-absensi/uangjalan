@@ -1189,6 +1189,7 @@ def _ensure_schema_locked() -> None:
 def _seed_access_permissions() -> None:
     with SessionLocal() as db:
         from app.permissions_service import (
+            ensure_finance_reports_like_admin,
             reload_permissions_cache,
             seed_menus_and_access,
             sync_menu_definitions,
@@ -1198,6 +1199,7 @@ def _seed_access_permissions() -> None:
         seed_menus_and_access(db)
         sync_menu_definitions(db)
         sync_role_access(db)
+        ensure_finance_reports_like_admin(db)
         reload_permissions_cache(db)
 
 

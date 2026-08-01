@@ -204,7 +204,7 @@ const AppSettings = () => {
                     Finance dapat unlock Master Customer
                   </label>
                   <small style={{ color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
-                    Jika aktif, role Finance bisa membuka kunci (uncheck &ldquo;Kunci Finance&rdquo;) pada master customer yang sudah dikunci final. Jika nonaktif, hanya Admin yang bisa membuka kunci.
+                    Cadangan lama. Hak kunci/buka Finance utama diatur di <strong>Matriks Akses → Kunci Finance Customer</strong> (Lihat &amp; Edit = bisa kunci &amp; buka).
                   </small>
                 </div>
               </div>

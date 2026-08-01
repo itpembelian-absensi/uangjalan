@@ -15,6 +15,10 @@ from app.sale_lock import (
     route_sale,
     sale_finance_locked,
 )
+from app.permissions_service import (
+    CUSTOMER_FINANCE_LOCK_PERMISSION,
+    has_permission,
+)
 from app.roles import Role
 from app.db import get_db
 from app.money_utils import compute_uang_jalan_totals
@@ -998,6 +1002,16 @@ def create_customer(payload: CustomerCreate, db: Session = Depends(get_db), curr
     _validate_tariffs(db, payload.tariffs)
     code = _normalize_customer_code(payload.code)
     _ensure_customer_code_unique(db, code)
+    # Kunci Finance: diatur di Matriks Akses (menu "Kunci Finance Customer").
+    can_manage_finance_lock = has_permission(
+        current_user.role, CUSTOMER_FINANCE_LOCK_PERMISSION
+    )
+    locked_finance = bool(payload.is_locked_finance) if can_manage_finance_lock else False
+    if locked_finance and not payload.is_locked_marketing:
+        raise HTTPException(
+            status_code=400,
+            detail="Kunci Finance hanya dapat dilakukan jika Kunci Marketing sudah aktif.",
+        )
     obj = Customer(
         code=code,
         name=payload.name.strip(),
@@ -1010,7 +1024,7 @@ def create_customer(payload: CustomerCreate, db: Session = Depends(get_db), curr
         is_active=payload.is_active,
         force_toll=payload.force_toll,
         is_locked_marketing=payload.is_locked_marketing,
-        is_locked_finance=payload.is_locked_finance,
+        is_locked_finance=locked_finance,
         updated_at=func.now(),
         updated_by_id=current_user.id,
         latitude=payload.latitude,
@@ -1042,20 +1056,30 @@ def update_customer(customer_id: int, payload: CustomerCreate, db: Session = Dep
     if not obj:
         raise HTTPException(status_code=404, detail="Customer not found")
 
-    # Check if finance can unlock customers
-    app_setting = db.scalars(select(AppSetting).limit(1)).first()
-    finance_can_unlock = app_setting.finance_can_unlock_customer if app_setting else False
+    # Kunci Finance: hak diatur di Matriks Akses → "Kunci Finance Customer" (Lihat & Edit).
+    can_manage_finance_lock = has_permission(
+        current_user.role, CUSTOMER_FINANCE_LOCK_PERMISSION
+    )
 
-    if obj.is_locked_finance and current_user.role != "admin":
-        if current_user.role == "finance" and finance_can_unlock:
-            pass  # Finance is allowed to unlock
-        else:
-            raise HTTPException(status_code=403, detail="Customer telah dikunci final (Finance) dan hanya dapat diubah oleh Admin")
-    
-    if current_user.role == "marketing":
+    if bool(payload.is_locked_finance) != bool(obj.is_locked_finance) and not can_manage_finance_lock:
+        raise HTTPException(
+            status_code=403,
+            detail="Anda tidak berwenang mengubah Kunci Finance. Atur di Matriks Akses (Kunci Finance Customer).",
+        )
+
+    if obj.is_locked_finance and not can_manage_finance_lock:
+        raise HTTPException(
+            status_code=403,
+            detail="Customer telah dikunci final (Finance). Hanya role dengan hak Kunci Finance yang dapat membuka kunci.",
+        )
+
+    if current_user.role == Role.MARKETING.value:
         if obj.is_locked_marketing and payload.is_locked_marketing:
-            raise HTTPException(status_code=403, detail="Customer telah dikunci. Hilangkan centang Kunci Marketing terlebih dahulu untuk menyimpan perubahan.")
-    
+            raise HTTPException(
+                status_code=403,
+                detail="Customer telah dikunci. Hilangkan centang Kunci Marketing terlebih dahulu untuk menyimpan perubahan.",
+            )
+
     if payload.is_locked_finance and not payload.is_locked_marketing:
         raise HTTPException(status_code=400, detail="Kunci Finance hanya dapat dilakukan jika Kunci Marketing sudah aktif.")
 
@@ -1073,12 +1097,10 @@ def update_customer(customer_id: int, payload: CustomerCreate, db: Session = Dep
     obj.is_active = payload.is_active
     obj.force_toll = payload.force_toll
 
-    if current_user.role == "marketing":
-        obj.is_locked_marketing = payload.is_locked_marketing
-        # Ignore attempts to change finance lock
-    else:
-        obj.is_locked_marketing = payload.is_locked_marketing
+    obj.is_locked_marketing = payload.is_locked_marketing
+    if can_manage_finance_lock:
         obj.is_locked_finance = payload.is_locked_finance
+    # Role tanpa hak matriks: is_locked_finance tidak diubah
 
     obj.updated_at = func.now()
     obj.updated_by_id = current_user.id
@@ -1337,11 +1359,11 @@ def unlock_customer_finance(
     user: User = Depends(require_permission("customers:write")),
     db: Session = Depends(get_db),
 ):
-    """Buka kunci Finance (Final) Master Customer — hanya Admin. Kunci Marketing tidak diubah."""
-    if user.role != Role.ADMIN.value:
+    """Buka kunci Finance (Final) — role dengan hak Matriks Akses 'Kunci Finance Customer'."""
+    if not has_permission(user.role, CUSTOMER_FINANCE_LOCK_PERMISSION):
         raise HTTPException(
             status_code=403,
-            detail="Hanya Admin yang dapat membuka kunci Finance Master Customer.",
+            detail="Anda tidak berwenang membuka kunci Finance. Atur di Matriks Akses (Kunci Finance Customer).",
         )
     obj = db.execute(
         select(Customer).where(Customer.id == customer_id).with_for_update()
