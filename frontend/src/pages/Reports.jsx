@@ -199,14 +199,14 @@ const Reports = () => {
     const marginX = 10;
     const tableWidth = pageWidth - marginX * 2;
 
-    pdf.setFontSize(16);
-    pdf.text(getReportTitle(), pageWidth / 2, 14, { align: 'center' });
-    pdf.setFontSize(10);
+    pdf.setFontSize(13);
+    pdf.text(getReportTitle(), pageWidth / 2, 12, { align: 'center' });
+    pdf.setFontSize(8);
     pdf.setTextColor(100);
     pdf.text(
       `Periode: ${formatDate(fromDate)} - ${formatDate(toDate)} | Dicetak: ${new Date().toLocaleString('id-ID')}`,
       pageWidth / 2,
-      20,
+      17,
       { align: 'center' }
     );
     pdf.setTextColor(0);
@@ -215,19 +215,19 @@ const Reports = () => {
 
     // We can always render the top total summary
     autoTable(pdf, {
-      startY: 26,
+      startY: 21,
       margin: { left: marginX, right: marginX },
       tableWidth,
       body: [
         [
           { content: 'Total Transaksi', styles: { fillColor: [241, 245, 249], fontStyle: 'bold' } },
-          { content: String(totalTransaksi), styles: { halign: 'center', fontStyle: 'bold', fontSize: 12 } },
+          { content: String(totalTransaksi), styles: { halign: 'center', fontStyle: 'bold', fontSize: 9 } },
           { content: 'Total Uang Jalan', styles: { fillColor: [241, 245, 249], fontStyle: 'bold' } },
-          { content: formatIDR(totalUangJalan), styles: { halign: 'right', fontStyle: 'bold', fontSize: 12 } },
+          { content: formatIDR(totalUangJalan), styles: { halign: 'right', fontStyle: 'bold', fontSize: 9 } },
         ],
       ],
       theme: 'grid',
-      styles: { fontSize: 10, cellPadding: 4, lineColor: [203, 213, 225], lineWidth: 0.1 },
+      styles: { fontSize: 8, cellPadding: 2.5, lineColor: [203, 213, 225], lineWidth: 0.1 },
       columnStyles: {
         0: { cellWidth: summaryCol },
         1: { cellWidth: summaryCol },
@@ -237,19 +237,25 @@ const Reports = () => {
     });
 
     if (exportType === 'all' || exportType === 'detail') {
-      const detailColumns = {
-        0: { cellWidth: 10, halign: 'center' },
-        1: { cellWidth: 22, halign: 'center' },
-        2: { cellWidth: 30, halign: 'left' },
-        3: { cellWidth: 22, halign: 'center' },
-        4: { cellWidth: 22, halign: 'left' },
-        5: { cellWidth: 40, halign: 'left' },
-        6: { cellWidth: 18, halign: 'center' },
-        7: { cellWidth: 24, halign: 'right' },
-        8: { cellWidth: 22, halign: 'right' },
-        9: { cellWidth: 22, halign: 'right' },
-        10: { cellWidth: 24, halign: 'right' },
-      };
+      // Lebar kolom lain tetap; sisa penuh untuk Customer agar kanan tabel sejajar ringkasan.
+      const fixedWidths = [8, 20, 26, 18, 22, 0, 20, 26, 24, 24, 28];
+      const fixedSum = fixedWidths.reduce((a, b) => a + b, 0);
+      const customerWidth = Math.max(48, tableWidth - fixedSum);
+      fixedWidths[5] = customerWidth;
+      const detailColumns = Object.fromEntries(
+        fixedWidths.map((cellWidth, idx) => [
+          idx,
+          {
+            cellWidth,
+            halign: [0, 1, 3, 6].includes(idx)
+              ? 'center'
+              : [7, 8, 9, 10].includes(idx)
+                ? 'right'
+                : 'left',
+            ...(idx === 5 ? { overflow: 'linebreak' } : {}),
+          },
+        ])
+      );
 
       autoTable(pdf, {
         startY: pdf.lastAutoTable.finalY + 6,
@@ -279,24 +285,28 @@ const Reports = () => {
           ],
         ],
         styles: {
-          fontSize: 9,
-          cellPadding: { top: 3, right: 3, bottom: 3, left: 3 },
+          fontSize: 7,
+          cellPadding: { top: 1.5, right: 1.5, bottom: 1.5, left: 1.5 },
           lineColor: [203, 213, 225],
           lineWidth: 0.1,
-          overflow: 'linebreak',
+          overflow: 'ellipsize',
+          valign: 'middle',
         },
         headStyles: {
           fillColor: [51, 65, 85],
           textColor: 255,
           fontStyle: 'bold',
           halign: 'center',
-          cellPadding: 4,
+          fontSize: 6.5,
+          cellPadding: 2,
         },
         footStyles: {
           fillColor: [241, 245, 249],
           textColor: 20,
           fontStyle: 'bold',
-          cellPadding: 4,
+          fontSize: 7,
+          cellPadding: 2,
+          overflow: 'visible',
         },
         columnStyles: detailColumns,
         didParseCell(data) {
@@ -408,7 +418,7 @@ const Reports = () => {
         <td>${s.sale_no}</td>
         <td style="text-align:center">${s.vehicle_plate}</td>
         <td>${s.driver_name}</td>
-        <td>${s.customers}</td>
+        <td class="customer">${s.customers}</td>
         <td style="text-align:center">${s.vehicle_type}</td>
         <td class="num">${formatIDR(s.uang_jalan)}</td>
         <td class="num">${formatIDR(s.extra_uang_jalan)}</td>
@@ -420,27 +430,30 @@ const Reports = () => {
     printWindow.document.write(`<!DOCTYPE html><html><head>
       <title>${getReportTitle()}</title>
       <style>
-        body { font-family: Arial, sans-serif; padding: 20px; color: #111; }
-        h1 { text-align: center; font-size: 20px; margin-bottom: 4px; }
-        .meta { text-align: center; color: #555; margin-bottom: 20px; font-size: 12px; }
-        .summary { display: flex; gap: 2rem; margin-bottom: 16px; }
-        .summary-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px 20px; }
-        .summary-card label { font-size: 11px; color: #64748b; text-transform: uppercase; }
-        .summary-card h2 { margin: 4px 0 0; font-size: 20px; }
-        table { width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed; }
-        th, td { border: 1px solid #cbd5e1; padding: 8px 10px; vertical-align: middle; word-wrap: break-word; }
-        th { background: #334155; color: white; }
-        th.num, td.num { text-align: right; }
+        @page { size: A4 landscape; margin: 8mm; }
+        body { font-family: Arial, sans-serif; padding: 12px; color: #111; }
+        h1 { text-align: center; font-size: 14px; margin: 0 0 2px; }
+        .meta { text-align: center; color: #555; margin-bottom: 10px; font-size: 9px; }
+        .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; margin-bottom: 10px; border: 1px solid #cbd5e1; }
+        .summary-card { background: #f8fafc; border: none; border-right: 1px solid #cbd5e1; border-radius: 0; padding: 6px 12px; }
+        .summary-card:last-child { border-right: none; }
+        .summary-card label { font-size: 8px; color: #64748b; text-transform: uppercase; }
+        .summary-card h2 { margin: 2px 0 0; font-size: 13px; }
+        table { width: 100%; border-collapse: collapse; font-size: 8px; table-layout: fixed; }
+        th, td { border: 1px solid #cbd5e1; padding: 2px 3px; vertical-align: middle; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        td.customer { white-space: normal; word-break: break-word; line-height: 1.15; }
+        th { background: #334155; color: white; font-size: 7.5px; }
+        th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
         th.center, td.center { text-align: center; }
-        tfoot td { background: #f1f5f9; font-weight: 700; }
-        col.no { width: 4%; }
-        col.date { width: 9%; }
-        col.trx { width: 12%; }
-        col.plate { width: 8%; }
-        col.driver { width: 9%; }
-        col.customer { width: 22%; }
-        col.type { width: 8%; }
-        col.money { width: 10%; }
+        tfoot td { background: #f1f5f9; font-weight: 700; white-space: nowrap; }
+        col.no { width: 3%; }
+        col.date { width: 7%; }
+        col.trx { width: 9%; }
+        col.plate { width: 6%; }
+        col.driver { width: 8%; }
+        col.customer { width: 26%; }
+        col.type { width: 7%; }
+        col.money { width: 8.5%; }
         @media print { body { padding: 0; } }
       </style>
     </head><body>
