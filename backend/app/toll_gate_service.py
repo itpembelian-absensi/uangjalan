@@ -1236,17 +1236,13 @@ _JORR_RING_GATES: list[str] = [
 ]
 
 # Titik jarang untuk OSRM — cukup untuk tetap di lingkar luar.
-# Hindari Pondok Pinang/TMII sebagai titik tengah: sering menarik OSRM
-# ke jalan lokal (lekukan persegi / kelebihan km).
+# Jangan wajibkan Cikunir/Jati Asih/Kalimalang sebagai titik tengah ke Cakung:
+# OSRM ikut turun ke selatan dulu lalu naik (kotak persegi / km berlebih).
 _JORR_ROUTE_SPARSE_GATES: list[str] = [
     "Penjaringan",
     "Kayu Besar",
     "Ulujami",
-    "Cikunir",
-    "Jati Asih",
-    "Kalimalang",
     "Cakung",
-    "Bintara",
     "Cilincing",
     "Rorotan",
     "Kebon Bawang",
