@@ -1502,20 +1502,19 @@ def build_toll_road_overlays(segments: list[dict], gates: list[dict]) -> list[di
     """Overlay ruas tol di peta — geometri mengikuti jalan (OSRM), bukan garis lurus."""
     from app.toll_gate_service import (
         segments_need_jorr_jagorawi_transfer,
-        segments_need_jorr_japek_transfer,
         toll_segment_map_geometry,
     )
 
-    clip_transfer = segments_need_jorr_jagorawi_transfer(
-        segments
-    ) or segments_need_jorr_japek_transfer(segments)
+    # Hanya Jagorawi yang memotong JORR di Taman Mini.
+    # Japek harus tetap sampai Cikunir (jangan dipotong di TMII — bikin kotak + km berlebih).
+    clip_jorr_at_tmii = segments_need_jorr_jagorawi_transfer(segments)
 
     roads: list[dict] = []
     for seg in segments:
         anchors = toll_segment_map_geometry(
             seg,
             gates,
-            clip_jorr_at_transfer=clip_transfer,
+            clip_jorr_at_transfer=clip_jorr_at_tmii,
         )
         geom = list(anchors)
         if len(anchors) >= 2:

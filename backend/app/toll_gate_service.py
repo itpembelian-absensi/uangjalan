@@ -1234,13 +1234,12 @@ _JORR_RING_GATES: list[str] = [
 ]
 
 # Titik jarang untuk OSRM — cukup untuk tetap di lingkar luar.
-# Pondok Pinang (koordinat motorway) mencegah loncatan Ulujami→Cikunir
-# lewat CTC/dalam kota yang tampil seperti lekukan persegi.
+# Hindari Pondok Pinang/TMII sebagai titik tengah: sering menarik OSRM
+# ke jalan lokal (lekukan persegi / kelebihan km).
 _JORR_ROUTE_SPARSE_GATES: list[str] = [
     "Penjaringan",
     "Kayu Besar",
     "Ulujami",
-    "Pondok Pinang",
     "Cikunir",
     "Jati Asih",
     "Cakung",
