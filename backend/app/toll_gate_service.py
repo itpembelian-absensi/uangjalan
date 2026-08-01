@@ -1235,14 +1235,16 @@ _JORR_RING_GATES: list[str] = [
     "Kebon Bawang",
 ]
 
-# Titik jarang untuk OSRM — cukup untuk tetap di lingkar luar.
-# Jangan wajibkan Cikunir/Jati Asih/Kalimalang sebagai titik tengah ke Cakung:
-# OSRM ikut turun ke selatan dulu lalu naik (kotak persegi / km berlebih).
+# Titik jarang untuk OSRM — ikuti JORR luar, bukan Harbor/lingkar dalam.
+# Wajib ada titik selatan (Ulujami/Pondok Pinang/Kalimalang): tanpa itu OSRM
+# Kayu Besar→Cakung/Bintara sering lewat tol dalam utara (~35 km, bukan JORR).
+# Jangan wajibkan Cikunir/Jati Asih: OSRM turun ke Bintaro lalu naik (kotak).
 _JORR_ROUTE_SPARSE_GATES: list[str] = [
     "Penjaringan",
     "Kayu Besar",
     "Ulujami",
-    "Cakung",
+    "Pondok Pinang",
+    "Kalimalang",
     "Cilincing",
     "Rorotan",
     "Kebon Bawang",
