@@ -71,10 +71,19 @@ const storedTollBreakdownForDisplay = (value) => {
 };
 
 const customTollBreakdownPayload = (routeInfo, manualOverride) => {
-  if (!manualOverride) return null;
-  const rows = routeInfo?.toll_breakdown || [];
-  if (!rows.length) return [{ _manual_override: true }];
-  return rows.map((row) => ({ ...row, _manual_override: true }));
+  const rows = (routeInfo?.toll_breakdown || []).filter(
+    (row) =>
+      row &&
+      (row.section_id || row.entry_gate_name || row.exit_gate_name || row.section_name),
+  );
+  // Snapshot ruas selalu disimpan agar saat Finance terkunci tetap bisa ditampilkan.
+  if (!rows.length) {
+    return manualOverride ? [{ _manual_override: true }] : null;
+  }
+  if (manualOverride) {
+    return rows.map((row) => ({ ...row, _manual_override: true }));
+  }
+  return rows.map((row) => ({ ...row, _locked_snapshot: true }));
 };
 
 const parseAmount = (value) => {
@@ -791,27 +800,24 @@ const Customers = () => {
           is_locked_finance: financeLocked,
           tariffs: buildTariffRows(vehicleTypes, full.tariffs || []),
         });
-        // Finance terkunci: jangan hitung ulang — tampilkan snapshot ruas tersimpan saja.
+        // Finance terkunci: jangan hitung ulang — tampilkan snapshot ruas tersimpan.
         if (financeLocked) {
           const lockedSegments = storedTollBreakdownForDisplay(full.custom_toll_breakdown);
-          setRouteInfo(
-            lockedSegments.length
-              ? {
-                  distance_km: null,
-                  duration_min: null,
-                  geometry: [],
-                  toll_roads: [],
-                  toll_breakdown: lockedSegments,
-                  toll_by_vehicle: [],
-                  toll_idr: 0,
-                  toll_source: 'locked',
-                  toll_is_estimate: false,
-                  toll_note:
-                    'Finance terkunci — data BBM/Tol & ruas mengikuti nilai saat dikunci. Buka kunci untuk refresh rute.',
-                  route_via_toll_gates: false,
-                }
-              : null,
-          );
+          setRouteInfo({
+            distance_km: null,
+            duration_min: null,
+            geometry: [],
+            toll_roads: [],
+            toll_breakdown: lockedSegments,
+            toll_by_vehicle: [],
+            toll_idr: 0,
+            toll_source: 'locked',
+            toll_is_estimate: false,
+            toll_note: lockedSegments.length
+              ? 'Finance terkunci — menampilkan ruas tol saat dikunci. Buka kunci lalu Refresh untuk hitung ulang.'
+              : 'Finance terkunci — ruas tol belum tersimpan di snapshot. Buka kunci lalu klik Refresh rute, BBM & Tol.',
+            route_via_toll_gates: false,
+          });
           setRouteError('');
         } else {
           setRouteInfo(null);
@@ -2005,6 +2011,11 @@ const Customers = () => {
                             />
                             Asumsikan lewat jalan Tol
                           </label>
+                          {form.is_locked_finance && (
+                            <span style={{ fontSize: '0.8rem', color: '#b45309', fontWeight: 600 }}>
+                              Tombol Refresh muncul setelah Buka Kunci Finance
+                            </span>
+                          )}
                           {routeRefreshNeeded && !form.is_locked_finance && (
                             <button
                               type="button"
@@ -2521,6 +2532,24 @@ const Customers = () => {
                     >
                       <Unlock size={14} />
                       {isUnlocking ? 'Membuka...' : 'Buka Kunci Finance'}
+                    </button>
+                  )}
+                  {routeRefreshNeeded && !form.is_locked_finance && (
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      style={{
+                        padding: '0.4rem 0.75rem',
+                        fontSize: '0.85rem',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.35rem',
+                      }}
+                      disabled={tollManualLoading || routeLoading || !hasCoords || isSubmitting}
+                      onClick={handleRefreshRouteBbmTol}
+                      title="Hitung ulang rute, ruas tol, BBM & Tol dari peta"
+                    >
+                      {tollManualLoading || routeLoading ? 'Refresh...' : 'Refresh rute, BBM & Tol'}
                     </button>
                   )}
                 </div>
