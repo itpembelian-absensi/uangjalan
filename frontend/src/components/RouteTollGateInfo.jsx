@@ -12,6 +12,7 @@ const SOURCE_LABELS = {
   manual: 'Pilih Manual',
   section: 'Estimasi Ruas',
   google: 'Google Maps',
+  locked: 'Terkunci Finance',
 };
 
 const SOURCE_COLORS = {
@@ -20,6 +21,7 @@ const SOURCE_COLORS = {
   manual: { bg: '#fffbeb', color: '#b45309', border: '#fde68a' },
   section: { bg: '#fffbeb', color: '#b45309', border: '#fde68a' },
   google: { bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' },
+  locked: { bg: '#fef2f2', color: '#991b1b', border: '#fecaca' },
 };
 
 const normName = (value) => (value || '').toLowerCase().replace(/[^a-z0-9]+/g, '');
