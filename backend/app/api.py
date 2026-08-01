@@ -856,7 +856,9 @@ def refresh_stale_customer_toll(db: Session = Depends(get_db)):
 
         # Check if any segments have one_way_idr == 0 with source "route"
         has_stale = any(
-            seg.get("one_way_idr", 0) == 0 and seg.get("source") == "route"
+            (not seg.get("_route_meta"))
+            and seg.get("one_way_idr", 0) == 0
+            and seg.get("source") == "route"
             for seg in old_segments
         )
         if not has_stale:
@@ -885,6 +887,9 @@ def refresh_stale_customer_toll(db: Session = Depends(get_db)):
 
                 merged = []
                 for old_seg in old_segments:
+                    if old_seg.get("_route_meta"):
+                        merged.append(old_seg)
+                        continue
                     key = (old_seg.get("section_name") or "").strip().lower()
                     if old_seg.get("one_way_idr", 0) == 0 and old_seg.get("source") == "route":
                         # Replace stale segment with fresh data if available
@@ -1497,6 +1502,9 @@ def update_bbm(bbm_id: int, payload: BbmCreate, db: Session = Depends(get_db)):
     obj.name = payload.name.strip()
     obj.price = payload.price
     try:
+        from app.customer_tariff_sync import propagate_bbm_uang_mel_to_customers
+
+        propagate_bbm_uang_mel_to_customers(db, bbm_id=bbm_id)
         db.commit()
     except Exception as e:
         db.rollback()
@@ -1548,6 +1556,9 @@ def update_uang_mel(mel_id: int, payload: UangMelCreate, db: Session = Depends(g
     obj.name = payload.name.strip()
     obj.amount = payload.amount
     try:
+        from app.customer_tariff_sync import propagate_bbm_uang_mel_to_customers
+
+        propagate_bbm_uang_mel_to_customers(db, uang_mel_id=mel_id)
         db.commit()
     except Exception as e:
         db.rollback()
@@ -1749,6 +1760,9 @@ def update_vehicle_type(
     obj.uang_pelabuhan_id = payload.uang_pelabuhan_id
     obj.km_per_liter = payload.km_per_liter
     try:
+        from app.customer_tariff_sync import propagate_bbm_uang_mel_to_customers
+
+        propagate_bbm_uang_mel_to_customers(db, vehicle_type_id=type_id)
         db.commit()
     except Exception as e:
         db.rollback()
