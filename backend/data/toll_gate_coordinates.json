@@ -278,6 +278,24 @@
       "longitude": 106.955481,
       "source": "manual:JORR Jati Asih km 41"
     },
+    "kalimalang": {
+      "name": "Kalimalang",
+      "latitude": -6.243500,
+      "longitude": 106.942500,
+      "source": "manual:JORR Kalimalang"
+    },
+    "cakung": {
+      "name": "Cakung",
+      "latitude": -6.187220,
+      "longitude": 106.938324,
+      "source": "manual:JORR Cakung/Pulogebang"
+    },
+    "bintara": {
+      "name": "Bintara",
+      "latitude": -6.249690,
+      "longitude": 106.950163,
+      "source": "manual:JORR/BCK Bintara"
+    },
     "kembangan": {
       "name": "Kembangan",
       "latitude": -6.180500,

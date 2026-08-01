@@ -28,6 +28,9 @@ EXITS = [
     ("Cikunir", 103),
     ("Cilincing", 104),
     ("Kebon Bawang", 105),  # arah Priok / JORR N
+    ("Kalimalang", 106),
+    ("Cakung", 107),
+    ("Bintara", 108),
 ]
 
 

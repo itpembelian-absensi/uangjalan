@@ -1,5 +1,6 @@
 -- ============================================================
--- Seed: JORR dari Kayu Besar → Jati Asih / Cikunir / Cilincing / Kebon Bawang (Priok)
+-- Seed: JORR dari Kayu Besar → Jati Asih / Cikunir / Kalimalang /
+--       Cakung / Bintara / Cilincing / Kebon Bawang (Priok)
 -- Sifat: Idempotent
 -- Tarif flat JORR + ATP (Kepmen PUPR 1604/KPTS/M/2023)
 -- ============================================================
@@ -32,6 +33,27 @@ WHERE NOT EXISTS (
   WHERE name = 'JORR' AND origin_name = 'Kayu Besar' AND destination_name = 'Kebon Bawang'
 );
 
+INSERT INTO toll_sections (network, name, origin_name, destination_name, length_km, gol23, gol45, sort_order, is_active)
+SELECT 'Jabodetabek', 'JORR', 'Kayu Besar', 'Kalimalang', 66, 25000, 33500, 106, true
+WHERE NOT EXISTS (
+  SELECT 1 FROM toll_sections
+  WHERE name = 'JORR' AND origin_name = 'Kayu Besar' AND destination_name = 'Kalimalang'
+);
+
+INSERT INTO toll_sections (network, name, origin_name, destination_name, length_km, gol23, gol45, sort_order, is_active)
+SELECT 'Jabodetabek', 'JORR', 'Kayu Besar', 'Cakung', 66, 25000, 33500, 107, true
+WHERE NOT EXISTS (
+  SELECT 1 FROM toll_sections
+  WHERE name = 'JORR' AND origin_name = 'Kayu Besar' AND destination_name = 'Cakung'
+);
+
+INSERT INTO toll_sections (network, name, origin_name, destination_name, length_km, gol23, gol45, sort_order, is_active)
+SELECT 'Jabodetabek', 'JORR', 'Kayu Besar', 'Bintara', 66, 25000, 33500, 108, true
+WHERE NOT EXISTS (
+  SELECT 1 FROM toll_sections
+  WHERE name = 'JORR' AND origin_name = 'Kayu Besar' AND destination_name = 'Bintara'
+);
+
 UPDATE toll_sections
 SET gol23 = 25000,
     gol45 = 33500,
@@ -43,11 +65,17 @@ SET gol23 = 25000,
       WHEN 'Cikunir' THEN 103
       WHEN 'Cilincing' THEN 104
       WHEN 'Kebon Bawang' THEN 105
+      WHEN 'Kalimalang' THEN 106
+      WHEN 'Cakung' THEN 107
+      WHEN 'Bintara' THEN 108
       ELSE sort_order
     END
 WHERE name = 'JORR'
   AND origin_name = 'Kayu Besar'
-  AND destination_name IN ('Jati Asih', 'Cikunir', 'Cilincing', 'Kebon Bawang');
+  AND destination_name IN (
+    'Jati Asih', 'Cikunir', 'Cilincing', 'Kebon Bawang',
+    'Kalimalang', 'Cakung', 'Bintara'
+  );
 
 DO $$
 DECLARE
@@ -60,7 +88,10 @@ BEGIN
     FROM toll_sections
     WHERE name = 'JORR'
       AND origin_name = 'Kayu Besar'
-      AND destination_name IN ('Jati Asih', 'Cikunir', 'Cilincing', 'Kebon Bawang')
+      AND destination_name IN (
+        'Jati Asih', 'Cikunir', 'Cilincing', 'Kebon Bawang',
+        'Kalimalang', 'Cakung', 'Bintara'
+      )
   LOOP
     FOR v_gol IN SELECT id, code FROM toll_golongan WHERE code IN ('I', 'II', 'III', 'IV', 'V') LOOP
       v_rate := CASE v_gol.code
