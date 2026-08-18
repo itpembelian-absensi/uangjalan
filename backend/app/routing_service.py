@@ -13,6 +13,7 @@ from fastapi import HTTPException
 from app.core.config import settings
 from app.toll_gate_service import (
     TOLL_NOTE_BPJT,
+    _road_looks_like_ferry,
     breakdown_from_route_sections_only,
     estimate_toll_bpjt_breakdown,
     estimate_toll_bpjt_gates,
@@ -1049,10 +1050,9 @@ def _is_toll_step(step: dict) -> bool:
     name = step.get("name", "").lower()
     ref = step.get("ref", "").lower()
     
-    # Check for ferry
     if step.get("mode") == "ferry" or step.get("maneuver", {}).get("type") == "ferry":
         return True
-    if any(k in name for k in ["ferry", "penyeberangan", "kapal"]):
+    if _road_looks_like_ferry(name) or _road_looks_like_ferry(ref):
         return True
         
     if "tol " in name or name.startswith("tol") or "toll" in name:
@@ -1404,6 +1404,23 @@ def _osrm_route_fast(
         wp_key,
     )
     return distance_km, duration_min, [[lat, lng] for lat, lng in geometry]
+
+
+def sequential_driving_km(points: list[tuple[float, float]]) -> float | None:
+    """Jarak tempuh berurutan: titik 1 → 2 → 3 → … (satu request OSRM)."""
+    if len(points) < 2:
+        return None
+    try:
+        km, _, _ = _osrm_route_fast(
+            points[0][0],
+            points[0][1],
+            points[-1][0],
+            points[-1][1],
+            waypoints=list(points[1:-1]) if len(points) > 2 else None,
+        )
+        return float(km)
+    except HTTPException:
+        return None
 
 
 def calculate_route_chained(

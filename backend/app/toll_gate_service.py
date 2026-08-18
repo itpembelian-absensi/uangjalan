@@ -89,8 +89,31 @@ SECTION_ROUTE_HINTS: list[tuple[list[str], list[str]]] = [
     (["cisumdawu", "sumedang"], ["cisumdawu", "sumedang", "jatinangor", "paseh"]),
     (["cipali", "cikopo", "palimanan"], ["cipali", "cikopo", "palimanan"]),
     (["bakauheni", "terbanggi", "sumatera"], ["bakauheni", "terbanggi", "sumatera"]),
-    (["ferry", "penyeberangan", "kapal"], ["ferry", "penyeberangan", "merakbakauheni"]),
+    # Jangan pakai "kapal": nama jalan seperti "Jalan Bulak Kapal" (Bekasi) bukan ferry.
+    (["ferry", "penyeberangan", "merakbakauheni"], ["ferry", "penyeberangan", "merakbakauheni"]),
 ]
+
+
+def _normalize_toll_text(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", (text or "").lower())
+
+
+def _road_looks_like_ferry(name: str) -> bool:
+    """Penyeberangan Merak–Bakauheni, bukan nama jalan yang kebetulan mengandung 'kapal'."""
+    raw = (name or "").lower()
+    if any(k in raw for k in ("ferry", "penyeberangan")):
+        return True
+    norm = _normalize_toll_text(name)
+    return "merak" in norm and "bakauheni" in norm
+
+
+def _is_ferry_section_name(section_name: str) -> bool:
+    n = _normalize_toll_text(section_name)
+    return (
+        "penyeberangan" in n
+        or "merakbakauheni" in n
+        or ("merak" in n and "bakauheni" in n)
+    )
 
 
 def _road_matches_bpjt_section(
@@ -99,6 +122,9 @@ def _road_matches_bpjt_section(
     road_norm = _normalize_toll_text(road_name)
     section_norm = _normalize_toll_text(section_name)
     section_text = _section_text(section_name, [{"name": n} for n in (gate_names or [])])
+
+    if _is_ferry_section_name(section_name) and not _road_looks_like_ferry(road_name):
+        return False
 
     if section_norm and len(section_norm) >= 8 and section_norm in road_norm:
         return True
@@ -120,12 +146,74 @@ def haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 2 * r * math.asin(math.sqrt(a))
 
 
-def _normalize_toll_text(text: str) -> str:
-    return re.sub(r"[^a-z0-9]+", "", (text or "").lower())
-
-
 def _normalize_gate_name(name: str) -> str:
     return _normalize_toll_text(name)
+
+
+_GATE_TITLE_PREFIXES = (
+    "jc",
+    "ss",
+    "gt",
+    "gerbang",
+    "simpangsusun",
+    "onofframp",
+)
+
+_WEST_TANGERANG_SECTION_KEYS = (
+    "tangerangmerak",
+    "jakartamerak",
+    "jakartatangerang",
+)
+
+_WEST_TANGERANG_EXITS = frozenset(
+    {
+        "bitung",
+        "karawaci",
+        "cikupa",
+        "balaraja",
+        "balarajatimur",
+        "balarajabarat",
+        "cikande",
+        "ciujung",
+        "sswalantaka",
+        "serangtimur",
+        "serangbarat",
+        "cilegontimur",
+        "cilegonbarat",
+        "merak",
+    }
+)
+
+
+def _strip_gate_title_prefix(norm: str) -> str:
+    for prefix in _GATE_TITLE_PREFIXES:
+        if norm.startswith(prefix) and len(norm) > len(prefix) + 2:
+            return norm[len(prefix) :]
+    return norm
+
+
+def _gate_names_equivalent(query: str, gate: str) -> bool:
+    """Cocokkan nama gerbang tanpa substring palsu (Bitung ≠ Cibitung)."""
+    if not query or not gate:
+        return False
+    if query == gate:
+        return True
+    return _strip_gate_title_prefix(query) == _strip_gate_title_prefix(gate)
+
+
+def _is_jakarta_tangerang_merak_section(segment: dict | None) -> bool:
+    if not segment:
+        return False
+    section = _normalize_toll_text(segment.get("section_name") or "")
+    if any(key in section for key in _WEST_TANGERANG_SECTION_KEYS):
+        return True
+    entry = _normalize_gate_name(
+        segment.get("entry_gate_name") or segment.get("entry_gate_code") or ""
+    )
+    exit_ = _normalize_gate_name(
+        segment.get("exit_gate_name") or segment.get("exit_gate_code") or ""
+    )
+    return entry in ("jakartadalamkota", "jakarta") and _strip_gate_title_prefix(exit_) in _WEST_TANGERANG_EXITS
 
 
 def _gate_coordinates(gate: dict) -> tuple[float, float] | None:
@@ -217,6 +305,11 @@ def _section_matches_route(
 ) -> bool:
     if not route_toll_roads:
         return True
+
+    if _is_ferry_section_name(section_name):
+        items = _normalize_route_toll_items(route_toll_roads)
+        if items and not any(_road_looks_like_ferry(it["name"]) for it in items):
+            return False
 
     route_text = _route_toll_text(route_toll_roads)
     section_text = _section_text(section_name, section_gates)
@@ -384,6 +477,58 @@ def _segment_dedup_key(segment: dict) -> str:
     return f"name:{_normalize_toll_text(segment.get('section_name') or '')}"
 
 
+def _segment_blob(segment: dict) -> str:
+    return _normalize_toll_text(
+        " ".join(
+            [
+                segment.get("section_name") or "",
+                segment.get("entry_gate_name") or "",
+                segment.get("entry_gate_code") or "",
+                segment.get("exit_gate_name") or "",
+                segment.get("exit_gate_code") or "",
+                segment.get("detail") or "",
+            ]
+        )
+    )
+
+
+def _is_inner_city_jakarta_segment(segment: dict) -> bool:
+    """CTC / Harbor / 'Dalam kota' adalah satu sistem tap, bukan ruas terpisah."""
+    text = _segment_blob(segment)
+    if any(
+        k in text
+        for k in (
+            "kelapagading",
+            "pulogebang",
+            "sedyatmo",
+            "soedijatmo",
+            "tangerang",
+            "merak",
+            "cikampek",
+            "japek",
+            "jorr",
+        )
+    ):
+        return False
+    if any(k in text for k in ("ctc", "cawangtomang", "lingkardalam")):
+        return True
+    if "cawang" in text and "pluit" in text:
+        return True
+    if "cawang" in text and any(k in text for k in ("ancol", "priok", "jembatantiga")):
+        return True
+    entry = _normalize_gate_name(segment.get("entry_gate_name") or "")
+    exit_ = _normalize_gate_name(segment.get("exit_gate_name") or "")
+    return entry == "dalamkota" and exit_ == "dalamkota"
+
+
+def _inner_city_rank(segment: dict) -> tuple[int, int, float]:
+    entry = _normalize_gate_name(segment.get("entry_gate_name") or "")
+    exit_ = _normalize_gate_name(segment.get("exit_gate_name") or "")
+    distinct_gates = int(bool(entry and exit_ and entry != exit_))
+    has_gate_code = int(bool(segment.get("exit_gate_code") or segment.get("entry_gate_code")))
+    return (distinct_gates, has_gate_code, float(segment.get("one_way_idr") or 0))
+
+
 def _dedupe_toll_segments(segments: list[dict]) -> list[dict]:
     seen: set[str] = set()
     unique: list[dict] = []
@@ -393,7 +538,22 @@ def _dedupe_toll_segments(segments: list[dict]) -> list[dict]:
             continue
         seen.add(key)
         unique.append(segment)
-    return unique
+
+    inner = [s for s in unique if _is_inner_city_jakarta_segment(s)]
+    if len(inner) <= 1:
+        return unique
+
+    keep = max(inner, key=_inner_city_rank)
+    out: list[dict] = []
+    kept_inner = False
+    for segment in unique:
+        if not _is_inner_city_jakarta_segment(segment):
+            out.append(segment)
+            continue
+        if not kept_inner and segment is keep:
+            out.append(segment)
+            kept_inner = True
+    return out
 
 
 def _full_section_fare_pair(
@@ -1066,27 +1226,77 @@ def _find_gate_for_segment_side(
     gates: list[dict],
     code: str | None,
     name: str | None,
+    section_id: int | None = None,
 ) -> dict | None:
     if code:
         code_norm = code.strip().upper()
-        for gate in gates:
-            if (gate.get("code") or "").strip().upper() == code_norm:
-                return gate
+        code_matches = [
+            gate
+            for gate in gates
+            if (gate.get("code") or "").strip().upper() == code_norm
+        ]
+        if section_id is not None:
+            same = [
+                gate
+                for gate in code_matches
+                if gate.get("section_id") is not None
+                and int(gate["section_id"]) == int(section_id)
+            ]
+            if same:
+                return same[0]
+        if code_matches:
+            return code_matches[0]
     if not name:
         return None
     name_norm = _normalize_gate_name(name)
-    for gate in gates:
-        gate_norm = _normalize_gate_name(gate.get("name") or "")
-        if gate_norm == name_norm:
-            return gate
-    for gate in gates:
-        gate_norm = _normalize_gate_name(gate.get("name") or "")
-        if name_norm in gate_norm or gate_norm in name_norm:
-            return gate
+    exact = [
+        gate
+        for gate in gates
+        if _gate_names_equivalent(name_norm, _normalize_gate_name(gate.get("name") or ""))
+    ]
+    if section_id is not None:
+        same = [
+            gate
+            for gate in exact
+            if gate.get("section_id") is not None and int(gate["section_id"]) == int(section_id)
+        ]
+        if same:
+            return same[0]
+        # Nama sama di ruas lain (mis. Jakarta Dalam Kota Jagorawi) jangan dipakai.
+        if exact:
+            return None
+    if exact:
+        return exact[0]
     coords = gate_coordinate_lookup(name)
     if coords:
         return {"name": name, "latitude": coords[0], "longitude": coords[1]}
     return None
+
+
+def _coords_for_anchor_name(
+    anchor: str,
+    gates: list[dict],
+    segment: dict | None = None,
+) -> tuple[float, float] | None:
+    section_id = None
+    if segment and segment.get("section_id") is not None:
+        try:
+            section_id = int(segment["section_id"])
+        except (TypeError, ValueError):
+            section_id = None
+    gate = _find_gate_for_segment_side(gates, None, anchor, section_id=section_id)
+    coords = _gate_coordinates(gate) if gate else None
+    if not coords:
+        coords = gate_coordinate_lookup(anchor)
+    if (
+        coords
+        and _is_jakarta_tangerang_merak_section(segment)
+        and _normalize_gate_name(anchor) in ("jakartadalamkota", "jakarta")
+    ):
+        tomang = gate_coordinate_lookup("tomang")
+        if tomang:
+            return tomang
+    return coords
 
 
 def _append_waypoint(
@@ -1158,16 +1368,6 @@ def _segment_routing_text(
         parts.append(master.get("origin_name") or "")
         parts.append(master.get("destination_name") or "")
     return _normalize_toll_text(" ".join(parts))
-
-
-def _coords_for_anchor_name(
-    anchor: str,
-    gates: list[dict],
-) -> tuple[float, float] | None:
-    gate = _find_gate_for_segment_side(gates, None, anchor)
-    if gate:
-        return _gate_coordinates(gate)
-    return gate_coordinate_lookup(anchor)
 
 
 def _corridor_type_key(
@@ -1528,7 +1728,7 @@ def _gate_names_in_travel_order(
         ordered: list[str] = []
         seen: set[str] = set()
         for name in fixed:
-            coords = _coords_for_anchor_name(name, gates)
+            coords = _coords_for_anchor_name(name, gates, segment)
             if not coords:
                 continue
             norm = _normalize_gate_name(name)
@@ -1557,7 +1757,7 @@ def _gate_names_in_travel_order(
 
     scored: list[tuple[float, str]] = []
     for name in candidates:
-        coords = _coords_for_anchor_name(name, gates)
+        coords = _coords_for_anchor_name(name, gates, segment)
         if coords:
             scored.append((progress(coords[0], coords[1]), name))
     scored.sort(key=lambda row: row[0])
@@ -1621,7 +1821,7 @@ def toll_segment_map_geometry(
 
     geometry: list[list[float]] = []
     for name in names:
-        coords = _coords_for_anchor_name(name, gates)
+        coords = _coords_for_anchor_name(name, gates, segment)
         if not coords:
             continue
         lat, lng = coords
@@ -1738,7 +1938,7 @@ def waypoints_from_toll_segments(
 
         group: list[tuple[float, float]] = []
         for name in names:
-            coords = _coords_for_anchor_name(name, gates)
+            coords = _coords_for_anchor_name(name, gates, segment)
             if coords:
                 group.append(coords)
         if group:

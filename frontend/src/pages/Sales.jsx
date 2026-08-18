@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Trash2,
@@ -44,6 +44,8 @@ import {
 } from '../utils/routeFeeConfig';
 import RouteResultModal from '../components/RouteResultModal';
 import MultiPointMap from '../components/MultiPointMap';
+import RouteKmBreakdown from '../components/RouteKmBreakdown';
+import { EMPTY_ROUTE_KM, calcBbmAmount } from '../utils/routeKm';
 
 const formatIDR = (num) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(
@@ -97,6 +99,20 @@ const formatDate = (dateString) => {
 
 const tariffTotal = (row) =>
   (parseFloat(row?.uang_jalan) || 0) + (parseFloat(row?.tambahan_uang_jalan) || 0);
+
+const masterTariffAmount = (t) => {
+  if (!t) return 0;
+  const component =
+    (parseFloat(t.bbm) || 0) +
+    (parseFloat(t.tol) || 0) +
+    (parseFloat(t.uang_mel) || 0) +
+    (parseFloat(t.parkir) || 0) +
+    (parseFloat(t.lain_lain) || 0);
+  const stored = parseFloat(t.uang_jalan) || 0;
+  if (stored > 0 && stored > component) return stored;
+  if (component > 0) return component;
+  return stored;
+};
 
 const getMaxNominal = (details) => {
   const filled = details.filter((d) => d.customer_id);
@@ -206,6 +222,7 @@ const Sales = () => {
   const [drivers, setDrivers] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [warehouse, setWarehouse] = useState(null);
+  const [vehicleTypes, setVehicleTypes] = useState([]);
 
   const [filterFrom, setFilterFrom] = useState(tomorrowIso);
   const [filterTo, setFilterTo] = useState(tomorrowIso);
@@ -229,6 +246,10 @@ const Sales = () => {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [isModalOpen]);
   const [isMapFullscreen, setIsMapFullscreen] = useState(false);
+  const [routeKm, setRouteKm] = useState(EMPTY_ROUTE_KM);
+  const handleRouteCalculated = useCallback((summary) => {
+    setRouteKm(summary || EMPTY_ROUTE_KM);
+  }, []);
   const [isEdit, setIsEdit] = useState(false);
   const [currentId, setCurrentId] = useState(null);
   const [linkedRouteId, setLinkedRouteId] = useState(null);
@@ -244,6 +265,48 @@ const Sales = () => {
     ...defaultRouteFeeFormFields(),
     details: [],
   });
+
+  const appliedBbmKeyRef = useRef('');
+  const sequentialBbm = useMemo(() => {
+    const filled = form.details.filter((d) => d.customer_id && d.vehicle_type_id);
+    if (filled.length < 2 || !(routeKm.totalKm > 0)) return null;
+    const vt = vehicleTypes.find((t) => String(t.id) === String(filled[0].vehicle_type_id));
+    return calcBbmAmount(routeKm.totalKm, vt);
+  }, [form.details, vehicleTypes, routeKm.totalKm]);
+  const detailIdentity = form.details.map((d) => `${d.customer_id}:${d.vehicle_type_id}`).join(',');
+
+  useEffect(() => {
+    if (!isModalOpen) {
+      appliedBbmKeyRef.current = '';
+    }
+  }, [isModalOpen]);
+
+  useEffect(() => {
+    if (!isModalOpen || form.is_finance_paid || sequentialBbm == null) return;
+    const key = `${detailIdentity}|${sequentialBbm}|${routeKm.totalKm.toFixed(2)}`;
+    if (appliedBbmKeyRef.current === key) return;
+    appliedBbmKeyRef.current = key;
+    setForm((prev) => ({
+      ...prev,
+      details: prev.details.map((d) => {
+        const customer = customers.find((c) => String(c.id) === String(d.customer_id));
+        const tariff = (customer?.tariffs || []).find(
+          (t) => String(t.vehicle_type_id) === String(d.vehicle_type_id)
+        );
+        const tariffBbm = Number(tariff?.bbm) || 0;
+        if (!(tariffBbm > 0)) return d;
+        const other = Math.max(0, masterTariffAmount(tariff) - tariffBbm);
+        return { ...d, amount: other + sequentialBbm };
+      }),
+    }));
+  }, [
+    isModalOpen,
+    form.is_finance_paid,
+    sequentialBbm,
+    detailIdentity,
+    routeKm.totalKm,
+    customers,
+  ]);
 
   const [saving, setSaving] = useState(false);
   const [expandedRows, setExpandedRows] = useState(new Set());
@@ -279,12 +342,13 @@ const Sales = () => {
       if (filterTo) params.append('to', filterTo);
       if (filterSaleNo) params.append('sale_no', filterSaleNo);
 
-      const [dataS, dataV, dataD, dataC, dataW] = await Promise.all([
+      const [dataS, dataV, dataD, dataC, dataW, dataVt] = await Promise.all([
         apiFetch(`/api/sales?${params.toString()}`),
         apiFetch('/api/vehicles'),
         apiFetch('/api/drivers'),
         apiFetch('/api/customers'),
         apiFetch('/api/warehouse'),
+        apiFetch('/api/vehicle-types'),
       ]);
 
       setSales(dataS);
@@ -292,6 +356,7 @@ const Sales = () => {
       setDrivers(dataD);
       setCustomers(dataC);
       setWarehouse(dataW);
+      setVehicleTypes(Array.isArray(dataVt) ? dataVt : []);
       setError(null);
     } catch (err) {
       console.error(err);
@@ -1272,9 +1337,15 @@ const Sales = () => {
 
                   {(() => {
                     const selectedCustomerPoints = form.details
-                      .map(d => customers.find(c => c.id === Number(d.customer_id)))
-                      .filter(c => c && c.latitude && c.longitude)
-                      .map(c => ({ name: c.name, latitude: c.latitude, longitude: c.longitude, isWarehouse: false }));
+                      .map((d) => customers.find((c) => c.id === Number(d.customer_id)))
+                      .filter((c) => c && c.latitude && c.longitude)
+                      .map((c, idx) => ({
+                        name: c.name,
+                        latitude: c.latitude,
+                        longitude: c.longitude,
+                        isWarehouse: false,
+                        label: `Rute ${idx + 1}`,
+                      }));
 
                     if (warehouse && warehouse.latitude && warehouse.longitude) {
                       selectedCustomerPoints.unshift({
@@ -1282,6 +1353,7 @@ const Sales = () => {
                         latitude: warehouse.latitude,
                         longitude: warehouse.longitude,
                         isWarehouse: true,
+                        label: 'Gudang',
                       });
                     }
 
@@ -1314,7 +1386,32 @@ const Sales = () => {
                           {/* Kiri: Peta */}
                           {showMap ? (
                             <div style={{ flex: '1 1 400px', minWidth: '300px', border: '1px solid var(--card-border)', borderRadius: '8px', overflow: 'hidden', position: 'relative' }}>
-                              <MultiPointMap points={selectedCustomerPoints} height={260} />
+                              <MultiPointMap
+                                points={selectedCustomerPoints}
+                                height={260}
+                                onRouteCalculated={handleRouteCalculated}
+                              />
+                              {routeKm.totalKm > 0 && (
+                                <div
+                                  style={{
+                                    position: 'absolute',
+                                    bottom: 10,
+                                    left: 10,
+                                    zIndex: 10,
+                                    background: 'rgba(255,255,255,0.94)',
+                                    padding: '0.4rem 0.55rem',
+                                    borderRadius: 6,
+                                    border: '1px solid #e2e8f0',
+                                  }}
+                                >
+                                  <RouteKmBreakdown
+                                    totalKm={routeKm.totalKm}
+                                    legs={routeKm.legs}
+                                    variant="overlay"
+                                    bbmAmount={sequentialBbm}
+                                  />
+                                </div>
+                              )}
                               <button
                                 type="button"
                                 onClick={() => setIsMapFullscreen(true)}
@@ -1353,6 +1450,17 @@ const Sales = () => {
                                 gap: '0.75rem',
                               }}
                             >
+                              {routeKm.totalKm > 0 && (
+                                <div className="form-group" style={{ marginBottom: 0 }}>
+                                  <label className="form-label">Jarak Tempuh (berurutan)</label>
+                                  <RouteKmBreakdown
+                                    totalKm={routeKm.totalKm}
+                                    legs={routeKm.legs}
+                                    variant="panel"
+                                    bbmAmount={sequentialBbm}
+                                  />
+                                </div>
+                              )}
                               <div className="form-group" style={{ marginBottom: 0 }}>
                                 <label className="form-label">Uang Jalan</label>
                                 <input
@@ -1461,8 +1569,20 @@ const Sales = () => {
                                   <X size={20} />
                                 </button>
                               </div>
-                              <div style={{ flex: 1, width: '100%', height: '100%' }}>
-                                <MultiPointMap points={selectedCustomerPoints} height="100%" />
+                              <div style={{ flex: 1, width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                                <div style={{ flex: 1, minHeight: 0 }}>
+                                  <MultiPointMap points={selectedCustomerPoints} height="100%" />
+                                </div>
+                                {routeKm.totalKm > 0 && (
+                                  <div style={{ padding: '0 1rem 1rem' }}>
+                                    <RouteKmBreakdown
+                                      totalKm={routeKm.totalKm}
+                                      legs={routeKm.legs}
+                                      variant="panel"
+                                      bbmAmount={sequentialBbm}
+                                    />
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </div>

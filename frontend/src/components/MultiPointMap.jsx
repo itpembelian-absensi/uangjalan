@@ -1,7 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import { customerMapIcon, warehouseMapIcon } from '../utils/mapIcons';
+import { EMPTY_ROUTE_KM, buildRouteKmSummary, formatKm, routePointLabel } from '../utils/routeKm';
 
 function coordsKeyFromPoints(points) {
   return points.map((p) => `${p.latitude},${p.longitude}`).join('|');
@@ -33,42 +34,59 @@ const MultiPointMap = ({ points, height = 300, onRouteCalculated }) => {
   const mapHeight = typeof height === 'number' ? `${height}px` : height;
   const center = points.length > 0 ? [points[0].latitude, points[0].longitude] : [-6.2, 106.8];
   const [routeData, setRouteData] = useState(null);
+  const onRouteCalculatedRef = useRef(onRouteCalculated);
+  onRouteCalculatedRef.current = onRouteCalculated;
+  const pointsRef = useRef(points);
+  pointsRef.current = points;
+  const pointsKey = coordsKeyFromPoints(points);
 
   useEffect(() => {
     setTimeout(() => window.dispatchEvent(new Event('resize')), 100);
-  }, [points.length, coordsKeyFromPoints(points)]);
+  }, [points.length, pointsKey]);
 
   useEffect(() => {
-    if (points.length > 1) {
-      const coords = points.map((p) => `${p.longitude},${p.latitude}`).join(';');
-      fetch(`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`)
-        .then((res) => res.json())
-        .then((data) => {
-          if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
-            const route = data.routes[0];
-            const coordinates = route.geometry.coordinates.map((c) => [c[1], c[0]]);
-            setRouteData({
-              geometry: coordinates,
-              distanceKm: route.distance / 1000,
-            });
-            if (onRouteCalculated) {
-              onRouteCalculated(route.distance / 1000);
-            }
-          } else {
-            setRouteData(null);
-            if (onRouteCalculated) onRouteCalculated(0);
-          }
-        })
-        .catch((err) => {
-          console.error("OSRM fetch error", err);
-          setRouteData(null);
-          if (onRouteCalculated) onRouteCalculated(0);
-        });
-    } else {
+    const currentPoints = pointsRef.current;
+    const emit = (summary) => {
+      onRouteCalculatedRef.current?.(summary);
+    };
+
+    if (currentPoints.length <= 1) {
       setRouteData(null);
-      if (onRouteCalculated) onRouteCalculated(0);
+      emit(EMPTY_ROUTE_KM);
+      return undefined;
     }
-  }, [points.length, coordsKeyFromPoints(points), onRouteCalculated]);
+
+    const ac = new AbortController();
+    const coords = currentPoints.map((p) => `${p.longitude},${p.latitude}`).join(';');
+    fetch(
+      `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`,
+      { signal: ac.signal }
+    )
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.code === 'Ok' && data.routes && data.routes.length > 0) {
+          const route = data.routes[0];
+          const coordinates = route.geometry.coordinates.map((c) => [c[1], c[0]]);
+          const summary = buildRouteKmSummary(currentPoints, route);
+          setRouteData({
+            geometry: coordinates,
+            ...summary,
+          });
+          emit(summary);
+        } else {
+          setRouteData(null);
+          emit(EMPTY_ROUTE_KM);
+        }
+      })
+      .catch((err) => {
+        if (err?.name === 'AbortError') return;
+        console.error('OSRM fetch error', err);
+        setRouteData(null);
+        emit(EMPTY_ROUTE_KM);
+      });
+
+    return () => ac.abort();
+  }, [pointsKey]);
 
   return (
     <MapContainer
@@ -98,29 +116,36 @@ const MultiPointMap = ({ points, height = 300, onRouteCalculated }) => {
           dashArray="8 8"
         />
       )}
-      {points.map((p, idx) => (
-        <Marker
-          key={`${p.isWarehouse ? 'wh' : 'c'}-${idx}-${p.latitude}-${p.longitude}`}
-          position={[p.latitude, p.longitude]}
-          icon={p.isWarehouse ? warehouseMapIcon : customerMapIcon}
-          zIndexOffset={p.isWarehouse ? 1000 : idx}
-        >
-          <Popup>
-            <strong>{p.isWarehouse ? 'Gudang (titik asal)' : p.label || `Customer ${idx}`}:</strong>{' '}
-            {p.name}
-            <br />
-            <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: '0.85rem' }}>
-              {Number(p.latitude).toFixed(6)}, {Number(p.longitude).toFixed(6)}
-            </span>
-            {p.distance_km && (
-              <>
-                <br />
-                <span style={{ fontSize: '0.85rem' }}>Jarak: {p.distance_km} km</span>
-              </>
-            )}
-          </Popup>
-        </Marker>
-      ))}
+      {points.map((p, idx) => {
+        const incomingKm = routeData?.legs?.[idx - 1]?.distanceKm;
+        return (
+          <Marker
+            key={`${p.isWarehouse ? 'wh' : 'c'}-${idx}-${p.latitude}-${p.longitude}`}
+            position={[p.latitude, p.longitude]}
+            icon={p.isWarehouse ? warehouseMapIcon : customerMapIcon}
+            zIndexOffset={p.isWarehouse ? 1000 : idx}
+          >
+            <Popup>
+              <strong>
+                {p.isWarehouse ? 'Gudang (titik asal)' : p.label || routePointLabel(p, idx, points)}:
+              </strong>{' '}
+              {p.name}
+              <br />
+              <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: '0.85rem' }}>
+                {Number(p.latitude).toFixed(6)}, {Number(p.longitude).toFixed(6)}
+              </span>
+              {incomingKm > 0 && (
+                <>
+                  <br />
+                  <span style={{ fontSize: '0.85rem' }}>
+                    Dari {routePointLabel(points[idx - 1], idx - 1, points)}: {formatKm(incomingKm)} km
+                  </span>
+                </>
+              )}
+            </Popup>
+          </Marker>
+        );
+      })}
     </MapContainer>
   );
 };

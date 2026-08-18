@@ -48,6 +48,19 @@ def match_route_fee_category(vehicle_type_name: str) -> str | None:
     return None
 
 
+def calc_bbm_amount(
+    distance_km: float | None, km_per_liter: float | None, bbm_price: float | None
+) -> float | None:
+    """BBM (Rp) = (jarak km ÷ km/liter) × 2 (pulang-pergi) × harga, dibulatkan ke ribuan."""
+    if not distance_km or not km_per_liter or float(km_per_liter) <= 0:
+        return None
+    liters_round_trip = (float(distance_km) / float(km_per_liter)) * 2
+    if bbm_price is None:
+        return float(round(liters_round_trip))
+    raw = liters_round_trip * float(bbm_price)
+    return float(round(raw / 1000) * 1000)
+
+
 def compute_uang_jalan_totals(
     base_amount: float, extra_amount: float = 0, route_fees_amount: float = 0
 ) -> dict[str, float]:

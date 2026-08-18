@@ -16,8 +16,11 @@ from app.models import (
     SaleDetail,
     Vehicle,
     VehicleType,
+    WarehouseSetting,
 )
+from app.money_utils import calc_bbm_amount
 from app.route_fee_service import apply_route_fees_from_payload
+from app.routing_service import sequential_driving_km
 from app.sale_lock import MSG_ROUTE_FINANCE_PAID, sale_finance_locked
 from app.schemas import DeliveryRouteStopItem
 
@@ -59,6 +62,104 @@ def tariff_amount_for_customer(db: Session, customer_id: int, vehicle_type_id: i
     if not row:
         return 0.0
     return _tariff_amount(row)
+
+
+def _tariff_row(db: Session, customer_id: int, vehicle_type_id: int) -> CustomerVehicleTariff | None:
+    return db.scalar(
+        select(CustomerVehicleTariff).where(
+            CustomerVehicleTariff.customer_id == customer_id,
+            CustomerVehicleTariff.vehicle_type_id == vehicle_type_id,
+        )
+    )
+
+
+def _has_map_coords(lat, lng) -> bool:
+    try:
+        return lat is not None and lng is not None and float(lat) != 0 and float(lng) != 0
+    except (TypeError, ValueError):
+        return False
+
+
+def _warehouse_point(db: Session) -> tuple[float, float] | None:
+    warehouse = db.scalar(select(WarehouseSetting).order_by(WarehouseSetting.id.asc()).limit(1))
+    if not warehouse or not _has_map_coords(warehouse.latitude, warehouse.longitude):
+        return None
+    return (float(warehouse.latitude), float(warehouse.longitude))
+
+
+def sequential_km_for_route(db: Session, route: DeliveryRoute) -> float | None:
+    origin = _warehouse_point(db)
+    if not origin:
+        return None
+    points: list[tuple[float, float]] = [origin]
+    for stop in sorted(route.stops, key=lambda s: s.sort_order):
+        customer = db.get(Customer, stop.customer_id)
+        if not customer or not _has_map_coords(customer.latitude, customer.longitude):
+            continue
+        points.append((float(customer.latitude), float(customer.longitude)))
+    if len(points) < 3:
+        return None
+    return sequential_driving_km(points)
+
+
+def sequential_bbm_for_route(db: Session, route: DeliveryRoute) -> float | None:
+    km = sequential_km_for_route(db, route)
+    if not km:
+        return None
+    try:
+        vehicle_type_id = resolve_vehicle_type_id(db, route)
+    except HTTPException:
+        return None
+    vt = db.scalar(
+        select(VehicleType)
+        .options(selectinload(VehicleType.bbm))
+        .where(VehicleType.id == vehicle_type_id)
+    )
+    if not vt:
+        return None
+    bbm_price = float(vt.bbm.price) if vt.bbm else None
+    return calc_bbm_amount(km, vt.km_per_liter, bbm_price)
+
+
+def _replace_bbm_in_amount(amount: float, tariff_bbm: float, sequential_bbm: float) -> float:
+    if not (tariff_bbm > 0):
+        return amount
+    other = max(0.0, float(amount) - float(tariff_bbm))
+    return other + float(sequential_bbm)
+
+
+def apply_sequential_bbm_to_details(
+    db: Session, route: DeliveryRoute, details: list[dict]
+) -> list[dict]:
+    if len(details) < 2:
+        return details
+    sequential_bbm = sequential_bbm_for_route(db, route)
+    if sequential_bbm is None:
+        return details
+    for item in details:
+        row = _tariff_row(db, item["customer_id"], item["vehicle_type_id"])
+        if not row:
+            continue
+        tariff_bbm = float(row.bbm or 0)
+        item["amount"] = _replace_bbm_in_amount(_tariff_amount(row), tariff_bbm, sequential_bbm)
+    return details
+
+
+def apply_sequential_bbm_to_sale(db: Session, route: DeliveryRoute, sale: Sale) -> None:
+    if sale_finance_locked(sale):
+        return
+    details = list(sale.details or [])
+    if len(details) < 2:
+        return
+    sequential_bbm = sequential_bbm_for_route(db, route)
+    if sequential_bbm is None:
+        return
+    for row in details:
+        tariff = _tariff_row(db, row.customer_id, row.vehicle_type_id or 0)
+        if not tariff:
+            continue
+        tariff_bbm = float(tariff.bbm or 0)
+        row.amount = _replace_bbm_in_amount(_tariff_amount(tariff), tariff_bbm, sequential_bbm)
 
 
 def customers_missing_tariff(db: Session, route: DeliveryRoute) -> list[str]:
@@ -106,7 +207,7 @@ def build_sale_details_from_route(db: Session, route: DeliveryRoute) -> list[dic
                 "amount": tariff_amount_for_customer(db, stop.customer_id, vehicle_type_id),
             }
         )
-    return details
+    return apply_sequential_bbm_to_details(db, route, details)
 
 
 def sync_sale_from_route(db: Session, route: DeliveryRoute) -> Sale:
@@ -277,6 +378,7 @@ def refresh_customer_tariff_in_sales(db: Session, customer_id: int) -> int:
             row.amount = amount
             row.vehicle_type_id = vehicle_type_id
             updated += 1
+        apply_sequential_bbm_to_sale(db, route, sale)
     return updated
 
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   Plus,
@@ -15,7 +15,9 @@ import CustomerSearchSelect from '../components/CustomerSearchSelect';
 import { apiFetch } from '../api';
 import { useCrudWrite } from '../components/CrudWriteAccess';
 import MultiPointMap from '../components/MultiPointMap';
+import RouteKmBreakdown from '../components/RouteKmBreakdown';
 import { hasMapCoords } from '../utils/mapIcons';
+import { EMPTY_ROUTE_KM, calcBbmAmount } from '../utils/routeKm';
 import {
   defaultRouteForm,
   emptyStop,
@@ -62,7 +64,10 @@ const DeliveryRouteForm = () => {
   const [routesError, setRoutesError] = useState(null);
   const [customersError, setCustomersError] = useState(null);
   const [isMapFullscreen, setIsMapFullscreen] = useState(false);
-  const [routeDistance, setRouteDistance] = useState(0);
+  const [routeKm, setRouteKm] = useState(EMPTY_ROUTE_KM);
+  const handleRouteCalculated = useCallback((summary) => {
+    setRouteKm(summary || EMPTY_ROUTE_KM);
+  }, []);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(defaultRouteForm());
   const soInputRefs = useRef([]);
@@ -314,7 +319,7 @@ const DeliveryRouteForm = () => {
           latitude: Number(cust.latitude),
           longitude: Number(cust.longitude),
           isWarehouse: false,
-          label: `Stop ${idx + 1}`,
+          label: `Rute ${idx + 1}`,
         };
       })
       .filter(Boolean);
@@ -336,6 +341,12 @@ const DeliveryRouteForm = () => {
   const warehouseOnMap = points.some((p) => p.isWarehouse);
   const warehouseCoordsMissing =
     warehouse && !hasValidCoords(warehouse.latitude, warehouse.longitude);
+  const sequentialBbm = useMemo(() => {
+    const stopCount = form.stops.filter((s) => s.customer_id).length;
+    if (stopCount < 2 || !(routeKm.totalKm > 0)) return null;
+    const vt = vehicleTypes.find((t) => String(t.id) === String(form.vehicle_type_id));
+    return calcBbmAmount(routeKm.totalKm, vt);
+  }, [form.stops, form.vehicle_type_id, vehicleTypes, routeKm.totalKm]);
   const pelabuhanAmount = PELABUHAN_TOGGLE.getAmount(
     form.vehicle_type_id,
     vehicleTypes,
@@ -660,7 +671,7 @@ const DeliveryRouteForm = () => {
                     minHeight: '240px',
                   }}
                 >
-                  <MultiPointMap points={points} height={240} onRouteCalculated={setRouteDistance} />
+                  <MultiPointMap points={points} height={240} onRouteCalculated={handleRouteCalculated} />
                   <div
                     style={{
                       position: 'absolute',
@@ -685,10 +696,15 @@ const DeliveryRouteForm = () => {
                     <span>
                       <span className="map-legend-dot map-legend-dot-customer" /> Customer (stop)
                     </span>
-                    {routeDistance > 0 && (
-                      <span style={{ marginTop: '4px', fontWeight: 600, color: '#1e40af' }}>
-                        Jarak Tempuh: {routeDistance.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km
-                      </span>
+                    {routeKm.totalKm > 0 && (
+                      <div style={{ marginTop: '4px' }}>
+                        <RouteKmBreakdown
+                          totalKm={routeKm.totalKm}
+                          legs={routeKm.legs}
+                          variant="overlay"
+                          bbmAmount={sequentialBbm}
+                        />
+                      </div>
                     )}
                   </div>
                   <button
@@ -861,11 +877,14 @@ const DeliveryRouteForm = () => {
             style={{ maxWidth: '95vw', width: '900px', padding: '1rem' }}
             onClick={(e) => e.stopPropagation()}
           >
-            <MultiPointMap points={points} height="70vh" onRouteCalculated={setRouteDistance} />
-            {routeDistance > 0 && (
-              <div style={{ marginTop: '0.5rem', textAlign: 'center', fontWeight: 'bold', color: '#1e40af' }}>
-                Total Jarak Tempuh Rute: {routeDistance.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km
-              </div>
+            <MultiPointMap points={points} height="70vh" />
+            {routeKm.totalKm > 0 && (
+              <RouteKmBreakdown
+                totalKm={routeKm.totalKm}
+                legs={routeKm.legs}
+                variant="panel"
+                bbmAmount={sequentialBbm}
+              />
             )}
           </div>
         </div>

@@ -788,6 +788,89 @@ body.customer-lookup-dragging .customer-lookup-drag-handle {
   box-shadow: 0 0 0 1px #2563eb;
 }
 
+.route-km-breakdown {
+  font-size: 0.75rem;
+  line-height: 1.35;
+  color: #1e293b;
+  font-variant-numeric: tabular-nums;
+}
+
+.route-km-legs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.route-km-legs li {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.route-km-leg-label {
+  min-width: 0;
+}
+
+.route-km-leg-name {
+  display: block;
+  color: #64748b;
+  font-size: 0.7rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 220px;
+}
+
+.route-km-leg-value {
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.route-km-total {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.3rem;
+  padding-top: 0.3rem;
+  border-top: 1px solid #e2e8f0;
+  font-weight: 700;
+  color: #1e40af;
+}
+
+.route-km-bbm {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.25rem;
+  font-weight: 700;
+  color: #0f766e;
+}
+
+.route-km-breakdown-overlay {
+  max-width: 260px;
+  max-height: 160px;
+  overflow: auto;
+}
+
+.route-km-breakdown-panel {
+  font-size: 0.85rem;
+  margin-top: 0.75rem;
+  padding: 0.75rem 0.9rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+}
+
+.form-group .route-km-breakdown-panel {
+  margin-top: 0;
+}
+
+.route-km-breakdown-panel .route-km-leg-name {
+  max-width: none;
+  white-space: normal;
+}
+
 .customer-lookup-table {
   margin: 0;
   font-size: 0.9rem;

@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.delivery_route_service import refresh_customer_tariff_in_sales
+from app.money_utils import calc_bbm_amount
 from app.models import (
     Customer,
     CustomerVehicleTariff,
@@ -42,18 +43,6 @@ def _distance_km_from_customer(customer: Customer) -> float | None:
         if value > 0:
             return value
     return None
-
-
-def _calc_bbm_amount(
-    distance_km: float, km_per_liter: float | None, bbm_price: float | None
-) -> float | None:
-    if not distance_km or not km_per_liter or float(km_per_liter) <= 0:
-        return None
-    liters_round_trip = (distance_km / float(km_per_liter)) * 2
-    if bbm_price is None:
-        return float(round(liters_round_trip))
-    raw = liters_round_trip * float(bbm_price)
-    return float(round(raw / 1000) * 1000)
 
 
 def _recompute_uang_jalan(row: CustomerVehicleTariff) -> None:
@@ -139,7 +128,7 @@ def propagate_bbm_uang_mel_to_customers(
             distance_km = _distance_km_from_customer(customer)
             bbm_price = float(vt.bbm.price) if vt.bbm else None
             new_bbm = (
-                _calc_bbm_amount(distance_km, vt.km_per_liter, bbm_price)
+                calc_bbm_amount(distance_km, vt.km_per_liter, bbm_price)
                 if distance_km
                 else None
             )
