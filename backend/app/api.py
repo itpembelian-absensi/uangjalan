@@ -4,7 +4,7 @@ import json
 from datetime import date, datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import delete, exists, func, nulls_last, select, update
+from sqlalchemy import delete, exists, func, nulls_last, or_, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from app.auth import require_api_access, require_permission
@@ -2270,6 +2270,9 @@ def list_sales(
     from_date: date | None = Query(None, alias="from"),
     to_date: date | None = Query(None, alias="to"),
     sale_no: str | None = None,
+    driver_id: int | None = None,
+    vehicle_id: int | None = None,
+    finance_status: str | None = None,
     db: Session = Depends(get_db)
 ):
     stmt = select(Sale)
@@ -2277,10 +2280,40 @@ def list_sales(
         stmt = stmt.where(Sale.date >= from_date)
     if to_date:
         stmt = stmt.where(Sale.date <= to_date)
-    if sale_no:
-        stmt = stmt.outerjoin(DeliveryRoute).where(
-            (Sale.sale_no.ilike(f"%{sale_no}%")) |
-            (DeliveryRoute.route_no.ilike(f"%{sale_no}%"))
+    if driver_id:
+        stmt = stmt.where(Sale.driver_id == driver_id)
+    if vehicle_id:
+        stmt = stmt.where(Sale.vehicle_id == vehicle_id)
+    if finance_status == "paid":
+        stmt = stmt.where(Sale.finance_paid_at.isnot(None), Sale.is_void == False)
+    elif finance_status == "pending":
+        stmt = stmt.where(Sale.finance_paid_at.is_(None), Sale.is_void == False)
+    elif finance_status == "void":
+        stmt = stmt.where(Sale.is_void == True)
+    term = (sale_no or "").strip()
+    if term:
+        like = f"%{term}%"
+        plate_compact = term.replace(" ", "")
+        stmt = stmt.where(
+            or_(
+                Sale.sale_no.ilike(like),
+                Sale.delivery_route_id.in_(
+                    select(DeliveryRoute.id).where(DeliveryRoute.route_no.ilike(like))
+                ),
+                Sale.driver_id.in_(
+                    select(Driver.id).where(Driver.name.ilike(like))
+                ),
+                Sale.vehicle_id.in_(
+                    select(Vehicle.id).where(
+                        or_(
+                            Vehicle.plate_number.ilike(like),
+                            func.replace(Vehicle.plate_number, " ", "").ilike(
+                                f"%{plate_compact}%"
+                            ),
+                        )
+                    )
+                ),
+            )
         )
     stmt = stmt.order_by(Sale.date.desc(), Sale.created_at.desc())
     sales = db.scalars(stmt).all()

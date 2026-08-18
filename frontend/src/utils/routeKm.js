@@ -6,7 +6,24 @@ export const formatKm = (km) =>
     maximumFractionDigits: 1,
   });
 
-/** BBM (Rp) = (jarak km ÷ km/liter) × 2 (pulang-pergi) × harga, dibulatkan ke ribuan. */
+/** Jarak snapshot (km) dari custom_toll_breakdown customer. */
+export function customerRouteDistanceKm(customer) {
+  const rows = customer?.custom_toll_breakdown;
+  if (!Array.isArray(rows)) return null;
+  const meta = rows.find((row) => row && row._route_meta);
+  if (!meta) return null;
+  const km = Number(meta.distance_km ?? meta.distance_km_route);
+  return km > 0 ? km : null;
+}
+
+/** BBM master: kolom tarif, atau estimasi dari jarak snapshot. */
+export function resolveTariffBbm(tariff, customer, vt) {
+  const fromTariff = Number(tariff?.bbm) || 0;
+  if (fromTariff > 0) return fromTariff;
+  const km = customerRouteDistanceKm(customer);
+  if (!(km > 0) || !vt) return 0;
+  return calcBbmAmount(km, vt) || 0;
+}
 export function calcBbmAmount(distanceKm, vt) {
   if (!distanceKm || !vt?.km_per_liter) return null;
   const afterRoundTrip = Number(distanceKm) / Number(vt.km_per_liter) * 2;

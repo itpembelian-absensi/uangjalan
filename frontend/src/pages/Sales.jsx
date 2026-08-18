@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Trash2,
@@ -45,7 +45,7 @@ import {
 import RouteResultModal from '../components/RouteResultModal';
 import MultiPointMap from '../components/MultiPointMap';
 import RouteKmBreakdown from '../components/RouteKmBreakdown';
-import { EMPTY_ROUTE_KM, calcBbmAmount } from '../utils/routeKm';
+import { EMPTY_ROUTE_KM, calcBbmAmount, resolveTariffBbm } from '../utils/routeKm';
 
 const formatIDR = (num) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(
@@ -227,6 +227,9 @@ const Sales = () => {
   const [filterFrom, setFilterFrom] = useState(tomorrowIso);
   const [filterTo, setFilterTo] = useState(tomorrowIso);
   const [filterSaleNo, setFilterSaleNo] = useState('');
+  const [filterDriver, setFilterDriver] = useState('');
+  const [filterVehicle, setFilterVehicle] = useState('');
+  const [filterFinanceStatus, setFilterFinanceStatus] = useState('');
 
   const [loading, setLoading] = useState(true);
   const [sortKey, setSortKey] = useState('date');
@@ -247,6 +250,7 @@ const Sales = () => {
   }, [isModalOpen]);
   const [isMapFullscreen, setIsMapFullscreen] = useState(false);
   const [routeKm, setRouteKm] = useState(EMPTY_ROUTE_KM);
+  const [customerDetails, setCustomerDetails] = useState({});
   const handleRouteCalculated = useCallback((summary) => {
     setRouteKm(summary || EMPTY_ROUTE_KM);
   }, []);
@@ -266,7 +270,6 @@ const Sales = () => {
     details: [],
   });
 
-  const appliedBbmKeyRef = useRef('');
   const sequentialBbm = useMemo(() => {
     const filled = form.details.filter((d) => d.customer_id && d.vehicle_type_id);
     if (filled.length < 2 || !(routeKm.totalKm > 0)) return null;
@@ -277,36 +280,53 @@ const Sales = () => {
 
   useEffect(() => {
     if (!isModalOpen) {
-      appliedBbmKeyRef.current = '';
+      setCustomerDetails({});
+      return undefined;
     }
-  }, [isModalOpen]);
+    const ids = [...new Set(form.details.map((d) => d.customer_id).filter(Boolean))];
+    if (ids.length === 0) return undefined;
+    let cancelled = false;
+    Promise.all(ids.map((id) => apiFetch(`/api/customers/${id}`).catch(() => null))).then((rows) => {
+      if (cancelled) return;
+      const next = {};
+      rows.forEach((c) => {
+        if (c?.id) next[String(c.id)] = c;
+      });
+      setCustomerDetails(next);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isModalOpen, detailIdentity]);
 
-  useEffect(() => {
-    if (!isModalOpen || form.is_finance_paid || sequentialBbm == null) return;
-    const key = `${detailIdentity}|${sequentialBbm}|${routeKm.totalKm.toFixed(2)}`;
-    if (appliedBbmKeyRef.current === key) return;
-    appliedBbmKeyRef.current = key;
-    setForm((prev) => ({
-      ...prev,
-      details: prev.details.map((d) => {
-        const customer = customers.find((c) => String(c.id) === String(d.customer_id));
-        const tariff = (customer?.tariffs || []).find(
-          (t) => String(t.vehicle_type_id) === String(d.vehicle_type_id)
-        );
-        const tariffBbm = Number(tariff?.bbm) || 0;
-        if (!(tariffBbm > 0)) return d;
-        const other = Math.max(0, masterTariffAmount(tariff) - tariffBbm);
-        return { ...d, amount: other + sequentialBbm };
-      }),
-    }));
-  }, [
-    isModalOpen,
-    form.is_finance_paid,
-    sequentialBbm,
-    detailIdentity,
-    routeKm.totalKm,
-    customers,
-  ]);
+  const bbmAdjustment = useMemo(() => {
+    const filled = form.details.filter((d) => d.customer_id && d.vehicle_type_id);
+    if (filled.length < 2 || sequentialBbm == null) {
+      return { masterMax: 0, winningBbm: 0, selisihBbm: null, winningIndex: -1 };
+    }
+    const scored = filled.map((d, index) => {
+      const customer = customerDetails[String(d.customer_id)];
+      const tariff = (customer?.tariffs || []).find(
+        (t) => String(t.vehicle_type_id) === String(d.vehicle_type_id)
+      );
+      const vt = vehicleTypes.find((t) => String(t.id) === String(d.vehicle_type_id));
+      const master = masterTariffAmount(tariff) || amountToNumber(d.amount) || 0;
+      const winningBbm = resolveTariffBbm(tariff, customer, vt);
+      return { index, master, winningBbm };
+    });
+    const winner = scored.reduce((best, row) => (row.master > best.master ? row : best), scored[0]);
+    const winningBbm = winner?.winningBbm || 0;
+    const masterMax = winner?.master || 0;
+    if (!(winningBbm > 0)) {
+      return { masterMax, winningBbm: 0, selisihBbm: null, winningIndex: winner?.index ?? -1 };
+    }
+    return {
+      masterMax,
+      winningBbm,
+      selisihBbm: sequentialBbm - winningBbm,
+      winningIndex: winner?.index ?? -1,
+    };
+  }, [form.details, sequentialBbm, customerDetails, vehicleTypes]);
 
   const [saving, setSaving] = useState(false);
   const [expandedRows, setExpandedRows] = useState(new Set());
@@ -315,15 +335,21 @@ const Sales = () => {
 
   const [voidModal, setVoidModal] = useState({ open: false, saleId: null, reason: '' });
 
+  const buildSalesParams = () => {
+    const params = new URLSearchParams();
+    if (filterFrom) params.append('from', filterFrom);
+    if (filterTo) params.append('to', filterTo);
+    if (filterSaleNo.trim()) params.append('sale_no', filterSaleNo.trim());
+    if (filterDriver) params.append('driver_id', filterDriver);
+    if (filterVehicle) params.append('vehicle_id', filterVehicle);
+    if (filterFinanceStatus) params.append('finance_status', filterFinanceStatus);
+    return params;
+  };
+
   const fetchSales = async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (filterFrom) params.append('from', filterFrom);
-      if (filterTo) params.append('to', filterTo);
-      if (filterSaleNo) params.append('sale_no', filterSaleNo);
-      
-      const dataS = await apiFetch(`/api/sales?${params.toString()}`);
+      const dataS = await apiFetch(`/api/sales?${buildSalesParams().toString()}`);
       setSales(dataS);
       setError(null);
     } catch (err) {
@@ -337,10 +363,7 @@ const Sales = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (filterFrom) params.append('from', filterFrom);
-      if (filterTo) params.append('to', filterTo);
-      if (filterSaleNo) params.append('sale_no', filterSaleNo);
+      const params = buildSalesParams();
 
       const [dataS, dataV, dataD, dataC, dataW, dataVt] = await Promise.all([
         apiFetch(`/api/sales?${params.toString()}`),
@@ -377,7 +400,19 @@ const Sales = () => {
       return;
     }
     fetchSales();
-  }, [filterFrom, filterTo]);
+  }, [filterFrom, filterTo, filterDriver, filterVehicle, filterFinanceStatus]);
+
+  const sortedDrivers = useMemo(
+    () => [...drivers].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'id')),
+    [drivers]
+  );
+  const sortedVehicles = useMemo(
+    () =>
+      [...vehicles].sort((a, b) =>
+        (a.plate_number || '').localeCompare(b.plate_number || '', 'id', { numeric: true })
+      ),
+    [vehicles]
+  );
 
   const getActiveTariffs = (customerId) => {
     const customer = customers.find((c) => String(c.id) === String(customerId));
@@ -548,6 +583,7 @@ const Sales = () => {
       return;
     }
 
+    const { selisihBbm, masterMax, winningIndex } = bbmAdjustment;
     const payload = {
       ...form,
       vehicle_id: form.vehicle_id ? parseInt(form.vehicle_id, 10) : null,
@@ -555,11 +591,22 @@ const Sales = () => {
       extra_uang_jalan: parseAmountInput(form.extra_uang_jalan) === ''
         ? 0
         : amountToNumber(form.extra_uang_jalan),
-      details: validDetails.map((d) => ({
-        customer_id: parseInt(d.customer_id, 10),
-        vehicle_type_id: parseInt(d.vehicle_type_id, 10),
-        amount: amountToNumber(d.amount),
-      })),
+      details: validDetails.map((d, i) => {
+        let amount = amountToNumber(d.amount);
+        if (
+          !form.is_finance_paid
+          && selisihBbm != null
+          && winningIndex === i
+          && masterMax > 0
+        ) {
+          amount = masterMax + selisihBbm;
+        }
+        return {
+          customer_id: parseInt(d.customer_id, 10),
+          vehicle_type_id: parseInt(d.vehicle_type_id, 10),
+          amount,
+        };
+      }),
     };
 
     if (!isEdit) {
@@ -724,9 +771,43 @@ const Sales = () => {
           <label className="form-label">Sampai Tanggal</label>
           <input type="date" className="form-input" value={filterTo} onChange={(e) => setFilterTo(e.target.value)} />
         </div>
-        <div className="form-group" style={{ marginBottom: 0, flex: '2 1 200px' }}>
-          <label className="form-label">Nomor Transaksi / Rute</label>
-          <input type="text" className="form-input" placeholder="Cari SL-... atau RT-..." value={filterSaleNo} onChange={(e) => setFilterSaleNo(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') fetchSales(); }} />
+        <div className="form-group" style={{ marginBottom: 0, flex: '1 1 180px' }}>
+          <label className="form-label">Sopir</label>
+          <select className="form-input" value={filterDriver} onChange={(e) => setFilterDriver(e.target.value)}>
+            <option value="">Semua sopir</option>
+            {sortedDrivers.map((d) => (
+              <option key={d.id} value={d.id}>{d.name}</option>
+            ))}
+          </select>
+        </div>
+        <div className="form-group" style={{ marginBottom: 0, flex: '1 1 160px' }}>
+          <label className="form-label">Kendaraan</label>
+          <select className="form-input" value={filterVehicle} onChange={(e) => setFilterVehicle(e.target.value)}>
+            <option value="">Semua kendaraan</option>
+            {sortedVehicles.map((v) => (
+              <option key={v.id} value={v.id}>{v.plate_number}</option>
+            ))}
+          </select>
+        </div>
+        <div className="form-group" style={{ marginBottom: 0, flex: '1 1 160px' }}>
+          <label className="form-label">Status</label>
+          <select className="form-input" value={filterFinanceStatus} onChange={(e) => setFilterFinanceStatus(e.target.value)}>
+            <option value="">Semua status</option>
+            <option value="paid">Sudah dibayar</option>
+            <option value="pending">Menunggu</option>
+            <option value="void">Dibatalkan</option>
+          </select>
+        </div>
+        <div className="form-group" style={{ marginBottom: 0, flex: '2 1 220px' }}>
+          <label className="form-label">Cari</label>
+          <input
+            type="text"
+            className="form-input"
+            placeholder="Nomor, rute, nama sopir, atau nopol..."
+            value={filterSaleNo}
+            onChange={(e) => setFilterSaleNo(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') fetchSales(); }}
+          />
         </div>
         <div style={{ flex: '0 0 auto' }}>
           <button className="btn btn-primary" onClick={fetchSales} disabled={loading} style={{ height: '40px', padding: '0 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -1368,9 +1449,12 @@ const Sales = () => {
                       .map((d) => amountToNumber(d.amount))
                       .filter((n) => n > 0);
                     const multiCustomer = filledDetails.length > 1;
-                    const baseUangJalan = multiCustomer
+                    const maxNominal = multiCustomer
                       ? (amounts.length > 0 ? Math.max(...amounts) : 0)
                       : (amounts[0] || 0);
+                    const baseUangJalan = !form.is_finance_paid && bbmAdjustment.selisihBbm != null
+                      ? bbmAdjustment.masterMax + bbmAdjustment.selisihBbm
+                      : maxNominal;
                     const extraAmount = amountToNumber(form.extra_uang_jalan);
                     const routeFeesAmount = sumRouteFees(form);
                     const routeFeeLines = getActiveRouteFeeLines(form);
@@ -1409,6 +1493,7 @@ const Sales = () => {
                                     legs={routeKm.legs}
                                     variant="overlay"
                                     bbmAmount={sequentialBbm}
+                                    bbmSelisih={bbmAdjustment.selisihBbm}
                                   />
                                 </div>
                               )}
@@ -1458,6 +1543,8 @@ const Sales = () => {
                                     legs={routeKm.legs}
                                     variant="panel"
                                     bbmAmount={sequentialBbm}
+                                    bbmMaster={bbmAdjustment.winningBbm || null}
+                                    bbmSelisih={bbmAdjustment.selisihBbm}
                                   />
                                 </div>
                               )}
@@ -1475,6 +1562,13 @@ const Sales = () => {
                                     background: '#f8fafc',
                                   }}
                                 />
+                                {!form.is_finance_paid && bbmAdjustment.selisihBbm != null && (
+                                  <small style={{ color: 'var(--text-secondary)' }}>
+                                    Nominal tertinggi {formatIDR(bbmAdjustment.masterMax)}{' '}
+                                    {bbmAdjustment.selisihBbm >= 0 ? '+' : '−'}{' '}
+                                    selisih BBM {formatIDR(Math.abs(bbmAdjustment.selisihBbm))}
+                                  </small>
+                                )}
                               </div>
                               <div className="form-group" style={{ marginBottom: 0 }}>
                                 <label className="form-label">Biaya Rute</label>
@@ -1580,6 +1674,8 @@ const Sales = () => {
                                       legs={routeKm.legs}
                                       variant="panel"
                                       bbmAmount={sequentialBbm}
+                                      bbmMaster={bbmAdjustment.winningBbm || null}
+                                      bbmSelisih={bbmAdjustment.selisihBbm}
                                     />
                                   </div>
                                 )}

@@ -6,10 +6,20 @@ const formatIDR = (num) =>
     Number(num) || 0
   );
 
-const RouteKmBreakdown = ({ totalKm = 0, legs = [], variant = 'overlay', bbmAmount = null }) => {
+const RouteKmBreakdown = ({
+  totalKm = 0,
+  legs = [],
+  variant = 'overlay',
+  bbmAmount = null,
+  bbmMaster = null,
+  bbmSelisih = null,
+}) => {
   if (!(totalKm > 0) && legs.length === 0 && bbmAmount == null) return null;
 
   const isPanel = variant === 'panel';
+  const showSelisih = bbmSelisih != null && Number.isFinite(Number(bbmSelisih));
+  const selisihNum = Number(bbmSelisih) || 0;
+  const selisihLabel = `${selisihNum > 0 ? '+' : ''}${formatIDR(selisihNum)}`;
 
   return (
     <div className={`route-km-breakdown route-km-breakdown-${variant}`}>
@@ -38,8 +48,21 @@ const RouteKmBreakdown = ({ totalKm = 0, legs = [], variant = 'overlay', bbmAmou
           <span>{formatIDR(bbmAmount)}</span>
         </div>
       )}
+      {isPanel && bbmMaster != null && (
+        <div className="route-km-bbm-master">
+          <span>BBM master (uang jalan)</span>
+          <span>{formatIDR(bbmMaster)}</span>
+        </div>
+      )}
+      {showSelisih && (
+        <div className={`route-km-bbm-selisih${selisihNum > 0 ? ' is-extra' : selisihNum < 0 ? ' is-save' : ''}`}>
+          <span>Selisih BBM</span>
+          <span>{selisihLabel}</span>
+        </div>
+      )}
     </div>
   );
 };
 
 export default RouteKmBreakdown;
+

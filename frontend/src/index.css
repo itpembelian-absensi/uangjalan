@@ -847,9 +847,34 @@ body.customer-lookup-dragging .customer-lookup-drag-handle {
   color: #0f766e;
 }
 
+.route-km-bbm-master,
+.route-km-bbm-selisih {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 0.2rem;
+  font-weight: 600;
+}
+
+.route-km-bbm-master {
+  color: #475569;
+}
+
+.route-km-bbm-selisih {
+  color: #334155;
+}
+
+.route-km-bbm-selisih.is-extra {
+  color: #c2410c;
+}
+
+.route-km-bbm-selisih.is-save {
+  color: #047857;
+}
+
 .route-km-breakdown-overlay {
-  max-width: 260px;
-  max-height: 160px;
+  max-width: 280px;
+  max-height: 220px;
   overflow: auto;
 }
 

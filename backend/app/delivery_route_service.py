@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import date, datetime
 
 from fastapi import HTTPException
@@ -121,16 +122,53 @@ def sequential_bbm_for_route(db: Session, route: DeliveryRoute) -> float | None:
     return calc_bbm_amount(km, vt.km_per_liter, bbm_price)
 
 
-def _replace_bbm_in_amount(amount: float, tariff_bbm: float, sequential_bbm: float) -> float:
-    if not (tariff_bbm > 0):
-        return amount
-    other = max(0.0, float(amount) - float(tariff_bbm))
-    return other + float(sequential_bbm)
+def _customer_distance_km(customer: Customer | None) -> float | None:
+    raw = customer.custom_toll_breakdown if customer else None
+    if not raw:
+        return None
+    try:
+        data = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    if not isinstance(data, list):
+        return None
+    for row in data:
+        if not isinstance(row, dict) or not row.get("_route_meta"):
+            continue
+        try:
+            value = float(row.get("distance_km") or 0)
+        except (TypeError, ValueError):
+            continue
+        if value > 0:
+            return value
+    return None
+
+
+def _resolved_tariff_bbm(db: Session, customer_id: int, vehicle_type_id: int) -> float:
+    """BBM master customer; jika kolom BBM 0, estimasi dari jarak snapshot × tarif jenis kendaraan."""
+    tariff = _tariff_row(db, customer_id, vehicle_type_id)
+    if tariff and float(tariff.bbm or 0) > 0:
+        return float(tariff.bbm)
+    customer = db.get(Customer, customer_id)
+    km = _customer_distance_km(customer)
+    if not km:
+        return 0.0
+    vt = db.scalar(
+        select(VehicleType)
+        .options(selectinload(VehicleType.bbm))
+        .where(VehicleType.id == vehicle_type_id)
+    )
+    if not vt:
+        return 0.0
+    price = float(vt.bbm.price) if vt.bbm else None
+    est = calc_bbm_amount(km, vt.km_per_liter, price)
+    return float(est or 0)
 
 
 def apply_sequential_bbm_to_details(
     db: Session, route: DeliveryRoute, details: list[dict]
 ) -> list[dict]:
+    """Uang jalan = nominal tertinggi + selisih BBM (berurutan − BBM master customer itu)."""
     if len(details) < 2:
         return details
     sequential_bbm = sequential_bbm_for_route(db, route)
@@ -138,10 +176,15 @@ def apply_sequential_bbm_to_details(
         return details
     for item in details:
         row = _tariff_row(db, item["customer_id"], item["vehicle_type_id"])
-        if not row:
-            continue
-        tariff_bbm = float(row.bbm or 0)
-        item["amount"] = _replace_bbm_in_amount(_tariff_amount(row), tariff_bbm, sequential_bbm)
+        if row:
+            item["amount"] = _tariff_amount(row)
+    winner = max(details, key=lambda item: float(item.get("amount") or 0))
+    winning_bbm = _resolved_tariff_bbm(
+        db, int(winner["customer_id"]), int(winner["vehicle_type_id"])
+    )
+    if winning_bbm <= 0:
+        return details
+    winner["amount"] = float(winner["amount"] or 0) + (float(sequential_bbm) - winning_bbm)
     return details
 
 
@@ -156,10 +199,15 @@ def apply_sequential_bbm_to_sale(db: Session, route: DeliveryRoute, sale: Sale) 
         return
     for row in details:
         tariff = _tariff_row(db, row.customer_id, row.vehicle_type_id or 0)
-        if not tariff:
-            continue
-        tariff_bbm = float(tariff.bbm or 0)
-        row.amount = _replace_bbm_in_amount(_tariff_amount(tariff), tariff_bbm, sequential_bbm)
+        if tariff:
+            row.amount = _tariff_amount(tariff)
+    winner = max(details, key=lambda row: float(row.amount or 0))
+    winning_bbm = _resolved_tariff_bbm(
+        db, int(winner.customer_id), int(winner.vehicle_type_id or 0)
+    )
+    if winning_bbm <= 0:
+        return
+    winner.amount = float(winner.amount or 0) + (float(sequential_bbm) - winning_bbm)
 
 
 def customers_missing_tariff(db: Session, route: DeliveryRoute) -> list[str]:
