@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from datetime import date, datetime
 
 from fastapi import HTTPException
@@ -17,11 +16,8 @@ from app.models import (
     SaleDetail,
     Vehicle,
     VehicleType,
-    WarehouseSetting,
 )
-from app.money_utils import calc_bbm_amount
 from app.route_fee_service import apply_route_fees_from_payload
-from app.routing_service import sequential_driving_km
 from app.sale_lock import MSG_ROUTE_FINANCE_PAID, sale_finance_locked
 from app.schemas import DeliveryRouteStopItem
 
@@ -65,149 +61,20 @@ def tariff_amount_for_customer(db: Session, customer_id: int, vehicle_type_id: i
     return _tariff_amount(row)
 
 
-def _tariff_row(db: Session, customer_id: int, vehicle_type_id: int) -> CustomerVehicleTariff | None:
-    return db.scalar(
-        select(CustomerVehicleTariff).where(
-            CustomerVehicleTariff.customer_id == customer_id,
-            CustomerVehicleTariff.vehicle_type_id == vehicle_type_id,
-        )
-    )
-
-
-def _has_map_coords(lat, lng) -> bool:
-    try:
-        return lat is not None and lng is not None and float(lat) != 0 and float(lng) != 0
-    except (TypeError, ValueError):
+def restore_unlocked_sale_amounts(db: Session, sale: Sale) -> bool:
+    """Kembalikan uang jalan ke tarif master (KM terjauh). Transaksi Finance terkunci tidak diubah."""
+    if sale_finance_locked(sale) or getattr(sale, "is_void", False):
         return False
-
-
-def _warehouse_point(db: Session) -> tuple[float, float] | None:
-    warehouse = db.scalar(select(WarehouseSetting).order_by(WarehouseSetting.id.asc()).limit(1))
-    if not warehouse or not _has_map_coords(warehouse.latitude, warehouse.longitude):
-        return None
-    return (float(warehouse.latitude), float(warehouse.longitude))
-
-
-def sequential_km_for_route(db: Session, route: DeliveryRoute) -> float | None:
-    origin = _warehouse_point(db)
-    if not origin:
-        return None
-    points: list[tuple[float, float]] = [origin]
-    for stop in sorted(route.stops, key=lambda s: s.sort_order):
-        customer = db.get(Customer, stop.customer_id)
-        if not customer or not _has_map_coords(customer.latitude, customer.longitude):
+    changed = False
+    for row in list(sale.details or []):
+        vt_id = row.vehicle_type_id
+        if not vt_id:
             continue
-        points.append((float(customer.latitude), float(customer.longitude)))
-    if len(points) < 3:
-        return None
-    return sequential_driving_km(points)
-
-
-def sequential_bbm_for_route(db: Session, route: DeliveryRoute) -> float | None:
-    km = sequential_km_for_route(db, route)
-    if not km:
-        return None
-    try:
-        vehicle_type_id = resolve_vehicle_type_id(db, route)
-    except HTTPException:
-        return None
-    vt = db.scalar(
-        select(VehicleType)
-        .options(selectinload(VehicleType.bbm))
-        .where(VehicleType.id == vehicle_type_id)
-    )
-    if not vt:
-        return None
-    bbm_price = float(vt.bbm.price) if vt.bbm else None
-    return calc_bbm_amount(km, vt.km_per_liter, bbm_price)
-
-
-def _customer_distance_km(customer: Customer | None) -> float | None:
-    raw = customer.custom_toll_breakdown if customer else None
-    if not raw:
-        return None
-    try:
-        data = json.loads(raw)
-    except (json.JSONDecodeError, TypeError):
-        return None
-    if not isinstance(data, list):
-        return None
-    for row in data:
-        if not isinstance(row, dict) or not row.get("_route_meta"):
-            continue
-        try:
-            value = float(row.get("distance_km") or 0)
-        except (TypeError, ValueError):
-            continue
-        if value > 0:
-            return value
-    return None
-
-
-def _resolved_tariff_bbm(db: Session, customer_id: int, vehicle_type_id: int) -> float:
-    """BBM master customer; jika kolom BBM 0, estimasi dari jarak snapshot × tarif jenis kendaraan."""
-    tariff = _tariff_row(db, customer_id, vehicle_type_id)
-    if tariff and float(tariff.bbm or 0) > 0:
-        return float(tariff.bbm)
-    customer = db.get(Customer, customer_id)
-    km = _customer_distance_km(customer)
-    if not km:
-        return 0.0
-    vt = db.scalar(
-        select(VehicleType)
-        .options(selectinload(VehicleType.bbm))
-        .where(VehicleType.id == vehicle_type_id)
-    )
-    if not vt:
-        return 0.0
-    price = float(vt.bbm.price) if vt.bbm else None
-    est = calc_bbm_amount(km, vt.km_per_liter, price)
-    return float(est or 0)
-
-
-def apply_sequential_bbm_to_details(
-    db: Session, route: DeliveryRoute, details: list[dict]
-) -> list[dict]:
-    """Uang jalan = nominal tertinggi + selisih BBM (berurutan − BBM master customer itu)."""
-    if len(details) < 2:
-        return details
-    sequential_bbm = sequential_bbm_for_route(db, route)
-    if sequential_bbm is None:
-        return details
-    for item in details:
-        row = _tariff_row(db, item["customer_id"], item["vehicle_type_id"])
-        if row:
-            item["amount"] = _tariff_amount(row)
-    winner = max(details, key=lambda item: float(item.get("amount") or 0))
-    winning_bbm = _resolved_tariff_bbm(
-        db, int(winner["customer_id"]), int(winner["vehicle_type_id"])
-    )
-    if winning_bbm <= 0:
-        return details
-    winner["amount"] = float(winner["amount"] or 0) + (float(sequential_bbm) - winning_bbm)
-    return details
-
-
-def apply_sequential_bbm_to_sale(db: Session, route: DeliveryRoute, sale: Sale) -> None:
-    if sale_finance_locked(sale):
-        return
-    details = list(sale.details or [])
-    if len(details) < 2:
-        return
-    sequential_bbm = sequential_bbm_for_route(db, route)
-    if sequential_bbm is None:
-        return
-    for row in details:
-        tariff = _tariff_row(db, row.customer_id, row.vehicle_type_id or 0)
-        if tariff:
-            row.amount = _tariff_amount(tariff)
-    winner = max(details, key=lambda row: float(row.amount or 0))
-    winning_bbm = _resolved_tariff_bbm(
-        db, int(winner.customer_id), int(winner.vehicle_type_id or 0)
-    )
-    if winning_bbm <= 0:
-        return
-    winner.amount = float(winner.amount or 0) + (float(sequential_bbm) - winning_bbm)
+        amount = tariff_amount_for_customer(db, int(row.customer_id), int(vt_id))
+        if abs(float(row.amount or 0) - float(amount or 0)) >= 0.01:
+            row.amount = amount
+            changed = True
+    return changed
 
 
 def customers_missing_tariff(db: Session, route: DeliveryRoute) -> list[str]:
@@ -255,7 +122,7 @@ def build_sale_details_from_route(db: Session, route: DeliveryRoute) -> list[dic
                 "amount": tariff_amount_for_customer(db, stop.customer_id, vehicle_type_id),
             }
         )
-    return apply_sequential_bbm_to_details(db, route, details)
+    return details
 
 
 def sync_sale_from_route(db: Session, route: DeliveryRoute) -> Sale:
@@ -426,7 +293,6 @@ def refresh_customer_tariff_in_sales(db: Session, customer_id: int) -> int:
             row.amount = amount
             row.vehicle_type_id = vehicle_type_id
             updated += 1
-        apply_sequential_bbm_to_sale(db, route, sale)
     return updated
 
 

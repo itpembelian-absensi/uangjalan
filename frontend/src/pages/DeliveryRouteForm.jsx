@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   Plus,
@@ -17,7 +17,7 @@ import { useCrudWrite } from '../components/CrudWriteAccess';
 import MultiPointMap from '../components/MultiPointMap';
 import RouteKmBreakdown from '../components/RouteKmBreakdown';
 import { hasMapCoords } from '../utils/mapIcons';
-import { EMPTY_ROUTE_KM, calcBbmAmount } from '../utils/routeKm';
+import { EMPTY_ROUTE_KM } from '../utils/routeKm';
 import {
   defaultRouteForm,
   emptyStop,
@@ -341,12 +341,6 @@ const DeliveryRouteForm = () => {
   const warehouseOnMap = points.some((p) => p.isWarehouse);
   const warehouseCoordsMissing =
     warehouse && !hasValidCoords(warehouse.latitude, warehouse.longitude);
-  const sequentialBbm = useMemo(() => {
-    const stopCount = form.stops.filter((s) => s.customer_id).length;
-    if (stopCount < 2 || !(routeKm.totalKm > 0)) return null;
-    const vt = vehicleTypes.find((t) => String(t.id) === String(form.vehicle_type_id));
-    return calcBbmAmount(routeKm.totalKm, vt);
-  }, [form.stops, form.vehicle_type_id, vehicleTypes, routeKm.totalKm]);
   const pelabuhanAmount = PELABUHAN_TOGGLE.getAmount(
     form.vehicle_type_id,
     vehicleTypes,
@@ -702,7 +696,6 @@ const DeliveryRouteForm = () => {
                           totalKm={routeKm.totalKm}
                           legs={routeKm.legs}
                           variant="overlay"
-                          bbmAmount={sequentialBbm}
                         />
                       </div>
                     )}
@@ -883,7 +876,6 @@ const DeliveryRouteForm = () => {
                 totalKm={routeKm.totalKm}
                 legs={routeKm.legs}
                 variant="panel"
-                bbmAmount={sequentialBbm}
               />
             )}
           </div>

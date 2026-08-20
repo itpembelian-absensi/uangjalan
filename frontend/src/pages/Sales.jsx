@@ -45,7 +45,7 @@ import {
 import RouteResultModal from '../components/RouteResultModal';
 import MultiPointMap from '../components/MultiPointMap';
 import RouteKmBreakdown from '../components/RouteKmBreakdown';
-import { EMPTY_ROUTE_KM, calcBbmAmount, resolveTariffBbm } from '../utils/routeKm';
+import { EMPTY_ROUTE_KM } from '../utils/routeKm';
 
 const formatIDR = (num) =>
   new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(
@@ -99,20 +99,6 @@ const formatDate = (dateString) => {
 
 const tariffTotal = (row) =>
   (parseFloat(row?.uang_jalan) || 0) + (parseFloat(row?.tambahan_uang_jalan) || 0);
-
-const masterTariffAmount = (t) => {
-  if (!t) return 0;
-  const component =
-    (parseFloat(t.bbm) || 0) +
-    (parseFloat(t.tol) || 0) +
-    (parseFloat(t.uang_mel) || 0) +
-    (parseFloat(t.parkir) || 0) +
-    (parseFloat(t.lain_lain) || 0);
-  const stored = parseFloat(t.uang_jalan) || 0;
-  if (stored > 0 && stored > component) return stored;
-  if (component > 0) return component;
-  return stored;
-};
 
 const getMaxNominal = (details) => {
   const filled = details.filter((d) => d.customer_id);
@@ -250,7 +236,6 @@ const Sales = () => {
   }, [isModalOpen]);
   const [isMapFullscreen, setIsMapFullscreen] = useState(false);
   const [routeKm, setRouteKm] = useState(EMPTY_ROUTE_KM);
-  const [customerDetails, setCustomerDetails] = useState({});
   const handleRouteCalculated = useCallback((summary) => {
     setRouteKm(summary || EMPTY_ROUTE_KM);
   }, []);
@@ -269,64 +254,6 @@ const Sales = () => {
     ...defaultRouteFeeFormFields(),
     details: [],
   });
-
-  const sequentialBbm = useMemo(() => {
-    const filled = form.details.filter((d) => d.customer_id && d.vehicle_type_id);
-    if (filled.length < 2 || !(routeKm.totalKm > 0)) return null;
-    const vt = vehicleTypes.find((t) => String(t.id) === String(filled[0].vehicle_type_id));
-    return calcBbmAmount(routeKm.totalKm, vt);
-  }, [form.details, vehicleTypes, routeKm.totalKm]);
-  const detailIdentity = form.details.map((d) => `${d.customer_id}:${d.vehicle_type_id}`).join(',');
-
-  useEffect(() => {
-    if (!isModalOpen) {
-      setCustomerDetails({});
-      return undefined;
-    }
-    const ids = [...new Set(form.details.map((d) => d.customer_id).filter(Boolean))];
-    if (ids.length === 0) return undefined;
-    let cancelled = false;
-    Promise.all(ids.map((id) => apiFetch(`/api/customers/${id}`).catch(() => null))).then((rows) => {
-      if (cancelled) return;
-      const next = {};
-      rows.forEach((c) => {
-        if (c?.id) next[String(c.id)] = c;
-      });
-      setCustomerDetails(next);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [isModalOpen, detailIdentity]);
-
-  const bbmAdjustment = useMemo(() => {
-    const filled = form.details.filter((d) => d.customer_id && d.vehicle_type_id);
-    if (filled.length < 2 || sequentialBbm == null) {
-      return { masterMax: 0, winningBbm: 0, selisihBbm: null, winningIndex: -1 };
-    }
-    const scored = filled.map((d, index) => {
-      const customer = customerDetails[String(d.customer_id)];
-      const tariff = (customer?.tariffs || []).find(
-        (t) => String(t.vehicle_type_id) === String(d.vehicle_type_id)
-      );
-      const vt = vehicleTypes.find((t) => String(t.id) === String(d.vehicle_type_id));
-      const master = masterTariffAmount(tariff) || amountToNumber(d.amount) || 0;
-      const winningBbm = resolveTariffBbm(tariff, customer, vt);
-      return { index, master, winningBbm };
-    });
-    const winner = scored.reduce((best, row) => (row.master > best.master ? row : best), scored[0]);
-    const winningBbm = winner?.winningBbm || 0;
-    const masterMax = winner?.master || 0;
-    if (!(winningBbm > 0)) {
-      return { masterMax, winningBbm: 0, selisihBbm: null, winningIndex: winner?.index ?? -1 };
-    }
-    return {
-      masterMax,
-      winningBbm,
-      selisihBbm: sequentialBbm - winningBbm,
-      winningIndex: winner?.index ?? -1,
-    };
-  }, [form.details, sequentialBbm, customerDetails, vehicleTypes]);
 
   const [saving, setSaving] = useState(false);
   const [expandedRows, setExpandedRows] = useState(new Set());
@@ -583,7 +510,6 @@ const Sales = () => {
       return;
     }
 
-    const { selisihBbm, masterMax, winningIndex } = bbmAdjustment;
     const payload = {
       ...form,
       vehicle_id: form.vehicle_id ? parseInt(form.vehicle_id, 10) : null,
@@ -591,22 +517,11 @@ const Sales = () => {
       extra_uang_jalan: parseAmountInput(form.extra_uang_jalan) === ''
         ? 0
         : amountToNumber(form.extra_uang_jalan),
-      details: validDetails.map((d, i) => {
-        let amount = amountToNumber(d.amount);
-        if (
-          !form.is_finance_paid
-          && selisihBbm != null
-          && winningIndex === i
-          && masterMax > 0
-        ) {
-          amount = masterMax + selisihBbm;
-        }
-        return {
-          customer_id: parseInt(d.customer_id, 10),
-          vehicle_type_id: parseInt(d.vehicle_type_id, 10),
-          amount,
-        };
-      }),
+      details: validDetails.map((d) => ({
+        customer_id: parseInt(d.customer_id, 10),
+        vehicle_type_id: parseInt(d.vehicle_type_id, 10),
+        amount: amountToNumber(d.amount),
+      })),
     };
 
     if (!isEdit) {
@@ -1452,9 +1367,7 @@ const Sales = () => {
                     const maxNominal = multiCustomer
                       ? (amounts.length > 0 ? Math.max(...amounts) : 0)
                       : (amounts[0] || 0);
-                    const baseUangJalan = !form.is_finance_paid && bbmAdjustment.selisihBbm != null
-                      ? bbmAdjustment.masterMax + bbmAdjustment.selisihBbm
-                      : maxNominal;
+                    const baseUangJalan = maxNominal;
                     const extraAmount = amountToNumber(form.extra_uang_jalan);
                     const routeFeesAmount = sumRouteFees(form);
                     const routeFeeLines = getActiveRouteFeeLines(form);
@@ -1492,8 +1405,6 @@ const Sales = () => {
                                     totalKm={routeKm.totalKm}
                                     legs={routeKm.legs}
                                     variant="overlay"
-                                    bbmAmount={sequentialBbm}
-                                    bbmSelisih={bbmAdjustment.selisihBbm}
                                   />
                                 </div>
                               )}
@@ -1537,14 +1448,11 @@ const Sales = () => {
                             >
                               {routeKm.totalKm > 0 && (
                                 <div className="form-group" style={{ marginBottom: 0 }}>
-                                  <label className="form-label">Jarak Tempuh (berurutan)</label>
+                                  <label className="form-label">Jarak Tempuh (berurutan, informasi)</label>
                                   <RouteKmBreakdown
                                     totalKm={routeKm.totalKm}
                                     legs={routeKm.legs}
                                     variant="panel"
-                                    bbmAmount={sequentialBbm}
-                                    bbmMaster={bbmAdjustment.winningBbm || null}
-                                    bbmSelisih={bbmAdjustment.selisihBbm}
                                   />
                                 </div>
                               )}
@@ -1562,11 +1470,9 @@ const Sales = () => {
                                     background: '#f8fafc',
                                   }}
                                 />
-                                {!form.is_finance_paid && bbmAdjustment.selisihBbm != null && (
+                                {multiCustomer && (
                                   <small style={{ color: 'var(--text-secondary)' }}>
-                                    Nominal tertinggi {formatIDR(bbmAdjustment.masterMax)}{' '}
-                                    {bbmAdjustment.selisihBbm >= 0 ? '+' : '−'}{' '}
-                                    selisih BBM {formatIDR(Math.abs(bbmAdjustment.selisihBbm))}
+                                    Nominal tertinggi (KM terjauh) {formatIDR(baseUangJalan)}
                                   </small>
                                 )}
                               </div>
@@ -1673,9 +1579,6 @@ const Sales = () => {
                                       totalKm={routeKm.totalKm}
                                       legs={routeKm.legs}
                                       variant="panel"
-                                      bbmAmount={sequentialBbm}
-                                      bbmMaster={bbmAdjustment.winningBbm || null}
-                                      bbmSelisih={bbmAdjustment.selisihBbm}
                                     />
                                   </div>
                                 )}

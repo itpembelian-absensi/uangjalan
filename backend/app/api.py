@@ -73,9 +73,11 @@ from app.delivery_route_service import (
     format_stop_items_summary,
     replace_route_stops,
     refresh_customer_tariff_in_sales,
+    restore_unlocked_sale_amounts,
     sync_sale_from_route,
     sync_sales_for_period,
     customers_missing_tariff,
+    tariff_amount_for_customer,
 )
 from app.reports_service import (
     customer_summary,
@@ -2031,6 +2033,12 @@ def report_sales(
         stmt = stmt.where(Sale.finance_paid_at.is_(None))
 
     sales = db.scalars(stmt).all()
+    restored = False
+    for s in sales:
+        if restore_unlocked_sale_amounts(db, s):
+            restored = True
+    if restored:
+        db.commit()
     results = []
     for s in sales:
         vehicle = db.get(Vehicle, s.vehicle_id)
@@ -2317,6 +2325,14 @@ def list_sales(
         )
     stmt = stmt.order_by(Sale.date.desc(), Sale.created_at.desc())
     sales = db.scalars(stmt).all()
+    restored = False
+    for s in sales:
+        if restore_unlocked_sale_amounts(db, s):
+            restored = True
+    if restored:
+        db.commit()
+        for s in sales:
+            db.refresh(s)
     return [_serialize_sale(db, s) for s in sales]
 
 
@@ -2385,6 +2401,9 @@ def get_sale(sale_id: int, db: Session = Depends(get_db)):
     obj = db.get(Sale, sale_id)
     if not obj:
         raise HTTPException(status_code=404, detail="Penjualan tidak ditemukan")
+    if restore_unlocked_sale_amounts(db, obj):
+        db.commit()
+        db.refresh(obj)
     return _serialize_sale(db, obj)
 
 
@@ -2406,6 +2425,7 @@ def finance_approve_sale(
         raise HTTPException(status_code=400, detail="Transaksi sudah berstatus void dan tidak dapat disetujui.")
     if sale_finance_locked(obj):
         raise HTTPException(status_code=400, detail="Pembayaran uang jalan sudah disetujui.")
+    restore_unlocked_sale_amounts(db, obj)
     obj.finance_paid_at = datetime.now(timezone.utc)
     obj.finance_paid_by = user.id
     db.commit()
@@ -2527,8 +2547,9 @@ def update_sale(sale_id: int, payload: SaleCreate, db: Session = Depends(get_db)
         for detail in obj.details:
             match = next((x for x in payload.details if x.customer_id == detail.customer_id), None)
             if match:
-                detail.amount = match.amount
-                detail.vehicle_type_id = match.vehicle_type_id
+                vt_id = match.vehicle_type_id or detail.vehicle_type_id
+                detail.vehicle_type_id = vt_id
+                detail.amount = tariff_amount_for_customer(db, detail.customer_id, vt_id) if vt_id else match.amount
         try:
             db.commit()
         except Exception as e:
