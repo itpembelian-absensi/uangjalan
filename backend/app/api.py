@@ -2089,6 +2089,7 @@ def report_delivery_routes(
     to_date: date | None = Query(None, alias="to"),
     vehicle_type_id: int | None = None,
     vehicle_id: int | None = None,
+    customer_id: int | None = None,
     db: Session = Depends(get_db),
 ):
     return delivery_route_report(
@@ -2097,6 +2098,7 @@ def report_delivery_routes(
         to_date=to_date,
         vehicle_type_id=vehicle_type_id,
         vehicle_id=vehicle_id,
+        customer_id=customer_id,
     )
 
 
@@ -2280,6 +2282,7 @@ def list_sales(
     sale_no: str | None = None,
     driver_id: int | None = None,
     vehicle_id: int | None = None,
+    customer_id: int | None = None,
     finance_status: str | None = None,
     db: Session = Depends(get_db)
 ):
@@ -2292,6 +2295,12 @@ def list_sales(
         stmt = stmt.where(Sale.driver_id == driver_id)
     if vehicle_id:
         stmt = stmt.where(Sale.vehicle_id == vehicle_id)
+    if customer_id:
+        stmt = stmt.where(
+            Sale.id.in_(
+                select(SaleDetail.sale_id).where(SaleDetail.customer_id == customer_id)
+            )
+        )
     if finance_status == "paid":
         stmt = stmt.where(Sale.finance_paid_at.isnot(None), Sale.is_void == False)
     elif finance_status == "pending":
@@ -2302,6 +2311,16 @@ def list_sales(
     if term:
         like = f"%{term}%"
         plate_compact = term.replace(" ", "")
+        matching_customer_sales = (
+            select(SaleDetail.sale_id)
+            .join(Customer, Customer.id == SaleDetail.customer_id)
+            .where(
+                or_(
+                    Customer.name.ilike(like),
+                    Customer.code.ilike(like),
+                )
+            )
+        )
         stmt = stmt.where(
             or_(
                 Sale.sale_no.ilike(like),
@@ -2321,6 +2340,7 @@ def list_sales(
                         )
                     )
                 ),
+                Sale.id.in_(matching_customer_sales),
             )
         )
     stmt = stmt.order_by(Sale.date.desc(), Sale.created_at.desc())

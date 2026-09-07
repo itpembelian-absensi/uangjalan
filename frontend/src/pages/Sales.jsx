@@ -45,6 +45,7 @@ import {
 import RouteResultModal from '../components/RouteResultModal';
 import MultiPointMap from '../components/MultiPointMap';
 import RouteKmBreakdown from '../components/RouteKmBreakdown';
+import CustomerSearchSelect from '../components/CustomerSearchSelect';
 import { EMPTY_ROUTE_KM } from '../utils/routeKm';
 
 const formatIDR = (num) =>
@@ -215,6 +216,7 @@ const Sales = () => {
   const [filterSaleNo, setFilterSaleNo] = useState('');
   const [filterDriver, setFilterDriver] = useState('');
   const [filterVehicle, setFilterVehicle] = useState('');
+  const [filterCustomer, setFilterCustomer] = useState('');
   const [filterFinanceStatus, setFilterFinanceStatus] = useState('');
 
   const [loading, setLoading] = useState(true);
@@ -269,6 +271,7 @@ const Sales = () => {
     if (filterSaleNo.trim()) params.append('sale_no', filterSaleNo.trim());
     if (filterDriver) params.append('driver_id', filterDriver);
     if (filterVehicle) params.append('vehicle_id', filterVehicle);
+    if (filterCustomer) params.append('customer_id', filterCustomer);
     if (filterFinanceStatus) params.append('finance_status', filterFinanceStatus);
     return params;
   };
@@ -327,7 +330,7 @@ const Sales = () => {
       return;
     }
     fetchSales();
-  }, [filterFrom, filterTo, filterDriver, filterVehicle, filterFinanceStatus]);
+  }, [filterFrom, filterTo, filterDriver, filterVehicle, filterCustomer, filterFinanceStatus]);
 
   const sortedDrivers = useMemo(
     () => [...drivers].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'id')),
@@ -677,7 +680,7 @@ const Sales = () => {
         </div>
       </div>
 
-      <div className="card" style={{ marginBottom: '1.5rem', padding: '1rem', display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+      <div className="card filter-bar" style={{ marginBottom: '1.5rem', padding: '1rem' }}>
         <div className="form-group" style={{ marginBottom: 0, flex: '1 1 150px' }}>
           <label className="form-label">Dari Tanggal</label>
           <input type="date" className="form-input" value={filterFrom} onChange={(e) => setFilterFrom(e.target.value)} />
@@ -713,19 +716,29 @@ const Sales = () => {
             <option value="void">Dibatalkan</option>
           </select>
         </div>
+        <div className="form-group" style={{ marginBottom: 0, flex: '1 1 240px' }}>
+          <label className="form-label">Customer</label>
+          <CustomerSearchSelect
+            customers={customers}
+            value={filterCustomer}
+            onChange={setFilterCustomer}
+            compact
+            placeholder="Kode atau nama customer..."
+          />
+        </div>
         <div className="form-group" style={{ marginBottom: 0, flex: '2 1 220px' }}>
           <label className="form-label">Cari</label>
           <input
             type="text"
             className="form-input"
-            placeholder="Nomor, rute, nama sopir, atau nopol..."
+            placeholder="Nomor, rute, sopir, nopol, kode/nama customer..."
             value={filterSaleNo}
             onChange={(e) => setFilterSaleNo(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') fetchSales(); }}
           />
         </div>
         <div style={{ flex: '0 0 auto' }}>
-          <button className="btn btn-primary" onClick={fetchSales} disabled={loading} style={{ height: '40px', padding: '0 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <button className="btn btn-primary" onClick={fetchSales} disabled={loading}>
             <RefreshCw size={16} className={loading ? 'spin' : ''} />
             Cari
           </button>

@@ -123,6 +123,7 @@ def delivery_route_report(
     to_date: date | None = None,
     vehicle_type_id: int | None = None,
     vehicle_id: int | None = None,
+    customer_id: int | None = None,
 ) -> dict:
     stmt = (
         select(DeliveryRoute)
@@ -139,6 +140,14 @@ def delivery_route_report(
         stmt = stmt.where(DeliveryRoute.vehicle_type_id == vehicle_type_id)
     elif vehicle_id:
         stmt = stmt.where(DeliveryRoute.vehicle_id == vehicle_id)
+    if customer_id:
+        stmt = stmt.where(
+            DeliveryRoute.id.in_(
+                select(DeliveryRouteStop.route_id).where(
+                    DeliveryRouteStop.customer_id == customer_id
+                )
+            )
+        )
 
     routes = db.scalars(stmt).all()
     route_rows: list[dict] = []
@@ -160,6 +169,10 @@ def delivery_route_report(
             sale_driver_name = sale_driver.name if sale_driver else None
 
         sorted_stops = sorted(route.stops, key=lambda s: s.sort_order)
+        if customer_id:
+            sorted_stops = [s for s in sorted_stops if s.customer_id == customer_id]
+        if not sorted_stops:
+            continue
         customer_names: list[str] = []
         for idx, stop in enumerate(sorted_stops, start=1):
             cust = db.get(Customer, stop.customer_id)

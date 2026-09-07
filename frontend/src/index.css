@@ -222,6 +222,75 @@ p {
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
 }
 
+.filter-bar {
+  --filter-control-height: 2.75rem;
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.filter-bar .form-group {
+  margin-bottom: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.filter-bar .form-label {
+  min-height: 1.2em;
+  line-height: 1.2;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.filter-bar input.form-input,
+.filter-bar select.form-input {
+  height: var(--filter-control-height);
+  padding-top: 0;
+  padding-bottom: 0;
+  line-height: calc(var(--filter-control-height) - 2px);
+}
+
+.filter-bar .customer-lookup-field {
+  align-items: stretch;
+  height: var(--filter-control-height);
+}
+
+.filter-bar .customer-lookup-display {
+  height: var(--filter-control-height);
+  padding-top: 0;
+  padding-bottom: 0;
+  font-size: 0.95rem;
+  line-height: calc(var(--filter-control-height) - 2px);
+}
+
+.filter-bar .customer-lookup-field--compact .customer-lookup-display,
+.filter-bar .customer-lookup-field--compact .customer-lookup-open-btn {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.filter-bar .customer-lookup-open-btn {
+  height: var(--filter-control-height);
+  width: var(--filter-control-height);
+  flex: 0 0 var(--filter-control-height);
+  padding: 0;
+}
+
+.filter-bar .customer-lookup-clear-btn {
+  align-self: stretch;
+  display: inline-flex;
+  align-items: center;
+}
+
+.filter-bar .btn {
+  height: var(--filter-control-height);
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
 /* Tables */
 .table-container {
   overflow-x: auto;

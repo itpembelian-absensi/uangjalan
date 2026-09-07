@@ -111,16 +111,22 @@ const routeStopFieldSummary = (routeNo, stopRows, field) => {
   return parts.length ? parts.join('; ') : '-';
 };
 
-export const buildReportQuery = ({ fromDate, toDate, vehicleTypeId }) => {
+export const buildReportQuery = ({ fromDate, toDate, vehicleTypeId, customerId }) => {
   const params = new URLSearchParams();
   if (fromDate) params.set('from', fromDate);
   if (toDate) params.set('to', toDate);
   if (vehicleTypeId) params.set('vehicle_type_id', vehicleTypeId);
+  if (customerId) params.set('customer_id', customerId);
   const q = params.toString();
   return q ? `?${q}` : '';
 };
 
-export const exportDeliveryRoutePdf = (report, { fromDate, toDate }) => {
+const reportPeriodLine = ({ fromDate, toDate, customerLabel }) => {
+  const period = `Periode: ${formatReportDate(fromDate)} - ${formatReportDate(toDate)}`;
+  return customerLabel ? `${period} | Customer: ${customerLabel}` : period;
+};
+
+export const exportDeliveryRoutePdf = (report, { fromDate, toDate, customerLabel }) => {
   const { routes = [], stop_rows = [], total_routes = 0, total_stops = 0, total_items_qty = 0 } = report;
   const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
   const pageWidth = pdf.internal.pageSize.getWidth();
@@ -155,7 +161,7 @@ export const exportDeliveryRoutePdf = (report, { fromDate, toDate }) => {
   pdf.setFontSize(10);
   pdf.setTextColor(100);
   pdf.text(
-    `Periode: ${formatReportDate(fromDate)} - ${formatReportDate(toDate)} | Dicetak: ${new Date().toLocaleString('id-ID')}`,
+    `${reportPeriodLine({ fromDate, toDate, customerLabel })} | Dicetak: ${new Date().toLocaleString('id-ID')}`,
     pageWidth / 2,
     20,
     { align: 'center' },
@@ -309,12 +315,12 @@ export const exportDeliveryRoutePdf = (report, { fromDate, toDate }) => {
   pdf.save(`laporan-rute-pengiriman-${fromDate || 'all'}-${toDate || 'all'}.pdf`);
 };
 
-export const exportDeliveryRouteExcel = (report, { fromDate, toDate }) => {
+export const exportDeliveryRouteExcel = (report, { fromDate, toDate, customerLabel }) => {
   const { routes = [], stop_rows = [], total_routes = 0, total_stops = 0, total_items_qty = 0 } = report;
 
   const summarySheet = [
     ['Laporan Rute Pengiriman'],
-    [`Periode: ${formatReportDate(fromDate)} - ${formatReportDate(toDate)}`],
+    [reportPeriodLine({ fromDate, toDate, customerLabel })],
     [`Dicetak: ${new Date().toLocaleString('id-ID')}`],
     [],
     ['Total Rute', total_routes],
@@ -339,7 +345,7 @@ export const exportDeliveryRouteExcel = (report, { fromDate, toDate }) => {
 
   const detailSheet = [
     ['Detail Customer per Rute'],
-    [`Periode: ${formatReportDate(fromDate)} - ${formatReportDate(toDate)}`],
+    [reportPeriodLine({ fromDate, toDate, customerLabel })],
     [],
     [
       'No',
@@ -423,7 +429,7 @@ export const exportDeliveryRouteExcel = (report, { fromDate, toDate }) => {
   XLSX.writeFile(wb, `laporan-rute-pengiriman-${fromDate || 'all'}-${toDate || 'all'}.xlsx`);
 };
 
-export const printDeliveryRouteReport = (report, { fromDate, toDate }) => {
+export const printDeliveryRouteReport = (report, { fromDate, toDate, customerLabel }) => {
   const { routes = [], stop_rows = [], total_routes = 0, total_stops = 0, total_items_qty = 0 } = report;
   const printWindow = window.open('', '_blank', 'width=1100,height=800');
   if (!printWindow) {
@@ -501,7 +507,7 @@ export const printDeliveryRouteReport = (report, { fromDate, toDate }) => {
     </style>
   </head><body>
     <h1>Laporan Rute Pengiriman</h1>
-    <p class="meta">Periode: ${formatReportDate(fromDate)} - ${formatReportDate(toDate)} | Dicetak: ${new Date().toLocaleString('id-ID')}</p>
+    <p class="meta">${reportPeriodLine({ fromDate, toDate, customerLabel })} | Dicetak: ${new Date().toLocaleString('id-ID')}</p>
     <div class="summary">
       <div class="summary-card"><label>Total Rute</label><h2>${total_routes}</h2></div>
       <div class="summary-card"><label>Total Customer</label><h2>${total_stops}</h2></div>

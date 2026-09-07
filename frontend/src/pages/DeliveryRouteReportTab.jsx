@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import GlassCard from '../components/GlassCard';
 import DeliveryRouteStopDetailTable from '../components/DeliveryRouteStopDetailTable';
 import TablePager from '../components/TablePager';
-import { Download, Printer, Truck, FileText, ChevronDown, ChevronRight } from 'lucide-react';
+import CustomerSearchSelect, { customerLabel } from '../components/CustomerSearchSelect';
+import { Download, Printer, Truck, FileText, ChevronDown, ChevronRight, Users } from 'lucide-react';
 import { apiFetch } from '../api';
 import {
   buildReportQuery,
@@ -23,14 +24,27 @@ const DeliveryRouteReportTab = ({ fromDate, toDate }) => {
     stop_rows: [],
   });
   const [vehicleTypes, setVehicleTypes] = useState([]);
+  const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filterVehicleType, setFilterVehicleType] = useState('');
+  const [filterCustomer, setFilterCustomer] = useState('');
   const [expandedRouteNo, setExpandedRouteNo] = useState(null);
 
   const PAGE_SIZE = 15;
   const [page, setPage] = useState(1);
 
-  const filterParams = { fromDate, toDate, vehicleTypeId: filterVehicleType };
+  const selectedCustomerLabel = useMemo(
+    () => customerLabel(customers.find((c) => String(c.id) === String(filterCustomer))),
+    [customers, filterCustomer],
+  );
+
+  const filterParams = {
+    fromDate,
+    toDate,
+    vehicleTypeId: filterVehicleType,
+    customerId: filterCustomer,
+    customerLabel: selectedCustomerLabel,
+  };
   const { routes, stop_rows, total_routes, total_stops, total_items_qty } = report;
 
   const totalPages = Math.max(1, Math.ceil(routes.length / PAGE_SIZE));
@@ -52,8 +66,12 @@ const DeliveryRouteReportTab = ({ fromDate, toDate }) => {
   useEffect(() => {
     (async () => {
       try {
-        const vehicleTypeList = await apiFetch('/api/vehicle-types');
-        setVehicleTypes(vehicleTypeList);
+        const [vehicleTypeList, customerList] = await Promise.all([
+          apiFetch('/api/vehicle-types'),
+          apiFetch('/api/customers'),
+        ]);
+        setVehicleTypes(Array.isArray(vehicleTypeList) ? vehicleTypeList : []);
+        setCustomers(Array.isArray(customerList) ? customerList : []);
       } catch (err) {
         console.error(err);
       }
@@ -73,7 +91,7 @@ const DeliveryRouteReportTab = ({ fromDate, toDate }) => {
       setLoading(false);
     };
     fetchReport();
-  }, [fromDate, toDate, filterVehicleType]);
+  }, [fromDate, toDate, filterVehicleType, filterCustomer]);
 
   const toggleRoute = (routeNo) => {
     setExpandedRouteNo((prev) => (prev === routeNo ? null : routeNo));
@@ -102,7 +120,7 @@ const DeliveryRouteReportTab = ({ fromDate, toDate }) => {
       </div>
 
       <GlassCard style={{ marginBottom: '1.5rem' }}>
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap', padding: '0.5rem 0' }}>
+        <div className="filter-bar" style={{ padding: '0.5rem 0' }}>
           <div className="form-group" style={{ marginBottom: 0, flex: '1 1 200px' }}>
             <label className="form-label">
               <Truck size={14} /> Jenis Kendaraan
@@ -115,6 +133,18 @@ const DeliveryRouteReportTab = ({ fromDate, toDate }) => {
                 </option>
               ))}
             </select>
+          </div>
+          <div className="form-group" style={{ marginBottom: 0, flex: '1 1 260px' }}>
+            <label className="form-label">
+              <Users size={14} /> Customer
+            </label>
+            <CustomerSearchSelect
+              customers={customers}
+              value={filterCustomer}
+              onChange={setFilterCustomer}
+              compact
+              placeholder="Kode atau nama customer..."
+            />
           </div>
         </div>
       </GlassCard>

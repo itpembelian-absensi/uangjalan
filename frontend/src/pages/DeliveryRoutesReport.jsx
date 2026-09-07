@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Printer, FileText, Download, RefreshCw } from 'lucide-react';
 import GlassCard from '../components/GlassCard';
 import DeliveryRouteStopDetailTable from '../components/DeliveryRouteStopDetailTable';
+import CustomerSearchSelect, { customerLabel } from '../components/CustomerSearchSelect';
 import { apiFetch } from '../api';
 import { tomorrowIso, formatItemQuantity } from '../utils/deliveryRouteUtils';
 import {
@@ -18,14 +19,27 @@ const emptyReport = () => ({ total_routes: 0, total_stops: 0, total_items_qty: 0
 const DeliveryRoutesReport = () => {
   const [report, setReport] = useState(emptyReport);
   const [vehicleTypes, setVehicleTypes] = useState([]);
+  const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [reportError, setReportError] = useState(null);
   const [filterFrom, setFilterFrom] = useState(tomorrowIso);
   const [filterTo, setFilterTo] = useState(tomorrowIso);
   const [filterVehicleType, setFilterVehicleType] = useState('');
+  const [filterCustomer, setFilterCustomer] = useState('');
 
-  const filterParams = { fromDate: filterFrom, toDate: filterTo, vehicleTypeId: filterVehicleType };
+  const selectedCustomerLabel = useMemo(
+    () => customerLabel(customers.find((c) => String(c.id) === String(filterCustomer))),
+    [customers, filterCustomer],
+  );
+
+  const filterParams = {
+    fromDate: filterFrom,
+    toDate: filterTo,
+    vehicleTypeId: filterVehicleType,
+    customerId: filterCustomer,
+    customerLabel: selectedCustomerLabel,
+  };
 
   const fetchReport = async () => {
     try {
@@ -41,10 +55,15 @@ const DeliveryRoutesReport = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const dataVt = await apiFetch('/api/vehicle-types');
+      const [dataVt, dataC] = await Promise.all([
+        apiFetch('/api/vehicle-types'),
+        apiFetch('/api/customers'),
+      ]);
       setVehicleTypes(Array.isArray(dataVt) ? dataVt : []);
+      setCustomers(Array.isArray(dataC) ? dataC : []);
     } catch {
       setVehicleTypes([]);
+      setCustomers([]);
     }
     await fetchReport();
     setLoading(false);
@@ -52,13 +71,13 @@ const DeliveryRoutesReport = () => {
 
   useEffect(() => {
     fetchData();
-  }, [filterFrom, filterTo, filterVehicleType]);
+  }, [filterFrom, filterTo, filterVehicleType, filterCustomer]);
 
   const loadReportForExport = useCallback(async () => {
     const data = await apiFetch(`/api/reports/delivery-routes${buildReportQuery(filterParams)}`);
     setReport(data);
     return data;
-  }, [filterFrom, filterTo, filterVehicleType]);
+  }, [filterFrom, filterTo, filterVehicleType, filterCustomer]);
 
   const runExport = async (action) => {
     setExporting(true);
@@ -110,16 +129,13 @@ const DeliveryRoutesReport = () => {
 
       <GlassCard title="Laporan Rute">
         <div
+          className="filter-bar"
           style={{
-            display: 'flex',
-            gap: '1rem',
-            flexWrap: 'wrap',
             marginBottom: '1rem',
-            alignItems: 'flex-end',
             justifyContent: 'space-between',
           }}
         >
-          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', flex: '1 1 400px' }}>
+          <div className="filter-bar" style={{ flex: '1 1 400px' }}>
             <div className="form-group" style={{ marginBottom: 0, minWidth: '140px' }}>
               <label className="form-label">Dari tanggal</label>
               <input
@@ -153,8 +169,18 @@ const DeliveryRoutesReport = () => {
                 ))}
               </select>
             </div>
+            <div className="form-group" style={{ marginBottom: 0, minWidth: '240px', flex: '1 1 240px' }}>
+              <label className="form-label">Customer</label>
+              <CustomerSearchSelect
+                customers={customers}
+                value={filterCustomer}
+                onChange={setFilterCustomer}
+                compact
+                placeholder="Kode atau nama customer..."
+              />
+            </div>
           </div>
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <div className="filter-bar" style={{ gap: '0.5rem', flex: '0 0 auto' }}>
             <button
               type="button"
               className="btn btn-secondary"
@@ -190,6 +216,12 @@ const DeliveryRoutesReport = () => {
             <>
               {' '}
               | Jenis: {vehicleTypes.find((v) => String(v.id) === String(filterVehicleType))?.name || '-'}
+            </>
+          )}
+          {selectedCustomerLabel && (
+            <>
+              {' '}
+              | Customer: {selectedCustomerLabel}
             </>
           )}
         </p>
