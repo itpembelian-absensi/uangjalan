@@ -35,6 +35,7 @@ import {
   printBulkSales,
   exportBulkSalesPdf,
   exportBulkSalesExcel,
+  salesForUangJalanReport,
 } from '../utils/saleExport';
 import {
   sumRouteFees,
@@ -634,6 +635,11 @@ const Sales = () => {
     [sales, sortKey, sortDir],
   );
 
+  const reportSales = useMemo(
+    () => salesForUangJalanReport(displaySales),
+    [displaySales],
+  );
+
   return (
     <div className="page-container">
       <div className="page-header">
@@ -647,8 +653,8 @@ const Sales = () => {
         <div className="page-header-actions" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
           <button
             className="btn btn-secondary"
-            onClick={() => printBulkSales(displaySales, { fromLabel: filterFrom ? formatDate(filterFrom) : '', toLabel: filterTo ? formatDate(filterTo) : '' })}
-            disabled={loading || displaySales.length === 0}
+            onClick={() => printBulkSales(reportSales, { fromLabel: filterFrom ? formatDate(filterFrom) : '', toLabel: filterTo ? formatDate(filterTo) : '' })}
+            disabled={loading || reportSales.length === 0}
             title="Print semua data"
           >
             <Printer size={18} /> Print
@@ -656,16 +662,16 @@ const Sales = () => {
           <button
             className="btn btn-secondary"
             style={{ background: '#dc2626', color: 'white', border: 'none' }}
-            onClick={() => exportBulkSalesPdf(displaySales, { fromLabel: filterFrom ? formatDate(filterFrom) : '', toLabel: filterTo ? formatDate(filterTo) : '' })}
-            disabled={loading || displaySales.length === 0}
+            onClick={() => exportBulkSalesPdf(reportSales, { fromLabel: filterFrom ? formatDate(filterFrom) : '', toLabel: filterTo ? formatDate(filterTo) : '' })}
+            disabled={loading || reportSales.length === 0}
             title="Export semua ke PDF"
           >
             <FileDown size={18} /> PDF
           </button>
           <button
             className="btn btn-secondary"
-            onClick={() => exportBulkSalesExcel(displaySales, { fromLabel: filterFrom ? formatDate(filterFrom) : '', toLabel: filterTo ? formatDate(filterTo) : '' })}
-            disabled={loading || displaySales.length === 0}
+            onClick={() => exportBulkSalesExcel(reportSales, { fromLabel: filterFrom ? formatDate(filterFrom) : '', toLabel: filterTo ? formatDate(filterTo) : '' })}
+            disabled={loading || reportSales.length === 0}
             title="Export semua ke Excel"
           >
             <FileSpreadsheet size={18} /> Excel
@@ -917,6 +923,8 @@ const Sales = () => {
                       </td>
                       <td data-label="Aksi" style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
                         <div style={{ display: 'inline-flex', gap: '0.35rem', justifyContent: 'flex-end', flexWrap: 'nowrap' }}>
+                          {!s.is_void && (
+                          <>
                           <button
                             type="button"
                             className="btn btn-secondary"
@@ -944,6 +952,8 @@ const Sales = () => {
                           >
                             <FileSpreadsheet size={14} />
                           </button>
+                          </>
+                          )}
                           {canApprovePayment && !s.is_finance_paid && !s.is_void && (
                             <button
                               type="button"

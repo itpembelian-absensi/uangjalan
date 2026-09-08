@@ -94,7 +94,11 @@ const Reports = () => {
       if (filterCustomer) url += `customer_id=${filterCustomer}&`;
       if (filterFinanceStatus) url += `finance_status=${filterFinanceStatus}&`;
       const data = await apiFetch(url);
-      setSales((Array.isArray(data) ? data : []).map(enrichSaleReportRow));
+      setSales(
+        (Array.isArray(data) ? data : [])
+          .filter((s) => !s?.is_void)
+          .map(enrichSaleReportRow)
+      );
     } catch (err) {
       console.error(err);
     }

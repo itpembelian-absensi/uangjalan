@@ -137,6 +137,11 @@ export function buildSaleDocumentFromSaleOut(sale) {
 
 /* ───────── Bulk export helpers ───────── */
 
+/** Transaksi void tidak masuk daftar print / PDF / Excel. */
+export function salesForUangJalanReport(sales) {
+  return (sales || []).filter((s) => !s?.is_void);
+}
+
 function enrichSaleRow(sale) {
   const details = sale.details || [];
   const amounts = details.map((d) => parseFloat(d.amount) || 0).filter((n) => n > 0);
@@ -163,7 +168,11 @@ function enrichSaleRow(sale) {
 }
 
 export function printBulkSales(sales, { fromLabel, toLabel } = {}) {
-  const enriched = sales.map(enrichSaleRow);
+  const enriched = salesForUangJalanReport(sales).map(enrichSaleRow);
+  if (enriched.length === 0) {
+    alert('Tidak ada transaksi uang jalan yang dapat dilaporkan. Transaksi void tidak disertakan.');
+    return;
+  }
   const totalBase = enriched.reduce((s, r) => s + r._base, 0);
   const totalRounding = enriched.reduce((s, r) => s + r._rounding, 0);
   const totalAll = enriched.reduce((s, r) => s + r._total, 0);
@@ -214,7 +223,11 @@ export function printBulkSales(sales, { fromLabel, toLabel } = {}) {
 }
 
 export function exportBulkSalesPdf(sales, { fromLabel, toLabel } = {}) {
-  const enriched = sales.map(enrichSaleRow);
+  const enriched = salesForUangJalanReport(sales).map(enrichSaleRow);
+  if (enriched.length === 0) {
+    alert('Tidak ada transaksi uang jalan yang dapat dilaporkan. Transaksi void tidak disertakan.');
+    return;
+  }
   const totalBase = enriched.reduce((s, r) => s + r._base, 0);
   const totalRounding = enriched.reduce((s, r) => s + r._rounding, 0);
   const totalAll = enriched.reduce((s, r) => s + r._total, 0);
@@ -254,7 +267,11 @@ export function exportBulkSalesPdf(sales, { fromLabel, toLabel } = {}) {
 }
 
 export function exportBulkSalesExcel(sales, { fromLabel, toLabel } = {}) {
-  const enriched = sales.map(enrichSaleRow);
+  const enriched = salesForUangJalanReport(sales).map(enrichSaleRow);
+  if (enriched.length === 0) {
+    alert('Tidak ada transaksi uang jalan yang dapat dilaporkan. Transaksi void tidak disertakan.');
+    return;
+  }
   const totalBase = enriched.reduce((s, r) => s + r._base, 0);
   const totalRounding = enriched.reduce((s, r) => s + r._rounding, 0);
   const totalAll = enriched.reduce((s, r) => s + r._total, 0);
