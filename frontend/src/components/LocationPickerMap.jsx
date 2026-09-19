@@ -18,9 +18,20 @@ const defaultCenter = [-6.200000, 106.816666]; // Jakarta
 function MapEvents({ onLocationSelected }) {
   useMapEvents({
     click(e) {
+      if (!onLocationSelected) return;
       onLocationSelected(e.latlng.lat, e.latlng.lng);
     },
   });
+  return null;
+}
+
+function PinDragLock({ markerRef, canMovePin }) {
+  useEffect(() => {
+    const marker = markerRef.current;
+    if (!marker?.dragging) return;
+    if (canMovePin) marker.dragging.enable();
+    else marker.dragging.disable();
+  }, [markerRef, canMovePin]);
   return null;
 }
 
@@ -43,9 +54,11 @@ const LocationPickerMap = ({
   geometry = [],
   tollRoads = [],
   showTollPolylines = true,
+  editable = true,
 }) => {
   const mapHeight = typeof height === 'number' ? `${height}px` : height;
   const markerRef = useRef(null);
+  const canMovePin = Boolean(editable && onLocationChange);
 
   const center = useMemo(() => {
     if (latitude && longitude && !Number.isNaN(parseFloat(latitude)) && !Number.isNaN(parseFloat(longitude))) {
@@ -59,6 +72,7 @@ const LocationPickerMap = ({
   const eventHandlers = useMemo(
     () => ({
       dragend() {
+        if (!canMovePin) return;
         const marker = markerRef.current;
         if (marker != null) {
           const pos = marker.getLatLng();
@@ -66,7 +80,7 @@ const LocationPickerMap = ({
         }
       },
     }),
-    [onLocationChange]
+    [onLocationChange, canMovePin]
   );
 
   const fitPoints = useMemo(() => {
@@ -90,7 +104,7 @@ const LocationPickerMap = ({
           url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
         />
         {fitPoints.length > 1 && <FitBounds points={fitPoints} />}
-        <MapEvents onLocationSelected={onLocationChange} />
+        {canMovePin && <MapEvents onLocationSelected={onLocationChange} />}
 
         {origin && (
           <Marker position={[origin.latitude, origin.longitude]}>
@@ -121,14 +135,18 @@ const LocationPickerMap = ({
 
         {hasLocation && (
           <Marker
-            draggable={true}
-            eventHandlers={eventHandlers}
+            key={canMovePin ? 'pin-edit' : 'pin-lock'}
+            draggable={canMovePin}
+            autoPan={canMovePin}
+            interactive={canMovePin}
+            eventHandlers={canMovePin ? eventHandlers : undefined}
             position={center}
             ref={markerRef}
           >
-            <Popup>Geser pin ini ke lokasi yang tepat</Popup>
+            {canMovePin && <Popup>Geser pin ini ke lokasi yang tepat</Popup>}
           </Marker>
         )}
+        {hasLocation && <PinDragLock markerRef={markerRef} canMovePin={canMovePin} />}
       </MapContainer>
 
       {tollRoadList.length > 0 && (
@@ -178,7 +196,11 @@ const LocationPickerMap = ({
           alignItems: 'flex-end',
         }}
       >
-        <div style={{ pointerEvents: 'none' }}>💡 Klik/geser peta untuk set koordinat</div>
+        <div style={{ pointerEvents: 'none' }}>
+          {canMovePin
+            ? '💡 Klik/geser pin untuk set koordinat'
+            : '🔒 Pin dikunci — peta tetap bisa di-zoom'}
+        </div>
         {hasLocation && (
           <a
             href={`https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`}

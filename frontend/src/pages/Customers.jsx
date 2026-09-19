@@ -450,6 +450,16 @@ const Customers = () => {
     is_locked_finance: false,
     tariffs: [],
   });
+  const lockedLocationRef = useRef(null);
+
+  const canManageMarketingLock = user?.role === 'admin' || user?.role === 'marketing';
+  const dbMarketingLock = Boolean(
+    editId && customers.find((c) => c.id === editId)?.is_locked_marketing
+  );
+  const coordsLockedByMarketing = Boolean(form.is_locked_marketing) || (
+    !canManageMarketingLock && dbMarketingLock
+  );
+  const coordsEditable = !form.is_locked_finance && !coordsLockedByMarketing;
 
   const fetchCustomers = async () => {
     setLoadingCustomers(true);
@@ -828,6 +838,11 @@ const Customers = () => {
         persistedTollBreakdownRef.current = savedManualBreakdown;
         setManualTollOverride(savedManualBreakdown != null);
         const financeLocked = Boolean(full.is_locked_finance);
+        lockedLocationRef.current = {
+          latitude: full.latitude != null ? Number(full.latitude) : null,
+          longitude: full.longitude != null ? Number(full.longitude) : null,
+          share_location: full.share_location || null,
+        };
         setForm({
           code: full.code || '',
           name: full.name || '',
@@ -891,6 +906,7 @@ const Customers = () => {
       setEditId(null);
       setForceToll(false);
       persistedTollBreakdownRef.current = null;
+      lockedLocationRef.current = null;
       setManualTollOverride(false);
       setRouteInfo(null);
       setRouteError('');
@@ -955,12 +971,14 @@ const Customers = () => {
       setManualTollOverride(false);
       setRouteRefreshNeeded(false);
       persistedTollBreakdownRef.current = null;
+      lockedLocationRef.current = null;
       corridorFetchSeqRef.current += 1;
       if (corridorDebounceRef.current) clearTimeout(corridorDebounceRef.current);
     }
   };
 
   const applyCoords = (latitude, longitude) => {
+    if (!coordsEditable) return;
     setForm((prev) => ({
       ...prev,
       latitude: String(latitude),
@@ -969,6 +987,7 @@ const Customers = () => {
   };
 
   const handleParseShareLocation = async () => {
+    if (!coordsEditable) return;
     const text = (form.share_location || '').trim();
     if (!text) return;
 
@@ -1182,6 +1201,7 @@ const Customers = () => {
   }, [vehicleTypes, isModalOpen]);
 
   const handleGeocode = async () => {
+    if (!coordsEditable) return;
     setGeocoding(true);
     setError('');
     try {
@@ -1299,15 +1319,33 @@ const Customers = () => {
         phone: form.phone || null,
         email: form.email || null,
         is_active: form.is_active,
-        is_locked_marketing: form.is_locked_marketing,
+        is_locked_marketing: canManageMarketingLock
+          ? form.is_locked_marketing
+          : Boolean(
+              form.is_locked_marketing ||
+              customers.find((c) => c.id === editId)?.is_locked_marketing
+            ),
         // Marketing tidak boleh ubah Kunci Finance — kirim status server apa adanya.
         is_locked_finance: canManageFinanceLock
           ? form.is_locked_finance
           : Boolean(customers.find((c) => c.id === editId)?.is_locked_finance),
         force_toll: forceToll,
-        latitude: form.latitude ? parseFloat(form.latitude) : null,
-        longitude: form.longitude ? parseFloat(form.longitude) : null,
-        share_location: form.share_location || null,
+        latitude:
+          coordsLockedByMarketing && lockedLocationRef.current
+            ? lockedLocationRef.current.latitude
+            : form.latitude
+              ? parseFloat(form.latitude)
+              : null,
+        longitude:
+          coordsLockedByMarketing && lockedLocationRef.current
+            ? lockedLocationRef.current.longitude
+            : form.longitude
+              ? parseFloat(form.longitude)
+              : null,
+        share_location:
+          coordsLockedByMarketing && lockedLocationRef.current
+            ? lockedLocationRef.current.share_location
+            : form.share_location || null,
         tariffs: tariffPayloadRows(form.tariffs),
         custom_toll_breakdown: customTollBreakdownPayload(routeInfo, manualTollOverride),
       };
@@ -2064,7 +2102,12 @@ const Customers = () => {
                           style={{ background: 'transparent' }}
                           placeholder="Latitude"
                           value={form.latitude}
-                          onChange={(e) => setForm({ ...form, latitude: e.target.value })}
+                          readOnly={!coordsEditable}
+                          disabled={!coordsEditable}
+                          onChange={(e) => {
+                            if (!coordsEditable) return;
+                            setForm({ ...form, latitude: e.target.value });
+                          }}
                         />
                         <input
                           type="text"
@@ -2072,14 +2115,23 @@ const Customers = () => {
                           style={{ background: 'transparent' }}
                           placeholder="Longitude"
                           value={form.longitude}
-                          onChange={(e) => setForm({ ...form, longitude: e.target.value })}
+                          readOnly={!coordsEditable}
+                          disabled={!coordsEditable}
+                          onChange={(e) => {
+                            if (!coordsEditable) return;
+                            setForm({ ...form, longitude: e.target.value });
+                          }}
                         />
-                        <button type="button" className="btn btn-secondary" onClick={handleGeocode} disabled={geocoding}>
+                        <button type="button" className="btn btn-secondary" onClick={handleGeocode} disabled={geocoding || !coordsEditable}>
                           <MapPin size={16} /> {geocoding ? '...' : 'Geocode'}
                         </button>
                       </div>
                       <small style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', display: 'block', marginTop: '0.35rem' }}>
-                        Koordinat dipakai untuk hitung rute gudang → customer di form Uang Jalan. Setelah Geocode, pastikan titik di peta sudah benar — geser manual jika perlu.
+                        {coordsLockedByMarketing
+                          ? 'Kunci Marketing aktif — koordinat dikunci. Buka Kunci Marketing dulu untuk geser pin (hanya Admin/Marketing).'
+                          : form.is_locked_finance
+                            ? 'Kunci Finance aktif — koordinat tidak dapat diubah atau dipindah dari peta.'
+                            : 'Koordinat dipakai untuk hitung rute gudang → customer di form Uang Jalan. Setelah Geocode, pastikan titik di peta sudah benar — geser manual jika perlu.'}
                       </small>
                       <div style={{ marginTop: '0.75rem' }}>
                         <label className="form-label" style={{ textTransform: 'none', fontSize: '0.85rem', marginBottom: '0.35rem' }}>
@@ -2092,13 +2144,18 @@ const Customers = () => {
                             style={{ background: 'transparent' }}
                             placeholder="Tempel link share lokasi dari WhatsApp"
                             value={form.share_location}
-                            onChange={(e) => setForm({ ...form, share_location: e.target.value })}
+                            readOnly={!coordsEditable}
+                            disabled={!coordsEditable}
+                            onChange={(e) => {
+                              if (!coordsEditable) return;
+                              setForm({ ...form, share_location: e.target.value });
+                            }}
                           />
                           <button
                             type="button"
                             className="btn btn-secondary"
                             onClick={handleParseShareLocation}
-                            disabled={parsingShare || !(form.share_location || '').trim()}
+                            disabled={parsingShare || !coordsEditable || !(form.share_location || '').trim()}
                           >
                             <MapPin size={16} /> {parsingShare ? '...' : 'Ambil Koordinat'}
                           </button>
@@ -2567,13 +2624,17 @@ const Customers = () => {
                         </>
                         )}
                         <LocationPickerMap
-                          key={`${form.latitude}-${form.longitude}-${routeInfo?.geometry?.length || 0}-${routeInfo?.route_profile || 'auto'}`}
+                          key={`${form.latitude}-${form.longitude}-${routeInfo?.geometry?.length || 0}-${routeInfo?.route_profile || 'auto'}-${coordsEditable ? 'edit' : 'lock'}`}
                           latitude={form.latitude}
                           longitude={form.longitude}
-                          onLocationChange={(lat, lng) => {
-                            if (form.is_locked_finance) return;
-                            setForm({ ...form, latitude: String(lat), longitude: String(lng) });
-                          }}
+                          onLocationChange={
+                            coordsEditable
+                              ? (lat, lng) => {
+                                  setForm({ ...form, latitude: String(lat), longitude: String(lng) });
+                                }
+                              : undefined
+                          }
+                          editable={coordsEditable}
                           origin={routeInfo?.origin || null}
                           geometry={routeInfo?.geometry || []}
                           tollRoads={routeInfo?.toll_roads || []}
@@ -2605,10 +2666,17 @@ const Customers = () => {
 
                     {!routeInfo && (
                       <LocationPickerMap
-                        key={`${form.latitude}-${form.longitude}-empty`}
+                        key={`${form.latitude}-${form.longitude}-empty-${coordsEditable ? 'edit' : 'lock'}`}
                         latitude={form.latitude}
                         longitude={form.longitude}
-                        onLocationChange={(lat, lng) => setForm({ ...form, latitude: String(lat), longitude: String(lng) })}
+                        onLocationChange={
+                          coordsEditable
+                            ? (lat, lng) => {
+                                setForm({ ...form, latitude: String(lat), longitude: String(lng) });
+                              }
+                            : undefined
+                        }
+                        editable={coordsEditable}
                         height="calc(100vh - 520px)"
                       />
                     )}
@@ -2623,8 +2691,14 @@ const Customers = () => {
                       type="checkbox" 
                       id="is_locked_marketing" 
                       checked={form.is_locked_marketing} 
-                      disabled={initLockedFinance && !canUnlockFinanceLock}
-                      onChange={(e) => setForm({ ...form, is_locked_marketing: e.target.checked })}
+                      disabled={
+                        (initLockedFinance && !canUnlockFinanceLock)
+                        || (!canManageMarketingLock && initLockedMarketing)
+                      }
+                      onChange={(e) => {
+                        if (!canManageMarketingLock && initLockedMarketing) return;
+                        setForm({ ...form, is_locked_marketing: e.target.checked });
+                      }}
                     />
                     <label htmlFor="is_locked_marketing" style={{ cursor: 'pointer', fontSize: '0.9rem', fontWeight: 500, color: form.is_locked_marketing ? '#dc2626' : 'var(--text-secondary)' }}>
                       Kunci Marketing

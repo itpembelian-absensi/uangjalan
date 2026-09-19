@@ -178,6 +178,7 @@ const Warehouse = () => {
                 ? (lat, lng) => setForm({ ...form, latitude: String(lat), longitude: String(lng) })
                 : undefined
             }
+            editable={canWrite}
             height={360}
           />
         </div>

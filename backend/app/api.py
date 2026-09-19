@@ -744,6 +744,63 @@ def _replace_customer_tariffs(
         )
 
 
+MSG_COORDS_LOCKED_MARKETING = (
+    "Koordinat customer sudah dikunci Marketing. "
+    "Buka Kunci Marketing terlebih dahulu untuk mengubah atau memindahkan koordinat."
+)
+MSG_MARKETING_LOCK_CANNOT_UNLOCK = (
+    "Kunci Marketing hanya dapat dibuka oleh Marketing atau Admin."
+)
+_MARKETING_LOCK_ROLES = {Role.ADMIN.value, Role.MARKETING.value}
+_COORD_CHANGE_EPS = 1e-5  # ~1 meter
+
+
+def _coord_delta(left, right) -> float:
+    if left is None and right is None:
+        return 0.0
+    if left is None or right is None:
+        return 1.0
+    try:
+        return abs(float(left) - float(right))
+    except (TypeError, ValueError):
+        return 1.0
+
+
+def _can_manage_marketing_lock(role: str) -> bool:
+    return role in _MARKETING_LOCK_ROLES
+
+
+def _should_freeze_marketing_coords(customer: Customer) -> bool:
+    return bool(customer.is_locked_marketing)
+
+
+def _coords_meaningfully_changed(customer: Customer, latitude, longitude, share_location) -> bool:
+    if _coord_delta(customer.latitude, latitude) > _COORD_CHANGE_EPS:
+        return True
+    if _coord_delta(customer.longitude, longitude) > _COORD_CHANGE_EPS:
+        return True
+    old_share = (customer.share_location or "").strip()
+    new_share = (share_location or "").strip()
+    return old_share != new_share
+
+
+def _assert_cannot_change_locked_coords(
+    customer: Customer,
+    *,
+    latitude=None,
+    longitude=None,
+    share_location=None,
+    replacing: bool = True,
+) -> None:
+    """Selama Kunci Marketing aktif, koordinat tidak boleh digeser atau diubah."""
+    if not _should_freeze_marketing_coords(customer):
+        return
+    if not replacing:
+        raise HTTPException(status_code=403, detail=MSG_COORDS_LOCKED_MARKETING)
+    if _coords_meaningfully_changed(customer, latitude, longitude, share_location):
+        raise HTTPException(status_code=403, detail=MSG_COORDS_LOCKED_MARKETING)
+
+
 def _serialize_customer(db: Session, customer: Customer) -> CustomerOut:
     rows = db.execute(
         select(CustomerVehicleTariff, VehicleType.name)
@@ -1087,8 +1144,20 @@ def update_customer(customer_id: int, payload: CustomerCreate, db: Session = Dep
                 detail="Customer telah dikunci. Hilangkan centang Kunci Marketing terlebih dahulu untuk menyimpan perubahan.",
             )
 
+    if obj.is_locked_marketing and not payload.is_locked_marketing:
+        if not _can_manage_marketing_lock(current_user.role):
+            raise HTTPException(status_code=403, detail=MSG_MARKETING_LOCK_CANNOT_UNLOCK)
+
     if payload.is_locked_finance and not payload.is_locked_marketing:
         raise HTTPException(status_code=400, detail="Kunci Finance hanya dapat dilakukan jika Kunci Marketing sudah aktif.")
+
+    freeze_coords = _should_freeze_marketing_coords(obj)
+    _assert_cannot_change_locked_coords(
+        obj,
+        latitude=payload.latitude,
+        longitude=payload.longitude,
+        share_location=payload.share_location,
+    )
 
     _validate_tariffs(db, payload.tariffs)
     code = _normalize_customer_code(payload.code)
@@ -1111,9 +1180,13 @@ def update_customer(customer_id: int, payload: CustomerCreate, db: Session = Dep
 
     obj.updated_at = func.now()
     obj.updated_by_id = current_user.id
-    obj.latitude = payload.latitude
-    obj.longitude = payload.longitude
-    obj.share_location = payload.share_location
+    if freeze_coords:
+        # Titik lokasi tetap milik Marketing selama kunci aktif.
+        pass
+    else:
+        obj.latitude = payload.latitude
+        obj.longitude = payload.longitude
+        obj.share_location = payload.share_location
     obj.custom_toll_breakdown = (
         json.dumps(payload.custom_toll_breakdown)
         if payload.custom_toll_breakdown is not None
@@ -2840,10 +2913,15 @@ def geocode_warehouse(db: Session = Depends(get_db)):
 
 
 @router.post("/customers/{customer_id}/geocode", response_model=CustomerOut)
-def geocode_customer(customer_id: int, db: Session = Depends(get_db)):
+def geocode_customer(
+    customer_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_api_access),
+):
     obj = db.get(Customer, customer_id)
     if not obj:
         raise HTTPException(status_code=404, detail="Customer not found")
+    _assert_cannot_change_locked_coords(obj, replacing=False)
     lat, lng = geocode_address(obj.address, obj.kelurahan, obj.kecamatan, obj.city, obj.name)
     obj.latitude = lat
     obj.longitude = lng
